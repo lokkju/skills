@@ -1,0 +1,23 @@
+# Claude Code per-user local settings
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Python / tool caches (pre-commit, uv, ruff runs against templates)
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+
+# Environment files
+.env
+.env.*
+!.env.example
