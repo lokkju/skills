@@ -45,23 +45,38 @@ def pointer_path(env: Mapping[str, str]) -> Path:
     return state_home(env) / "data-dir"
 
 
-def data_dir(env: Mapping[str, str], override: str | None = None) -> Path:
+def session_pointer_path(env: Mapping[str, str], sid: str) -> Path:
+    """Per-session pointer, so two installs (say a marketplace copy and a --plugin-dir copy)
+    running at once each keep their own data directory."""
+    return state_home(env) / "pointers" / sid
+
+
+def data_dir(env: Mapping[str, str], override: str | None = None, sid: str | None = None) -> Path:
     for value in (override, env.get("CLAUDE_PLUGIN_DATA")):
         if value:
             return Path(value)
-    try:
-        recorded = pointer_path(env).read_text(encoding="utf-8").strip()
-    except OSError:
-        recorded = ""
-    return Path(recorded) if recorded else state_home(env)
+    candidates = [session_pointer_path(env, sid)] if _safe(sid) else []
+    for pointer in candidates + [pointer_path(env)]:
+        try:
+            recorded = pointer.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if recorded:
+            return Path(recorded)
+    return state_home(env)
 
 
-def write_pointer(env: Mapping[str, str], data: Path) -> None:
-    pointer = pointer_path(env)
+def _write_if_changed(pointer: Path, value: str) -> None:
     try:
-        if pointer.read_text(encoding="utf-8").strip() == str(data):
+        if pointer.read_text(encoding="utf-8").strip() == value:
             return
     except OSError:
         pass
     pointer.parent.mkdir(parents=True, exist_ok=True)
-    pointer.write_text(str(data), encoding="utf-8")
+    pointer.write_text(value, encoding="utf-8")
+
+
+def write_pointer(env: Mapping[str, str], data: Path, sid: str | None = None) -> None:
+    if _safe(sid):
+        _write_if_changed(session_pointer_path(env, sid), str(data))
+    _write_if_changed(pointer_path(env), str(data))

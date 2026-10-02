@@ -11,8 +11,9 @@ def test_decide_draft_parsed():
     )
 
 
-def test_lowercase_keyword_normalized():
-    assert parse_draft("action: enable job tokens [no link]").kind == "ACTION"
+def test_lowercase_keyword_is_an_ordinary_task():
+    assert parse_draft("Action: refactor the parser") is None
+    assert parse_draft("decide: which library") is None
 
 
 def test_existing_label_is_dropped_for_renumbering():

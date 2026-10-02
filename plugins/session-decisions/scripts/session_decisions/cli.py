@@ -99,7 +99,7 @@ def main(argv: list[str], env: Mapping[str, str], stdin: IO[str], stdout: IO[str
     if sid is None:
         stderr.write("decisions: can't tell which session this is; pass --session <session id>\n")
         return 2
-    state_file = store.SessionState(paths.data_dir(env, args.data), sid)
+    state_file = store.SessionState(paths.data_dir(env, args.data, sid), sid)
     tasks = paths.tasks_dir(env, sid)
 
     if args.cmd == "list":

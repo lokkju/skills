@@ -12,8 +12,9 @@ from dataclasses import dataclass
 
 LETTER = {"DECIDE": "D", "ACTION": "A"}
 
-# An optional existing label ("D12 "), the kind keyword, a colon, then the body.
-_DRAFT = re.compile(r"^\s*(?:[DA]\d+\s+)?(DECIDE|ACTION)\s*:\s*(.*?)\s*$", re.IGNORECASE | re.DOTALL)
+# An optional existing label ("D12 "), the kind keyword, a colon, then the body. The keyword is
+# case-sensitive, so an ordinary task titled "Action: refactor the parser" isn't a decision item.
+_DRAFT = re.compile(r"^\s*(?:[DA]\d+\s+)?(DECIDE|ACTION)\s*:\s*(.*?)\s*$", re.DOTALL)
 _LABELLED = re.compile(r"^([DA])(\d+) (DECIDE|ACTION): (.*)$", re.DOTALL)
 # The link is the last bracketed token, at the very end of the body.
 _LINK = re.compile(r"\[[^\[\]]*\S[^\[\]]*\]$")
@@ -43,7 +44,7 @@ def parse_draft(subject: str) -> Draft | None:
     match = _DRAFT.match(subject or "")
     if match is None:
         return None
-    return Draft(kind=match.group(1).upper(), body=match.group(2))
+    return Draft(kind=match.group(1), body=match.group(2))
 
 
 def problems(draft: Draft) -> list[str]:

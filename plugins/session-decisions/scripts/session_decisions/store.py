@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from .subject import LETTER, Draft, parse_label
+from .subject import LETTER, Draft, parse_draft, parse_label
 
 try:
     import fcntl
@@ -44,7 +44,9 @@ class Item:
 
     @property
     def number(self) -> int:
-        return int(self.label[1:])
+        """0 for an item the hook didn't get to label ("D?")."""
+        digits = self.label[1:]
+        return int(digits) if digits.isdigit() else 0
 
     @property
     def is_open(self) -> bool:
@@ -53,6 +55,13 @@ class Item:
     @property
     def subject(self) -> str:
         return f"{self.label} {self.kind}: {self.body}"
+
+
+def _as_int(value: object) -> int:
+    try:
+        return max(0, int(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0
 
 
 def now_iso() -> str:
@@ -80,11 +89,17 @@ def read_task_items(tasks_dir: Path) -> list[Item]:
             continue
         if not isinstance(data, dict):
             continue
-        label = parse_label(str(data.get("subject", "")))
-        if label is None:
-            continue
+        subject = str(data.get("subject", ""))
+        label = parse_label(subject)
+        if label is not None:
+            text, kind, body = label.text, label.kind, label.body
+        else:
+            draft = parse_draft(subject)  # created while the hook was failing: unlabelled
+            if draft is None:
+                continue
+            text, kind, body = LETTER[draft.kind] + "?", draft.kind, draft.body
         description = str(data.get("description", ""))
-        items.append(Item(label=label.text, kind=label.kind, body=label.body,
+        items.append(Item(label=text, kind=kind, body=body,
                           status=str(data.get("status", "pending")), source="tasks",
                           description=description, ruling=_ruling_in(description)))
     return items
@@ -103,7 +118,7 @@ class SessionState:
         if not isinstance(data, dict):
             return copy.deepcopy(_EMPTY)
         counters = data.get("counters") if isinstance(data.get("counters"), dict) else {}
-        data["counters"] = {"D": int(counters.get("D", 0)), "A": int(counters.get("A", 0))}
+        data["counters"] = {letter: _as_int(counters.get(letter)) for letter in ("D", "A")}
         if not isinstance(data.get("created"), dict):
             data["created"] = {}
         if not isinstance(data.get("ledger"), list):

@@ -133,3 +133,30 @@ def test_data_dir_resolution(env_for, tmp_path):
     assert paths.data_dir(no_plugin_data) == tmp_path / "state" / "session-decisions"
     paths.write_pointer(env, tmp_path / "data")
     assert paths.data_dir(no_plugin_data) == tmp_path / "data"
+
+
+def test_non_integer_counter_is_treated_as_zero(tmp_path):
+    state_file = store.SessionState(tmp_path, "s1")
+    state_file.path.parent.mkdir(parents=True)
+    state_file.path.write_text(json.dumps({"counters": {"D": "x", "A": None}}))
+    with state_file.locked() as state:
+        assert store.assign_label(state, "DECIDE", []) == "D1"
+
+
+def test_unlabelled_item_from_a_failed_hook_is_still_shown(tmp_path):
+    tasks = tmp_path / "tasks"
+    write_task(tasks, 1, "DECIDE: x (recommend y) [no link]")
+    (item,) = store.read_task_items(tasks)
+    assert item.subject == "D? DECIDE: x (recommend y) [no link]" and item.is_open
+    state_file = store.SessionState(tmp_path / "data", "s1")
+    with state_file.locked() as state:
+        assert store.assign_label(state, "DECIDE", store.all_items(tasks, state)) == "D1"
+
+
+def test_pointer_is_per_session(env_for, tmp_path):
+    env = {k: v for k, v in env_for().items() if k != "CLAUDE_PLUGIN_DATA"}
+    paths.write_pointer(env, tmp_path / "installed", "s1")
+    paths.write_pointer(env, tmp_path / "inline", "s2")
+    assert paths.data_dir(env, sid="s1") == tmp_path / "installed"
+    assert paths.data_dir(env, sid="s2") == tmp_path / "inline"
+    assert paths.data_dir(env, sid="s3") == tmp_path / "inline"

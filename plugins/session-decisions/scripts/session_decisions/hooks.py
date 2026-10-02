@@ -73,17 +73,15 @@ def install_shim(data: Path, env: Mapping[str, str]) -> None:
 
 
 def session_start(payload: dict, env: Mapping[str, str]) -> dict | None:
-    data = paths.data_dir(env)
+    sid = paths.session_id(env, payload.get("session_id"))
+    data = paths.data_dir(env, sid=sid)
     try:
         install_shim(data, env)
         if env.get("CLAUDE_PLUGIN_DATA"):
-            paths.write_pointer(env, data)
+            paths.write_pointer(env, data, sid)
     except OSError:
         pass
-    if payload.get("source") not in ("compact", "resume"):
-        return None
-    sid = paths.session_id(env, payload.get("session_id"))
-    if sid is None:
+    if payload.get("source") not in ("compact", "resume") or sid is None:
         return None
     state = store.SessionState(data, sid).load()
     open_items = [item for item in store.all_items(paths.tasks_dir(env, sid), state) if item.is_open]
