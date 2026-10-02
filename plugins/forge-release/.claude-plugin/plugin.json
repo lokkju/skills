@@ -1,0 +1,9 @@
+{
+  "name": "forge-release",
+  "description": "Release-PR setup across forges (yeet, release-plz, release-please). This release has the GitHub App helper only: github-app-create registers a release App in two browser clicks and stores its credentials.",
+  "version": "0.1.0",
+  "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
+  "repository": "https://github.com/lokkju/skills-marketplace",
+  "license": "PolyForm-Shield-1.0.0",
+  "keywords": ["release", "github-app", "yeet", "release-please", "release-plz"]
+}
