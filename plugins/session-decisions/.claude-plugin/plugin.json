@@ -1,0 +1,9 @@
+{
+  "name": "session-decisions",
+  "description": "Keeps the decisions and actions an assistant is waiting on you for in the session task list: numbered D1, A1, ..., checked for a recommendation and a link, re-shown after compaction, and counted in the statusline.",
+  "version": "0.1.0",
+  "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
+  "repository": "https://github.com/lokkju/skills-marketplace",
+  "license": "PolyForm-Shield-1.0.0",
+  "keywords": ["decisions", "questions", "task-list", "hooks", "statusline"]
+}
