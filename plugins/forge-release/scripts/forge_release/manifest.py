@@ -80,9 +80,9 @@ class CallbackServer:
                 if parsed.path == "/":
                     self._reply(200, owner._page)
                 elif parsed.path == CALLBACK_PATH:
-                    owner._queries.put(urllib.parse.parse_qs(parsed.query))
-                    self._reply(200, "<!doctype html><p>GitHub App created. "
+                    self._reply(200, "<!doctype html><p>Back from GitHub. "
                                      "You can close this tab and go back to the terminal.</p>")
+                    owner._queries.put(urllib.parse.parse_qs(parsed.query))
                 else:
                     self._reply(404, "not found")
 

@@ -1,0 +1,220 @@
+import io
+import json
+import os
+import stat
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from forge_release import cli
+
+PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIfakeSECRET\n-----END RSA PRIVATE KEY-----\n"
+CONVERSION = {"id": 42, "slug": "acme-release", "client_id": "Iv23abc", "pem": PEM,
+              "html_url": "https://github.com/apps/acme-release"}
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "github-app-create"
+
+
+class FakeServer:
+    def __init__(self, state="st"):
+        self.state = state
+        self.page = None
+        self.closed = False
+        self.start_url = "http://127.0.0.1:9999/"
+        self.redirect_url = "http://127.0.0.1:9999/callback"
+
+    def set_page(self, page):
+        self.page = page
+
+    def wait(self, timeout):
+        return {"code": ["c0de"], "state": [self.state]}
+
+    def close(self):
+        self.closed = True
+
+
+class World:
+    def __init__(self, callback_state="st", installations=((200, [{"id": 777}]),), run_fail=None):
+        self.server = FakeServer(callback_state)
+        self.opened = []
+        self.http_calls = []
+        self.http_responses = [(201, CONVERSION), *installations]
+        self.commands = []
+        self.run_fail = run_fail
+        self.t = 0.0
+        self.out, self.err = io.StringIO(), io.StringIO()
+
+    def http(self, method, url, headers, body=None):
+        self.http_calls.append((method, url))
+        return self.http_responses.pop(0)
+
+    def run(self, argv, input=None, capture_output=None, text=None):
+        self.commands.append((argv, input))
+        code = 1 if self.run_fail and argv[:3] == self.run_fail else 0
+        return subprocess.CompletedProcess(argv, code, "", "")
+
+    def deps(self):
+        def sleep(s):
+            self.t += s
+
+        return cli.Deps(server_factory=lambda: self.server, open_browser=self.opened.append,
+                        http=self.http, run=self.run, sign=lambda data, pem: b"sig",
+                        clock=lambda: self.t, sleep=sleep, new_state=lambda: "st",
+                        stdout=self.out, stderr=self.err)
+
+    def main(self, args):
+        return cli.main(args, self.deps())
+
+    def no_pem_leak(self):
+        assert "MIIfake" not in self.out.getvalue() + self.err.getvalue()
+
+
+def manifest_of(page):
+    import html
+    import re
+    return json.loads(html.unescape(re.search(r'name="manifest" value="([^"]*)"', page).group(1)))
+
+
+def test_github_mode_end_to_end():
+    w = World()
+    code = w.main(["--org", "acme", "--name", "acme-release", "--repo", "acme/site", "--repo", "acme/api"])
+    assert code == 0
+    assert w.commands == [
+        (["gh", "variable", "set", "YEET_APP_ID", "-R", "acme/site", "--body", "Iv23abc"], None),
+        (["gh", "secret", "set", "YEET_APP_PRIVATE_KEY", "-R", "acme/site"], PEM),
+        (["gh", "variable", "set", "YEET_APP_ID", "-R", "acme/api", "--body", "Iv23abc"], None),
+        (["gh", "secret", "set", "YEET_APP_PRIVATE_KEY", "-R", "acme/api"], PEM),
+    ]
+    m = manifest_of(w.server.page)
+    assert m["default_permissions"] == {"contents": "write", "pull_requests": "write"}
+    assert m["redirect_url"] == w.server.redirect_url and m["name"] == "acme-release"
+    assert 'action="https://github.com/organizations/acme/settings/apps/new?state=st"' in w.server.page
+    assert w.opened == [w.server.start_url, "https://github.com/apps/acme-release/installations/new"]
+    assert w.http_calls[0] == ("POST", "https://api.github.com/app-manifests/c0de/conversions")
+    assert w.http_calls[1] == ("GET", "https://api.github.com/app/installations")
+    out = w.out.getvalue() + w.err.getvalue()
+    assert w.server.start_url in out and "installations/new" in out and "777" in out
+    assert w.server.closed
+    w.no_pem_leak()
+
+
+def test_user_mode_and_custom_permissions_and_homepage():
+    w = World()
+    assert w.main(["--user", "--name", "mine", "--repo", "me/r", "--permission", "contents=read",
+                   "--permission", "issues=write", "--homepage", "https://example.com"]) == 0
+    assert 'action="https://github.com/settings/apps/new?state=st"' in w.server.page
+    m = manifest_of(w.server.page)
+    assert m["default_permissions"] == {"contents": "read", "issues": "write"}
+    assert m["url"] == "https://example.com"
+
+
+def test_state_mismatch_is_rejected_before_conversion():
+    w = World(callback_state="evil")
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site"]) == 1
+    assert w.http_calls == [] and w.commands == []
+    assert "state" in w.err.getvalue()
+
+
+def test_pulumi_mode():
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "prod",
+                   "--cwd", "/srv/infra"]) == 0
+    base = ["pulumi", "config", "set", "--secret", "--stack", "prod", "--cwd", "/srv/infra"]
+    assert w.commands == [
+        (base + ["yeetAppId"], "Iv23abc"),
+        (base + ["yeetAppPrivateKey"], PEM),
+        (base + ["yeetAppInstallationId"], "777"),
+    ]
+    w.no_pem_leak()
+
+
+def test_pulumi_mode_custom_names():
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "s",
+                   "--client-id-var", "RELEASE_APP_ID", "--key-secret", "RELEASE_APP_KEY",
+                   "--installation-id-var", "RELEASE_APP_INSTALLATION"]) == 0
+    assert [argv[-1] for argv, _ in w.commands] == ["releaseAppId", "releaseAppKey",
+                                                     "releaseAppInstallation"]
+    assert w.commands[0][0][7] == "."
+
+
+def test_stdout_mode_json_and_key_file(tmp_path):
+    w = World()
+    key = tmp_path / "app.pem"
+    assert w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key)]) == 0
+    assert json.loads(w.out.getvalue()) == {
+        "app_id": 42, "slug": "acme-release", "client_id": "Iv23abc", "installation_id": 777,
+        "private_key_file": str(key), "html_url": "https://github.com/apps/acme-release"}
+    assert key.read_text() == PEM and stat.S_IMODE(os.stat(key).st_mode) == 0o600
+    assert w.commands == []
+    w.no_pem_leak()
+
+
+def test_installation_timeout_reports_and_keeps_stored_credentials(tmp_path):
+    w = World(installations=[(200, [])] * 500)
+    key = tmp_path / "app.pem"
+    assert w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key),
+                   "--timeout", "20"]) == 1
+    assert json.loads(w.out.getvalue())["installation_id"] is None
+    assert "timed out" in w.err.getvalue() and "installations/new" in w.err.getvalue()
+    assert key.exists()
+    w.no_pem_leak()
+
+
+def test_storage_failure_saves_key_to_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    w = World(run_fail=["gh", "secret", "set"])
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site"]) == 1
+    saved = tmp_path / "acme-release.private-key.pem"
+    assert saved.read_text() == PEM and stat.S_IMODE(os.stat(saved).st_mode) == 0o600
+    assert str(saved) in w.err.getvalue() or saved.name in w.err.getvalue()
+    assert len(w.http_calls) == 1
+    w.no_pem_leak()
+
+
+@pytest.mark.parametrize("args,msg", [
+    (["--org", "acme", "--name", "n"], "--repo"),
+    (["--org", "acme", "--name", "n", "--to", "pulumi"], "--stack"),
+    (["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents"], "contents"),
+    (["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents=all"], "contents"),
+    (["--org", "acme", "--name", "n", "--repo", "nope"], "owner/repo"),
+    (["--org", "acme", "--user", "--name", "n", "--repo", "a/b"], "not allowed"),
+])
+def test_usage_errors(args, msg, capsys):
+    w = World()
+    with pytest.raises(SystemExit) as e:
+        w.main(args)
+    assert e.value.code == 2 and msg in capsys.readouterr().err
+    assert w.opened == []
+
+
+def test_script_help_runs():
+    out = subprocess.run([str(SCRIPT), "--help"], capture_output=True, text=True)
+    assert out.returncode == 0 and "--permission" in out.stdout
+
+
+def test_existing_key_file_is_refused_before_the_browser(tmp_path, capsys):
+    key = tmp_path / "app.pem"
+    key.write_text("old")
+    w = World()
+    with pytest.raises(SystemExit) as e:
+        w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key)])
+    assert e.value.code == 2 and "exists" in capsys.readouterr().err
+    assert w.opened == [] and key.read_text() == "old"
+
+
+def test_pulumi_installation_store_failure_is_not_reported_as_timeout():
+    w = World(run_fail=["pulumi", "config", "set"])
+    w.run_fail = None
+    original = w.run
+
+    def run(argv, **k):
+        if argv[-1] == "yeetAppInstallationId":
+            w.commands.append((argv, k.get("input")))
+            return subprocess.CompletedProcess(argv, 1, "", "no stack")
+        return original(argv, **k)
+
+    w.run = run
+    assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "s"]) == 1
+    err = w.err.getvalue()
+    assert "no stack" in err and "777" in err and "install the App" not in err
