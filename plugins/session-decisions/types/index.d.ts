@@ -36,6 +36,7 @@ declare module 'claude-code' {
       created: Record<string, number>
       showSettled: boolean
       bandHidden: boolean
+      ascii: boolean
     }
   }
 }

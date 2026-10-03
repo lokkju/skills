@@ -11,7 +11,7 @@ const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, 
  * The engine's own behaviour beneath the plugin: a clock, a store, a task list in memory that
  * the plugin's one read at session start sees as files, a prompt box, and the UI it reports to.
  */
-function engine(on: On) {
+function engine(on: On, env: Record<string, string> = {}) {
   const tasks = new Map<string, { subject: string; description: string; status: string }>()
   const filled: string[] = []
   let draft = ''
@@ -20,7 +20,7 @@ function engine(on: On) {
   let next = 1
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 3, 12) })
   mock.store(on)
-  mock.env(on, { HOME: '/home/me' })
+  mock.env(on, { HOME: '/home/me', ...env })
   on('session.id', () => ({ value: SID }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
@@ -155,7 +155,7 @@ describe('drawing', () => {
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PLUGIN, props: {} as never })
-      expect(await ui.find({ type: 'Text', text: '1 waiting on you' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '1 open' })).toBeDefined()
       await ui.press({ key: 'accept-D1' })
       await ui.unmount()
     }
@@ -177,6 +177,21 @@ describe('drawing', () => {
     expect(filled.at(-1)).toBe('D1: go with SQLite\nA1: done\nD2: go with yes')
   })
 
+  test('settled cards show their ruling, and NO_COLOR draws ASCII', async ($, on) => {
+    engine(on, { NO_COLOR: '1' })
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, 'ACTION: run gh auth login [no link]')
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '2', status: 'completed', description: 'Ruling (2026-10-03): moot, logged in already' })
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: '[1 open]' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '+ recommends' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '2026-10-03 · moot' })).toBeUndefined()
+    await ui.press({ key: 'settled' })
+    expect(await ui.find({ type: 'Text', text: '2026-10-03 · moot, logged in already' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'x' })).toBeDefined()
+  })
+
   test('the band shows while something is open and hides on request', async ($, on) => {
     engine(on)
     await start($)
@@ -189,7 +204,7 @@ describe('drawing', () => {
     await create($, 'ACTION: run gh auth login [no link]')
     for (const surface of ['terminal', 'desktop'] as const) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props })
-      expect(await ui.find({ type: 'Text', text: '1 waiting on you' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: '1 OPEN' })).toBeDefined()
       await ui.unmount()
     }
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props })

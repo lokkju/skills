@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder } from '../hooks/queue'
-import { parseDraft, parseLabel, problems, recommendation, rulingIn } from '../hooks/subject'
+import { parseDraft, parseLabel, problems, recommendation, rulingIn, splitBody } from '../hooks/subject'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -33,6 +33,13 @@ describe('subject', () => {
     expect(parseLabel('DECIDE: no label yet')).toBeNull()
     expect(recommendation('Postgres or SQLite? (recommend SQLite) [#3]')).toBe('SQLite')
     expect(rulingIn('context\nRuling (2026-10-01): no\nRuling (2026-10-03): yes')).toBe('Ruling (2026-10-03): yes')
+
+  })
+
+  test('a body splits into question, recommendation and link for a card', () => {
+    expect(splitBody('Postgres or SQLite? (recommend SQLite) [#3]')).toEqual({ question: 'Postgres or SQLite?', recommendation: 'SQLite', link: '#3' })
+    expect(splitBody('Merge it (recommend yes, after a test; solo repo) and push [no link]')).toEqual({ question: 'Merge it and push', recommendation: 'yes, after a test; solo repo', link: null })
+    expect(splitBody('run gh auth login [https://example.com/x]')).toEqual({ question: 'run gh auth login', recommendation: null, link: 'https://example.com/x' })
   })
 })
 

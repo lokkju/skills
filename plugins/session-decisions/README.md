@@ -9,13 +9,17 @@ open.
   merge or pull request, URL, or `no link`.
 - **Numbering:** a hook on TaskCreate assigns `D<k>`/`A<k>` and refuses items without a
   recommendation or a link, telling the assistant what's missing.
-- **Band:** while anything is open, a row above the prompt shows the count and the oldest item,
-  with Show and Hide buttons. It comes back when a new item arrives.
-- **Pane:** `/decisions pane` (or Show) opens a list of every item with its age. Accept adds
-  `D3: go with <the recommendation>` to your prompt, Done adds `A2: done`, and Answer adds `D3: `.
-  Each press adds or replaces that item's line, so you can answer several items in one message;
-  Accept all adds a line for every open recommendation. You edit and send it like any answer.
-  Show settled adds completed items and their rulings.
+- **Band:** while anything is open, a row above the prompt shows an `N OPEN` chip, the next item
+  and its age, with Show and Hide buttons. It comes back when a new item arrives.
+- **Pane:** `/decisions pane` (or Show) opens the open items as cards: a kind chip (`DECIDE` or
+  `ACTION`), the question, the recommendation, the link and its age, which turns red after a day.
+  The oldest card's border is in the accent color. Accept adds `D3: go with <the recommendation>`
+  to your prompt, Done adds `A2: done`, and Answer adds `D3: `. Each press adds or replaces that
+  item's line, so you can answer several items in one message; Accept all adds a line for every
+  open recommendation. You edit and send it like any answer. `Settled (n)` shows completed items
+  and their rulings.
+- **Colors:** the cards use Claude Code's own theme colors, so they follow your theme. With
+  `NO_COLOR` set or `TERM=dumb`, chips and glyphs fall back to ASCII (`[DECIDE]`, `+`, `x`).
 - **Status:** the open count is the plugin's status entry under the prompt.
 - **Compaction:** after compaction or resume, the assistant is reminded of what's still open.
 - **Commands:** `/decisions` lists open items, `/decisions all` adds settled ones with their

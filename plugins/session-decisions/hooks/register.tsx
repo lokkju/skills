@@ -16,7 +16,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { LETTER, formatSubject, parseDraft, problems, recommendation, rulingIn } from './subject'
+import { LETTER, formatSubject, parseDraft, problems, recommendation, rulingIn, splitBody } from './subject'
 
 type $ = EngineInterface
 
@@ -31,6 +31,12 @@ const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const,
 const created = atom({ plugin: 'session-decisions', key: 'created' } as const, {} as Record<string, number>)
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const bandHidden = atom({ plugin: 'session-decisions', key: 'bandHidden' } as const, false)
+const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
+
+const DAY = 24 * 60 * 60 * 1000
+// Claude Code's own theme keys, so the cards follow whichever theme the person runs.
+const ACCENT = 'claude'
+const KIND_COLOR = { DECIDE: 'warning', ACTION: 'suggestion' } as const
 
 async function sessionId($: $): Promise<string | null> {
   const sid = await $.session.id()
@@ -191,6 +197,9 @@ export const register: Register = on => {
         required: ['label', 'ruling'],
       },
     }))
+    const term = await $.env.get('TERM')
+    const noColor = await $.env.get('NO_COLOR')
+    await update($, ascii, () => Boolean(noColor) || term === 'dumb')
     await hydrate($)
     await quietly(prune($))
     return next(e)
@@ -309,16 +318,28 @@ export const register: Register = on => {
     if (e.props.hasSurvey || open.length === 0 || hidden) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
+    const plain = await read($, ascii)
+    const now = await $.clock.now()
     const first = open[0]!
+    const stale = first.created !== undefined && now - first.created > DAY
     const band = (
       <Box key="decisions-band" flexDirection="row" width={e.props.bodyColumns} gap={1}>
-        <Text bold color="yellow">
-          {open.length} waiting on you
+        <Text bold backgroundColor={ACCENT} color="inverseText" dimColor={e.props.isWorking}>
+          {plain ? `[${open.length} OPEN]` : ` ${open.length} OPEN `}
         </Text>
-        <Text dimColor wrap="truncate-end">
-          {subjectOf(first)}
-        </Text>
-        <Button key="show" label="Show" onPress={() => void $.ui.open({ id: PANE, title: 'Decisions' }).catch(() => undefined)} />
+        <Text dimColor>next</Text>
+        <Text bold>{first.label}</Text>
+        <Box flexGrow={1} flexShrink={1}>
+          <Text wrap="truncate-end" dimColor={e.props.isWorking}>
+            {splitBody(first.body).question}
+          </Text>
+        </Box>
+        {first.created !== undefined && (
+          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+            {age(first.created, now).replace('waiting ', '')}
+          </Text>
+        )}
+        <Button key="show" label="Show" variant="primary" onPress={() => void $.ui.open({ id: PANE, title: 'Decisions', focus: true }).catch(() => undefined)} />
         <Button key="hide" label="Hide" role="dismiss" onPress={() => update($, bandHidden, () => true)} />
       </Box>
     )
@@ -336,10 +357,11 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
     const list = ordered(await read($, items))
-    const settled = await read($, showSettled)
+    const settledOpen = await read($, showSettled)
+    const plain = await read($, ascii)
     const now = await $.clock.now()
     const open = list.filter(isOpen)
-    const shown = settled ? list : open
+    const settled = list.filter(item => !isOpen(item))
 
     // Each press adds or replaces its item's line in the draft, so one message can answer several.
     const answer = (lines: string[]) => () =>
@@ -352,64 +374,109 @@ export const register: Register = on => {
       return choice ? [`${item.label}: go with ${choice}`] : []
     })
 
-    return (
-      <Box flexDirection="column" gap={1}>
-        <Box key="head" flexDirection="row" gap={1}>
-          <Text bold>
-            {open.length ? `${open.length} waiting on you` : 'Nothing waiting on you'}
-          </Text>
-          {accepts.length > 1 && (
-            <Button key="accept-all" label="Accept all" variant="primary" onPress={answer(accepts)} />
+    const chip = (text: string, color: string, dim = false) => (
+      <Text bold backgroundColor={dim ? undefined : color} color={dim ? undefined : 'inverseText'} dimColor={dim}>
+        {plain ? `[${text}]` : ` ${text} `}
+      </Text>
+    )
+
+    const card = (item: Item, isNext: boolean) => {
+      const parts = splitBody(item.body)
+      const stale = item.created !== undefined && now - item.created > DAY
+      return (
+        <Box
+          key={`item-${item.source}-${item.id}`}
+          flexDirection="column"
+          borderStyle="round"
+          borderColor={isNext ? ACCENT : 'inactive'}
+          hover={{ borderColor: ACCENT }}
+          paddingX={1}
+        >
+          <Box key="top" flexDirection="row" gap={1}>
+            {chip(item.kind, KIND_COLOR[item.kind])}
+            <Text bold>{item.label}</Text>
+            {item.source === 'ledger' && <Text dimColor>ledger</Text>}
+            <Box flexGrow={1} />
+            {item.created !== undefined && (
+              <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+                {age(item.created, now)}
+              </Text>
+            )}
+          </Box>
+          <Text>{parts.question}</Text>
+          {parts.recommendation && (
+            <Box key="rec" flexDirection="row" gap={1}>
+              <Text color="success">{plain ? '+ recommends' : '✓ recommends'}</Text>
+              <Box flexShrink={1}>
+                <Text>{parts.recommendation}</Text>
+              </Box>
+            </Box>
           )}
+          <Box key="actions" flexDirection="row" gap={1}>
+            {parts.recommendation && item.kind === 'DECIDE' && (
+              <Button
+                key={`accept-${item.label}`}
+                label="Accept"
+                variant="primary"
+                onPress={answer([`${item.label}: go with ${parts.recommendation}`])}
+              />
+            )}
+            {item.kind === 'ACTION' && (
+              <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer([`${item.label}: done`])} />
+            )}
+            <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer([`${item.label}: `])} />
+            <Box flexGrow={1} />
+            <Text dimColor wrap="truncate-start">
+              {parts.link ?? 'no link'}
+            </Text>
+          </Box>
+        </Box>
+      )
+    }
+
+    const settledCard = (item: Item) => {
+      const ruling = (rulingIn(item.description) ?? '').replace(/^Ruling \(([^)]*)\):\s*/, '$1 · ')
+      const moot = /·\s*moot\b/i.test(ruling)
+      return (
+        <Box key={`item-${item.source}-${item.id}`} flexDirection="column" borderStyle="round" borderColor="inactive" borderDimColor paddingX={1}>
+          <Box key="top" flexDirection="row" gap={1}>
+            <Text color={moot ? undefined : 'success'} dimColor={moot}>
+              {moot ? (plain ? 'x' : '✗') : plain ? '+' : '✓'}
+            </Text>
+            <Text bold dimColor>
+              {item.label}
+            </Text>
+            <Box flexShrink={1}>
+              <Text dimColor wrap="truncate-end">
+                {splitBody(item.body).question}
+              </Text>
+            </Box>
+          </Box>
+          {ruling && <Text dimColor>{ruling}</Text>}
+        </Box>
+      )
+    }
+
+    return (
+      <Box flexDirection="column">
+        <Box key="head" flexDirection="row" gap={1} marginBottom={1}>
+          <Text bold>Decisions</Text>
+          {open.length > 0 ? chip(`${open.length} open`, ACCENT) : <Text dimColor>Nothing waiting on you</Text>}
+          {settled.length > 0 && chip(`${settled.length} settled`, 'inactive', true)}
+          <Box flexGrow={1} />
+          {accepts.length > 1 && <Button key="accept-all" label="Accept all" variant="primary" onPress={answer(accepts)} />}
+        </Box>
+        {open.map((item, i) => card(item, i === 0))}
+        {settled.length > 0 && (
           <Button
             key="settled"
-            label={settled ? 'Hide settled' : 'Show settled'}
+            plain
+            dimColor
+            label={`${settledOpen ? (plain ? 'v' : '⌄') : plain ? '>' : '›'} Settled (${settled.length})`}
             onPress={() => update($, showSettled, value => !value)}
           />
-        </Box>
-        {shown.length === 0 && (
-          <Text dimColor>
-            No decisions or actions this session.
-          </Text>
         )}
-        {shown.map(item => {
-          const choice = item.kind === 'DECIDE' ? recommendation(item.body) : null
-          const ruling = rulingIn(item.description)
-          const live = isOpen(item)
-          return (
-            <Box key={`item-${item.source}-${item.id}`} flexDirection="column">
-              <Text bold={live} dimColor={!live}>
-                {item.label} {item.kind}
-                {item.source === 'ledger' ? ' (ledger)' : ''}
-                {live && item.created ? `  ${age(item.created, now)}` : ''}
-              </Text>
-              <Text dimColor={!live}>
-                {item.body}
-              </Text>
-              {ruling && (
-                <Text dimColor italic>
-                  {ruling}
-                </Text>
-              )}
-              {live && (
-                <Box key="actions" flexDirection="row" gap={1}>
-                  {choice && (
-                    <Button
-                      key={`accept-${item.label}`}
-                      label="Accept"
-                      variant="primary"
-                      onPress={answer([`${item.label}: go with ${choice}`])}
-                    />
-                  )}
-                  {item.kind === 'ACTION' && (
-                    <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer([`${item.label}: done`])} />
-                  )}
-                  <Button key={`answer-${item.label}`} label="Answer" onPress={answer([`${item.label}: `])} />
-                </Box>
-              )}
-            </Box>
-          )
-        })}
+        {settledOpen && settled.map(settledCard)}
       </Box>
     )
   })

@@ -69,3 +69,20 @@ export function rulingIn(description: string): string | null {
   const lines = description.split('\n').reverse()
   return lines.find(line => line.startsWith('Ruling (')) ?? null
 }
+
+export type BodyParts = { question: string; recommendation: string | null; link: string | null }
+
+/** A body split for display: the question alone, the recommended choice, and the link token. */
+export function splitBody(body: string): BodyParts {
+  let rest = body.trim()
+  let link: string | null = null
+  const linked = LINK.exec(rest)
+  if (linked) {
+    const token = linked[0].slice(1, -1).trim()
+    link = token.toLowerCase() === 'no link' ? null : token
+    rest = rest.slice(0, linked.index).trim()
+  }
+  const choice = recommendation(rest)
+  if (choice) rest = rest.replace(CHOICE, '').replace(/\s{2,}/g, ' ').trim()
+  return { question: rest, recommendation: choice, link }
+}
