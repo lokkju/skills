@@ -14,6 +14,7 @@ const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, 
 function engine(on: On) {
   const tasks = new Map<string, { subject: string; description: string; status: string }>()
   const filled: string[] = []
+  let draft = ''
   const submitted: string[] = []
   const status: (string | undefined)[] = []
   let next = 1
@@ -63,8 +64,10 @@ function engine(on: On) {
   })
   on('prompt.fill', (_$, e) => {
     filled.push(e.text)
+    draft = e.text
     return { isFilled: true }
   })
+  on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
   return { tasks, filled, submitted, status, clock }
 }
 
@@ -157,6 +160,21 @@ describe('drawing', () => {
       await ui.unmount()
     }
     expect(filled).toEqual(SURFACES.map(() => 'D1: go with SQLite'))
+  })
+
+  test('presses build one message, and Accept all answers every recommendation', async ($, on) => {
+    const { filled } = engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'DECIDE: retire kapp? (recommend yes) [no link]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    await ui.press({ key: 'accept-D1' })
+    await ui.press({ key: 'done-A1' })
+    await ui.press({ key: 'answer-D1' })
+    expect(filled.at(-1)).toBe('D1: \nA1: done')
+    await ui.press({ key: 'accept-all' })
+    expect(filled.at(-1)).toBe('D1: go with SQLite\nA1: done\nD2: go with yes')
   })
 
   test('the band shows while something is open and hides on request', async ($, on) => {

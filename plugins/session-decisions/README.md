@@ -11,9 +11,11 @@ open.
   recommendation or a link, telling the assistant what's missing.
 - **Band:** while anything is open, a row above the prompt shows the count and the oldest item,
   with Show and Hide buttons. It comes back when a new item arrives.
-- **Pane:** `/decisions pane` (or Show) opens a list of every item with its age. Accept fills your
-  prompt with `D3: go with <the recommendation>`, Done with `A2: done`, and Answer with `D3: `;
-  you edit and send it like any answer. Show settled adds completed items and their rulings.
+- **Pane:** `/decisions pane` (or Show) opens a list of every item with its age. Accept adds
+  `D3: go with <the recommendation>` to your prompt, Done adds `A2: done`, and Answer adds `D3: `.
+  Each press adds or replaces that item's line, so you can answer several items in one message;
+  Accept all adds a line for every open recommendation. You edit and send it like any answer.
+  Show settled adds completed items and their rulings.
 - **Status:** the open count is the plugin's status entry under the prompt.
 - **Compaction:** after compaction or resume, the assistant is reminded of what's still open.
 - **Commands:** `/decisions` lists open items, `/decisions all` adds settled ones with their

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, nextNumber, reminder } from '../hooks/queue'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, rulingIn } from '../hooks/subject'
 import type { Item } from '../types'
 
@@ -63,5 +63,13 @@ describe('queue', () => {
     expect(reminder(list)).toContain('- D1 DECIDE:')
     expect(reminder([])).toBeNull()
     expect(age(undefined, 5)).toBe('')
+  })
+
+  test('answers merge into the draft one line per label', () => {
+    expect(mergeAnswers('', ['D1: go with yes'])).toBe('D1: go with yes')
+    expect(mergeAnswers('D1: go with yes', ['A2: done'])).toBe('D1: go with yes\nA2: done')
+    expect(mergeAnswers('D1: go with yes\nA2: done\n', ['D1: '])).toBe('D1: \nA2: done')
+    expect(mergeAnswers('also, rebase first', ['D1: go with yes', 'D2: go with no'])).toBe('also, rebase first\nD1: go with yes\nD2: go with no')
+    expect(mergeAnswers('D10: go with x', ['D1: go with y'])).toBe('D10: go with x\nD1: go with y')
   })
 })

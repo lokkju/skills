@@ -58,7 +58,8 @@ open with a short list of them.
 
 The user may answer by pressing Accept, Done or Answer in the decisions pane. That fills their
 prompt with `D3: go with <choice>`, `A2: done` or `D3: `, which they edit and send like any other
-answer; record it the same way.
+answer; record it the same way. Their buttons add one line per item, so a single message can
+answer several items; record each one.
 
 ## Wrapping up
 

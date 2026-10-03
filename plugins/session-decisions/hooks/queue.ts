@@ -143,3 +143,19 @@ export function reminder(items: readonly Item[]): string | null {
   }
   return lines.join('\n')
 }
+
+/**
+ * The prompt draft with one answer line per label: `lines` replace any line already answering
+ * the same label and are appended otherwise, so several presses build one message of answers.
+ */
+export function mergeAnswers(draft: string, lines: readonly string[]): string {
+  const out = draft.replace(/\s+$/, '').split('\n').filter((line, i, all) => line !== '' || i < all.length - 1)
+  if (out.length === 1 && out[0] === '') out.pop()
+  for (const line of lines) {
+    const label = line.slice(0, line.indexOf(':') + 1)
+    const at = out.findIndex(one => one.startsWith(label))
+    if (at < 0) out.push(line)
+    else out[at] = line
+  }
+  return out.join('\n')
+}

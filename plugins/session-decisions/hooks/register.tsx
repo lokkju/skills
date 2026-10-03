@@ -9,6 +9,7 @@ import {
   isOpen,
   itemFromTask,
   listing,
+  mergeAnswers,
   nextNumber,
   ordered,
   reminder,
@@ -340,7 +341,16 @@ export const register: Register = on => {
     const open = list.filter(isOpen)
     const shown = settled ? list : open
 
-    const fill = (text: string) => () => void $.prompt.fill({ text }).catch(() => undefined)
+    // Each press adds or replaces its item's line in the draft, so one message can answer several.
+    const answer = (lines: string[]) => () =>
+      void $.prompt
+        .read()
+        .then(box => $.prompt.fill({ text: mergeAnswers(box.text, lines) }))
+        .catch(() => undefined)
+    const accepts = open.flatMap(item => {
+      const choice = item.kind === 'DECIDE' ? recommendation(item.body) : null
+      return choice ? [`${item.label}: go with ${choice}`] : []
+    })
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -348,6 +358,9 @@ export const register: Register = on => {
           <Text bold>
             {open.length ? `${open.length} waiting on you` : 'Nothing waiting on you'}
           </Text>
+          {accepts.length > 1 && (
+            <Button key="accept-all" label="Accept all" variant="primary" onPress={answer(accepts)} />
+          )}
           <Button
             key="settled"
             label={settled ? 'Hide settled' : 'Show settled'}
@@ -385,13 +398,13 @@ export const register: Register = on => {
                       key={`accept-${item.label}`}
                       label="Accept"
                       variant="primary"
-                      onPress={fill(`${item.label}: go with ${choice}`)}
+                      onPress={answer([`${item.label}: go with ${choice}`])}
                     />
                   )}
                   {item.kind === 'ACTION' && (
-                    <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={fill(`${item.label}: done`)} />
+                    <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer([`${item.label}: done`])} />
                   )}
-                  <Button key={`answer-${item.label}`} label="Answer" onPress={fill(`${item.label}: `)} />
+                  <Button key={`answer-${item.label}`} label="Answer" onPress={answer([`${item.label}: `])} />
                 </Box>
               )}
             </Box>
