@@ -21,3 +21,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Engine type declarations, written per Claude Code build by /plugin-types
+**/.claude/types/
