@@ -18,11 +18,18 @@ def test_manifest_fields():
     assert m == {
         "name": "acme-release",
         "url": "https://example.com/acme",
-        "hook_attributes": {"active": False},
         "redirect_url": "http://127.0.0.1:5000/callback",
         "public": False,
         "default_permissions": PERMS,
     }
+
+
+def test_manifest_has_no_webhook_block():
+    # GitHub rejects a manifest whose hook_attributes lack a url ('"url" wasn't supplied'),
+    # even with active: false. Leaving the block out creates the App with no webhook.
+    m = manifest.build_manifest("acme-release", "https://example.com/acme", PERMS,
+                                "http://127.0.0.1:5000/callback")
+    assert "hook_attributes" not in m
 
 
 def test_form_action_org():

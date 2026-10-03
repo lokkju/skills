@@ -23,7 +23,6 @@ def build_manifest(name: str, homepage: str, permissions: Mapping[str, str],
     return {
         "name": name,
         "url": homepage,
-        "hook_attributes": {"active": False},
         "redirect_url": redirect_url,
         "public": False,
         "default_permissions": dict(permissions),
