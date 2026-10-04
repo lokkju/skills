@@ -35,7 +35,8 @@ declare module 'claude-code' {
       counters: Counters
       created: Record<string, number>
       showSettled: boolean
-      bandHidden: boolean
+      paneDismissed: boolean
+      autoOpened: boolean
       ascii: boolean
     }
   }

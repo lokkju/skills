@@ -30,7 +30,12 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { value: undefined }
   })
   on('ui.toast', () => ({ value: undefined }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const opened: { id: string; focus?: true }[] = []
+  on('ui.open', (_$, e) => {
+    opened.push({ id: e.id, focus: e.focus })
+    return { value: { isPlaced: true } }
+  })
+  on('ui.close', () => ({ value: undefined }))
   on('prompt.submit', (_$, e) => {
     submitted.push(e.text)
     return { text: e.text }
@@ -68,7 +73,7 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, filled, submitted, status, clock }
+  return { tasks, filled, submitted, status, clock, opened }
 }
 
 async function start($: any) {
@@ -192,23 +197,52 @@ describe('drawing', () => {
     expect(await ui.find({ type: 'Text', text: 'x' })).toBeDefined()
   })
 
-  test('the band shows while something is open and hides on request', async ($, on) => {
-    engine(on)
+  test('the footer counts open items and opens the queue when pressed', async ($, on) => {
+    const { opened } = engine(on)
     await start($)
-    const props = { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100 } as never
+    const props = { modes: [] } as never
     for (const surface of ['terminal', 'desktop'] as const) {
-      const empty = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props })
-      expect(await empty.find({ key: 'decisions-band' })).toBeUndefined()
+      const empty = await $.ui.mount({ plugin: PLUGIN, surface, component: 'SessionMode', props })
+      expect(await empty.find({ key: 'decisions-footer' })).toBeUndefined()
       await empty.unmount()
     }
     await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
     for (const surface of ['terminal', 'desktop'] as const) {
-      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props })
-      expect(await ui.find({ type: 'Text', text: '1 OPEN' })).toBeDefined()
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'SessionMode', props })
+      expect((await ui.find({ key: 'decisions-count' }))?.text).toBe('2 decisions')
+      await ui.press({ key: 'decisions-count' })
       await ui.unmount()
     }
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props })
-    await ui.press({ key: 'hide' })
-    expect(await ui.find({ key: 'decisions-band' })).toBeUndefined()
+    expect(opened.at(-1)).toEqual({ id: PLUGIN, focus: true })
+  })
+
+  test('a TaskCreate row in the transcript draws as its card, on every surface', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: { task: { id: '1', subject: 'D1 DECIDE: x' } } } as never
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolUse', requestId: 't1', props })
+      expect(await ui.find({ type: 'Text', text: 'recommends SQLite' })).toBeDefined()
+      expect(await ui.find({ key: 'accept-D1' })).toBeDefined()
+      await ui.unmount()
+    }
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '1', status: 'completed', description: 'Ruling (2026-10-04): SQLite' })
+    const settled = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
+    expect(await settled.find({ type: 'Text', text: '2026-10-04 · SQLite' })).toBeDefined()
+    expect(await settled.find({ key: 'accept-D1' })).toBeUndefined()
+  })
+
+  test('the sidebar opens itself in fullscreen and docks borderless', async ($, on) => {
+    const { opened } = engine(on)
+    await start($)
+    const footer = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'SessionMode', props: { modes: [] } as never, viewport: { columns: 200, rows: 50, isFullscreen: true } })
+    await footer.unmount()
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    expect(opened).toEqual([{ id: PLUGIN, focus: undefined }])
+    const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: { placement: 'dock', bodyColumns: 50 } as never })
+    expect(await pane.find({ type: 'Text', text: 'Postgres or SQLite?' })).toBeDefined()
+    expect(JSON.stringify(await pane.drawn())).not.toContain('borderStyle')
   })
 })

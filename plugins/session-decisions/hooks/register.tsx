@@ -30,7 +30,11 @@ const items = atom({ plugin: 'session-decisions', key: 'items' } as const, [] as
 const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const, { D: 0, A: 0 } as Counters)
 const created = atom({ plugin: 'session-decisions', key: 'created' } as const, {} as Record<string, number>)
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
-const bandHidden = atom({ plugin: 'session-decisions', key: 'bandHidden' } as const, false)
+const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
+const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
+// Whether this surface docks panes beside the transcript: fixed per session on the terminal and
+// learnt from the footer's drawing. A module variable, since a drawing may not write state.
+let docks = false
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
 
 const DAY = 24 * 60 * 60 * 1000
@@ -125,18 +129,37 @@ async function hydrate($: $): Promise<void> {
   await update($, counters, now =>
     coverLabels({ D: Math.max(now.D, record.counters.D), A: Math.max(now.A, record.counters.A) }, merged),
   )
-  publish($, merged)
+  await publish($, merged)
 }
 
-function publish($: $, list: readonly Item[]): void {
-  const open = list.filter(isOpen).length
-  $.ui.status(open ? `${open} open` : undefined)
+/** After the queue changes: close a sidebar this plugin opened once nothing is left open. */
+async function publish($: $, list: readonly Item[]): Promise<void> {
+  if (list.some(isOpen)) return
+  await update($, paneDismissed, () => false)
+  if (await read($, autoOpened)) {
+    await update($, autoOpened, () => false)
+    await $.ui.close({ id: PANE }).catch(() => undefined)
+  }
+}
+
+/** Open the queue as a sidebar, unasked, where the surface docks panes and the person hasn't closed it. */
+async function offerSidebar($: $): Promise<void> {
+  if (!docks || (await read($, paneDismissed))) return
+  const opened = await $.ui.open({ id: PANE, title: 'Decisions', columns: 52 }).catch(() => null)
+  if (opened) await update($, autoOpened, () => true)
+}
+
+/** Open the queue because the person asked: it seats at any width and takes the keys. */
+async function openPane($: $): Promise<void> {
+  await update($, paneDismissed, () => false)
+  await update($, autoOpened, () => false)
+  await $.ui.open({ id: PANE, title: 'Decisions', focus: true, closeOnEscape: true, columns: 52 }).catch(() => undefined)
 }
 
 async function change($: $, fn: (list: Item[]) => Item[]): Promise<Item[]> {
   let after: Item[] = []
   await update($, items, list => (after = fn(list)))
-  publish($, after)
+  await publish($, after)
   return after
 }
 
@@ -155,8 +178,8 @@ async function assign($: $, kind: Kind): Promise<string> {
 }
 
 async function announce($: $, item: Item): Promise<void> {
-  await update($, bandHidden, () => false)
-  $.ui.toast(`${item.label} added: ${item.body}`)
+  $.ui.toast(`${item.label} added: ${splitBody(item.body).question}`)
+  await offerSidebar($)
 }
 
 const WRAP = `Wrap up this session's decision queue, as the session-decisions skill describes: for every open item below, ask me in one message whether to escalate it (create it in the project's tracker as a question for the right person, and link it), carry it forward (it stays open and goes in the handoff), or drop it. Then apply my answers, completing each settled item with a "Ruling (<YYYY-MM-DD>): ..." line, and report what changed.`
@@ -200,6 +223,8 @@ export const register: Register = on => {
     const term = await $.env.get('TERM')
     const noColor = await $.env.get('NO_COLOR')
     await update($, ascii, () => Boolean(noColor) || term === 'dumb')
+    // 1.0 pinned the open count as a status notice; this version shows it in the footer instead.
+    $.ui.status(undefined)
     await hydrate($)
     await quietly(prune($))
     return next(e)
@@ -299,7 +324,8 @@ export const register: Register = on => {
     const list = await read($, items)
     const now = await $.clock.now()
     if (arg === 'pane') {
-      const opened = await $.ui.open({ id: PANE, title: 'Decisions' })
+      await update($, paneDismissed, () => false)
+      const opened = await $.ui.open({ id: PANE, title: 'Decisions', focus: true, closeOnEscape: true, columns: 52 })
       return { text: opened.isPlaced ? 'Decisions pane opened.' : `${listing(list, now)}\n\n(The pane can't be shown here: ${opened.reason})` }
     }
     if (arg === 'wrap') {
@@ -311,47 +337,55 @@ export const register: Register = on => {
     return { text: listing(list, now, arg === 'all') }
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const list = await read($, items)
-    const open = ordered(list).filter(isOpen)
-    const hidden = await read($, bandHidden)
-    if (e.props.hasSurvey || open.length === 0 || hidden) return next(e)
+  // A sidebar the person closes stays closed until the queue empties.
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') {
+      await update($, paneDismissed, () => true)
+      await update($, autoOpened, () => false)
+    }
+    return next(e)
+  })
+
+  // The footer: a count beside the mode labels that opens the queue. It also learns whether
+  // this surface docks panes, which decides whether the sidebar may open unasked.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    docks = e.viewport?.isFullscreen === true
+    const open = (await read($, items)).filter(isOpen).length
+    if (open === 0) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const plain = await read($, ascii)
-    const now = await $.clock.now()
-    const first = open[0]!
-    const stale = first.created !== undefined && now - first.created > DAY
-    const band = (
-      <Box key="decisions-band" flexDirection="row" width={e.props.bodyColumns} gap={1}>
-        <Text bold backgroundColor={ACCENT} color="inverseText" dimColor={e.props.isWorking}>
-          {plain ? `[${open.length} OPEN]` : ` ${open.length} OPEN `}
-        </Text>
-        <Text dimColor>next</Text>
-        <Text bold>{first.label}</Text>
-        <Box flexGrow={1} flexShrink={1}>
-          <Text wrap="truncate-end" dimColor={e.props.isWorking}>
-            {splitBody(first.body).question}
-          </Text>
-        </Box>
-        {first.created !== undefined && (
-          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
-            {age(first.created, now).replace('waiting ', '')}
-          </Text>
-        )}
-        <Button key="show" label="Show" variant="primary" onPress={() => void $.ui.open({ id: PANE, title: 'Decisions', focus: true }).catch(() => undefined)} />
-        <Button key="hide" label="Hide" role="dismiss" onPress={() => update($, bandHidden, () => true)} />
-      </Box>
-    )
     const below = await next(e)
-    return below ? (
-      <Box flexDirection="column">
+    return (
+      <Box flexDirection="row" gap={1}>
         {below}
-        {band}
+        <Box key="decisions-footer" flexDirection="row">
+          <Text color="warning">{plain ? '*' : '●'} </Text>
+          <Button
+            key="decisions-count"
+            plain
+            label={`${open} ${open === 1 ? 'decision' : 'decisions'}`}
+            onPress={() => void openPane($)}
+          />
+        </Box>
       </Box>
-    ) : (
-      band
     )
+  })
+
+  // In the transcript, a finished TaskCreate or decision_add row draws as its item's card.
+  on('ui.render', { component: 'ToolUse', props: { tool: 'TaskCreate' } }, async ($, e, next) => {
+    if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
+    const id = String((e.props.output as { task?: { id?: unknown } } | undefined)?.task?.id ?? '')
+    const item = (await read($, items)).find(one => one.source === 'tasks' && one.id === id)
+    if (!item) return next(e)
+    return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
+  })
+  on('ui.render', { component: 'ToolUse', props: { tool: ADD_TOOL } }, async ($, e, next) => {
+    if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
+    const label = String(e.props.output ?? '').split(' ')[0]
+    const item = (await read($, items)).find(one => one.source === 'ledger' && one.label === label)
+    if (!item) return next(e)
+    return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -359,109 +393,29 @@ export const register: Register = on => {
     const list = ordered(await read($, items))
     const settledOpen = await read($, showSettled)
     const plain = await read($, ascii)
-    const now = await $.clock.now()
+    const docked = e.props.placement === 'dock'
     const open = list.filter(isOpen)
     const settled = list.filter(item => !isOpen(item))
-
-    // Each press adds or replaces its item's line in the draft, so one message can answer several.
-    const answer = (lines: string[]) => () =>
-      void $.prompt
-        .read()
-        .then(box => $.prompt.fill({ text: mergeAnswers(box.text, lines) }))
-        .catch(() => undefined)
     const accepts = open.flatMap(item => {
       const choice = item.kind === 'DECIDE' ? recommendation(item.body) : null
       return choice ? [`${item.label}: go with ${choice}`] : []
     })
 
-    const chip = (text: string, color: string, dim = false) => (
-      <Text bold backgroundColor={dim ? undefined : color} color={dim ? undefined : 'inverseText'} dimColor={dim}>
-        {plain ? `[${text}]` : ` ${text} `}
-      </Text>
-    )
-
-    const card = (item: Item, isNext: boolean) => {
-      const parts = splitBody(item.body)
-      const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
-      const stale = item.created !== undefined && now - item.created > DAY
-      return (
-        <Box
-          key={`item-${item.source}-${item.id}`}
-          flexDirection="column"
-          borderStyle="round"
-          borderColor={isNext ? ACCENT : 'inactive'}
-          hover={{ borderColor: ACCENT }}
-          paddingX={1}
-        >
-          <Box key="top" flexDirection="row" gap={1}>
-            {chip(item.kind, KIND_COLOR[item.kind])}
-            <Text bold>{item.label}</Text>
-            {rec && chip(`recommends ${rec.choice}`, 'success')}
-            {item.source === 'ledger' && <Text dimColor>ledger</Text>}
-            <Box flexGrow={1} />
-            {item.created !== undefined && (
-              <Text color={stale ? 'error' : undefined} dimColor={!stale}>
-                {age(item.created, now)}
-              </Text>
-            )}
-          </Box>
-          <Text>{parts.question}</Text>
-          {rec?.qualifier && <Text dimColor>{rec.qualifier}</Text>}
-          <Box key="actions" flexDirection="row" gap={1}>
-            {parts.recommendation && item.kind === 'DECIDE' && (
-              <Button
-                key={`accept-${item.label}`}
-                label="Accept"
-                variant="primary"
-                onPress={answer([`${item.label}: go with ${parts.recommendation}`])}
-              />
-            )}
-            {item.kind === 'ACTION' && (
-              <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer([`${item.label}: done`])} />
-            )}
-            <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer([`${item.label}: `])} />
-            <Box flexGrow={1} />
-            <Text dimColor wrap="truncate-start">
-              {parts.link ?? 'no link'}
-            </Text>
-          </Box>
-        </Box>
-      )
-    }
-
-    const settledCard = (item: Item) => {
-      const ruling = (rulingIn(item.description) ?? '').replace(/^Ruling \(([^)]*)\):\s*/, '$1 · ')
-      const moot = /·\s*moot\b/i.test(ruling)
-      return (
-        <Box key={`item-${item.source}-${item.id}`} flexDirection="column" borderStyle="round" borderColor="inactive" borderDimColor paddingX={1}>
-          <Box key="top" flexDirection="row" gap={1}>
-            <Text color={moot ? undefined : 'success'} dimColor={moot}>
-              {moot ? (plain ? 'x' : '✗') : plain ? '+' : '✓'}
-            </Text>
-            <Text bold dimColor>
-              {item.label}
-            </Text>
-            <Box flexShrink={1}>
-              <Text dimColor wrap="truncate-end">
-                {splitBody(item.body).question}
-              </Text>
-            </Box>
-          </Box>
-          {ruling && <Text dimColor>{ruling}</Text>}
-        </Box>
-      )
-    }
-
     return (
       <Box flexDirection="column">
         <Box key="head" flexDirection="row" gap={1} marginBottom={1}>
           <Text bold>Decisions</Text>
-          {open.length > 0 ? chip(`${open.length} open`, ACCENT) : <Text dimColor>Nothing waiting on you</Text>}
-          {settled.length > 0 && chip(`${settled.length} settled`, 'inactive', true)}
+          {open.length > 0 ? chip(Text, plain, `${open.length} open`, ACCENT) : <Text dimColor>Nothing waiting on you</Text>}
           <Box flexGrow={1} />
-          {accepts.length > 1 && <Button key="accept-all" label="Accept all" variant="primary" onPress={answer(accepts)} />}
+          {accepts.length > 1 && <Button key="accept-all" label="Accept all" variant="primary" onPress={answer($, accepts)} />}
         </Box>
-        {open.map((item, i) => card(item, i === 0))}
+        {await Promise.all(
+          open.map(async (item, i) => (
+            <Box key={`slot-${item.source}-${item.id}`} flexDirection="column" marginBottom={docked ? 1 : 0}>
+              {await drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false })}
+            </Box>
+          )),
+        )}
         {settled.length > 0 && (
           <Button
             key="settled"
@@ -471,8 +425,115 @@ export const register: Register = on => {
             onPress={() => update($, showSettled, value => !value)}
           />
         )}
-        {settledOpen && settled.map(settledCard)}
+        {settledOpen &&
+          (await Promise.all(
+            settled.map(async item => (
+              <Box key={`slot-${item.source}-${item.id}`} flexDirection="column">
+                {await drawCard($, e, item, { bordered: false, isNext: false, compact: true })}
+              </Box>
+            )),
+          ))}
       </Box>
     )
   })
+}
+
+/** Each press adds or replaces its item's line in the draft, so one message can answer several. */
+function answer($: $, lines: string[]) {
+  return () =>
+    void $.prompt
+      .read()
+      .then(box => $.prompt.fill({ text: mergeAnswers(box.text, lines) }))
+      .catch(() => undefined)
+}
+
+type Elements = ReturnType<$['ui']['resolve']>
+
+function chip(Text: Elements['Text'], plain: boolean, text: string, color: string, dim = false) {
+  return (
+    <Text bold backgroundColor={dim ? undefined : color} color={dim ? undefined : 'inverseText'} dimColor={dim}>
+      {plain ? `[${text}]` : ` ${text} `}
+    </Text>
+  )
+}
+
+/**
+ * One item. Open: kind chip, label, recommendation tag, age, the question, the qualifier, and its
+ * buttons; `bordered` draws a round frame (the accent one for `isNext`). Settled, or `compact`: one
+ * dim line with the ruling.
+ */
+async function drawCard(
+  $: $,
+  site: Parameters<$['ui']['resolve']>[0],
+  item: Item,
+  opts: { bordered: boolean; isNext: boolean; compact: boolean },
+) {
+  const { Box, Button, Text } = $.ui.resolve(site) as Elements
+  const plain = await read($, ascii)
+  const now = await $.clock.now()
+  const parts = splitBody(item.body)
+
+  if (!isOpen(item) || opts.compact) {
+    const ruling = (rulingIn(item.description) ?? '').replace(/^Ruling \(([^)]*)\):\s*/, '$1 · ')
+    const moot = /·\s*moot\b/i.test(ruling)
+    return (
+      <Box key={`card-${item.source}-${item.id}`} flexDirection="row" gap={1}>
+        <Text color={moot ? undefined : 'success'} dimColor={moot}>
+          {moot ? (plain ? 'x' : '✗') : plain ? '+' : '✓'}
+        </Text>
+        <Text bold dimColor>
+          {item.label}
+        </Text>
+        <Box flexShrink={1}>
+          <Text dimColor wrap="truncate-end">
+            {ruling || parts.question}
+          </Text>
+        </Box>
+      </Box>
+    )
+  }
+
+  const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
+  const stale = item.created !== undefined && now - item.created > DAY
+  const frame = opts.bordered
+    ? { borderStyle: 'round', borderColor: opts.isNext ? ACCENT : 'inactive', hover: { borderColor: ACCENT }, paddingX: 1 }
+    : {}
+  return (
+    <Box key={`card-${item.source}-${item.id}`} flexDirection="column" {...frame}>
+      <Box key="top" flexDirection="row" gap={1}>
+        {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
+        <Text bold color={opts.isNext && !opts.bordered ? ACCENT : undefined}>
+          {item.label}
+        </Text>
+        {rec && chip(Text, plain, `recommends ${rec.choice}`, 'success')}
+        {item.source === 'ledger' && <Text dimColor>ledger</Text>}
+        <Box flexGrow={1} />
+        {item.created !== undefined && (
+          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+            {age(item.created, now).replace('waiting ', '')}
+          </Text>
+        )}
+      </Box>
+      <Text>{parts.question}</Text>
+      {rec?.qualifier && <Text dimColor>{rec.qualifier}</Text>}
+      <Box key="actions" flexDirection="row" gap={1}>
+        {rec && item.kind === 'DECIDE' && (
+          <Button
+            key={`accept-${item.label}`}
+            label="Accept"
+            variant="primary"
+            onPress={answer($, [`${item.label}: go with ${parts.recommendation}`])}
+          />
+        )}
+        {item.kind === 'ACTION' && (
+          <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer($, [`${item.label}: done`])} />
+        )}
+        <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
+        <Box flexGrow={1} />
+        <Text dimColor wrap="truncate-start">
+          {parts.link ?? 'no link'}
+        </Text>
+      </Box>
+    </Box>
+  )
 }
