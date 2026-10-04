@@ -185,7 +185,7 @@ describe('drawing', () => {
     await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '2', status: 'completed', description: 'Ruling (2026-10-03): moot, logged in already' })
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     expect(await ui.find({ type: 'Text', text: '[1 open]' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '+ recommends' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '[recommends SQLite]' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: '2026-10-03 · moot' })).toBeUndefined()
     await ui.press({ key: 'settled' })
     expect(await ui.find({ type: 'Text', text: '2026-10-03 · moot, logged in already' })).toBeDefined()

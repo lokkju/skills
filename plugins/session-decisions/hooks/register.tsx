@@ -16,7 +16,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { LETTER, formatSubject, parseDraft, problems, recommendation, rulingIn, splitBody } from './subject'
+import { LETTER, formatSubject, parseDraft, problems, recommendation, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
 
@@ -382,6 +382,7 @@ export const register: Register = on => {
 
     const card = (item: Item, isNext: boolean) => {
       const parts = splitBody(item.body)
+      const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
       const stale = item.created !== undefined && now - item.created > DAY
       return (
         <Box
@@ -395,6 +396,7 @@ export const register: Register = on => {
           <Box key="top" flexDirection="row" gap={1}>
             {chip(item.kind, KIND_COLOR[item.kind])}
             <Text bold>{item.label}</Text>
+            {rec && chip(`recommends ${rec.choice}`, 'success')}
             {item.source === 'ledger' && <Text dimColor>ledger</Text>}
             <Box flexGrow={1} />
             {item.created !== undefined && (
@@ -404,14 +406,7 @@ export const register: Register = on => {
             )}
           </Box>
           <Text>{parts.question}</Text>
-          {parts.recommendation && (
-            <Box key="rec" flexDirection="row" gap={1}>
-              <Text color="success">{plain ? '+ recommends' : '✓ recommends'}</Text>
-              <Box flexShrink={1}>
-                <Text>{parts.recommendation}</Text>
-              </Box>
-            </Box>
-          )}
+          {rec?.qualifier && <Text dimColor>{rec.qualifier}</Text>}
           <Box key="actions" flexDirection="row" gap={1}>
             {parts.recommendation && item.kind === 'DECIDE' && (
               <Button

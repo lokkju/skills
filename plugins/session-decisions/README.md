@@ -12,7 +12,8 @@ open.
 - **Band:** while anything is open, a row above the prompt shows an `N OPEN` chip, the next item
   and its age, with Show and Hide buttons. It comes back when a new item arrives.
 - **Pane:** `/decisions pane` (or Show) opens the open items as cards: a kind chip (`DECIDE` or
-  `ACTION`), the question, the recommendation, the link and its age, which turns red after a day.
+  `ACTION`), a `recommends <choice>` tag beside the label, the question with any qualifier of the
+  recommendation under it, the link, and its age, which turns red after a day.
   The oldest card's border is in the accent color. Accept adds `D3: go with <the recommendation>`
   to your prompt, Done adds `A2: done`, and Answer adds `D3: `. Each press adds or replaces that
   item's line, so you can answer several items in one message; Accept all adds a line for every

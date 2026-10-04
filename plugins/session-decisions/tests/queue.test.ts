@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder } from '../hooks/queue'
-import { parseDraft, parseLabel, problems, recommendation, rulingIn, splitBody } from '../hooks/subject'
+import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -34,6 +34,12 @@ describe('subject', () => {
     expect(recommendation('Postgres or SQLite? (recommend SQLite) [#3]')).toBe('SQLite')
     expect(rulingIn('context\nRuling (2026-10-01): no\nRuling (2026-10-03): yes')).toBe('Ruling (2026-10-03): yes')
 
+  })
+
+  test('a recommendation shortens to a tag and a qualifier', () => {
+    expect(shortRecommendation('SQLite')).toEqual({ choice: 'SQLite', qualifier: null })
+    expect(shortRecommendation("yes, after you've tried the dev panel; solo repo")).toEqual({ choice: 'yes', qualifier: "after you've tried the dev panel; solo repo" })
+    expect(shortRecommendation('the managed Postgres tier with read replicas')).toEqual({ choice: 'the managed Postgres ti…', qualifier: 'the managed Postgres tier with read replicas' })
   })
 
   test('a body splits into question, recommendation and link for a card', () => {

@@ -86,3 +86,15 @@ export function splitBody(body: string): BodyParts {
   if (choice) rest = rest.replace(CHOICE, '').replace(/\s{2,}/g, ' ').trim()
   return { question: rest, recommendation: choice, link }
 }
+
+/**
+ * A recommendation as a card shows it: the choice for the tag beside the label (up to the first
+ * comma or semicolon, at most `max` characters) and the qualifier after it, if any.
+ */
+export function shortRecommendation(text: string, max = 24): { choice: string; qualifier: string | null } {
+  const cut = text.search(/[,;]/)
+  const head = (cut < 0 ? text : text.slice(0, cut)).trim()
+  const qualifier = cut < 0 ? null : text.slice(cut + 1).trim() || null
+  const choice = head.length > max ? `${head.slice(0, max - 1).trimEnd()}…` : head
+  return { choice, qualifier: head.length > max ? text.trim() : qualifier }
+}
