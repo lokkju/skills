@@ -53,11 +53,15 @@ class World:
         code = 1 if self.run_fail and argv[:3] == self.run_fail else 0
         return subprocess.CompletedProcess(argv, code, "", "")
 
+    def factory(self, port=0):
+        self.port_asked = port
+        return self.server
+
     def deps(self):
         def sleep(s):
             self.t += s
 
-        return cli.Deps(server_factory=lambda: self.server, open_browser=self.opened.append,
+        return cli.Deps(server_factory=self.factory, open_browser=self.opened.append,
                         http=self.http, run=self.run, sign=lambda data, pem: b"sig",
                         clock=lambda: self.t, sleep=sleep, new_state=lambda: "st",
                         stdout=self.out, stderr=self.err)
@@ -218,3 +222,50 @@ def test_pulumi_installation_store_failure_is_not_reported_as_timeout():
     assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "s"]) == 1
     err = w.err.getvalue()
     assert "no stack" in err and "777" in err and "install the App" not in err
+
+
+def test_default_asks_for_an_ephemeral_port_and_opens_the_browser():
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site"]) == 0
+    assert w.port_asked == 0
+    assert w.opened[0] == w.server.start_url and "ssh -L" not in w.err.getvalue()
+
+
+def test_port_is_passed_to_the_server():
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site", "--port", "8123"]) == 0
+    assert w.port_asked == 8123
+
+
+def test_no_browser_prints_urls_and_ssh_hint_without_opening(monkeypatch):
+    monkeypatch.setattr(cli.socket, "gethostname", lambda: "ml-01")
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site", "--no-browser"]) == 0
+    assert w.opened == []
+    err = w.err.getvalue()
+    assert w.server.start_url in err and "https://github.com/apps/acme-release/installations/new" in err
+    assert "On another machine? Forward the port first: ssh -L 9999:127.0.0.1:9999 ml-01" in err
+
+
+@pytest.mark.parametrize("port", ["0", "65536", "-1", "abc"])
+def test_bad_port_is_a_usage_error(port, capsys):
+    w = World()
+    with pytest.raises(SystemExit) as e:
+        w.main(["--org", "acme", "--name", "n", "--repo", "a/b", "--port", port])
+    assert e.value.code == 2 and "port" in capsys.readouterr().err
+    assert w.opened == []
+
+
+def test_busy_port_is_a_usage_error_naming_the_port(capsys):
+    import socket
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        w = World()
+        w.factory = lambda p=0: cli.manifest.CallbackServer(p)
+        with pytest.raises(SystemExit) as e:
+            w.main(["--org", "acme", "--name", "n", "--repo", "a/b", "--port", str(port)])
+    err = capsys.readouterr().err
+    assert e.value.code == 2 and f"127.0.0.1:{port}" in err and "Traceback" not in err
+    assert w.opened == [] and w.http_calls == []

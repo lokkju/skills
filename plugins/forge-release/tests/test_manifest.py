@@ -108,3 +108,28 @@ def test_local_server_wait_times_out():
             server.wait(timeout=0.1)
     finally:
         server.close()
+
+
+def test_local_server_binds_the_requested_port_on_loopback_only():
+    import socket
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = manifest.CallbackServer(port)
+    try:
+        assert server.start_url == f"http://127.0.0.1:{port}/"
+        assert server.redirect_url == f"http://127.0.0.1:{port}/callback"
+        assert server._server.server_address == ("127.0.0.1", port)
+    finally:
+        server.close()
+
+
+def test_local_server_busy_port_raises_flow_error_naming_it():
+    import socket
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        with pytest.raises(manifest.PortInUseError) as e:
+            manifest.CallbackServer(port)
+    assert str(port) in str(e.value) and isinstance(e.value, manifest.FlowError)
