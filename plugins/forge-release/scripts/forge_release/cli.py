@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -23,7 +24,7 @@ POLL_INTERVAL = 5.0
 
 @dataclass
 class Deps:
-    server_factory: Callable[[], Any] = manifest.CallbackServer
+    server_factory: Callable[[int], Any] = manifest.CallbackServer
     open_browser: Callable[[str], Any] = webbrowser.open
     http: api.Http = api.urllib_http
     run: Callable[..., Any] = subprocess.run
@@ -33,6 +34,16 @@ class Deps:
     new_state: Callable[[], str] = manifest.new_state
     stdout: IO[str] = field(default_factory=lambda: sys.stdout)
     stderr: IO[str] = field(default_factory=lambda: sys.stderr)
+
+
+def _port(text: str) -> int:
+    try:
+        port = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid port {text!r}: expected an integer 1-65535") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"invalid port {port}: expected 1-65535")
+    return port
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -67,6 +78,11 @@ def _parser() -> argparse.ArgumentParser:
                                       "(default: ./<slug>.private-key.pem)")
     p.add_argument("--timeout", type=float, default=600,
                    help="seconds to wait for each browser step (default: %(default)g)")
+    p.add_argument("--port", type=_port, default=0, metavar="N",
+                   help="listen for GitHub's redirect on 127.0.0.1:N instead of a random free port; "
+                        "on a remote host, forward it first: ssh -L N:127.0.0.1:N <host>")
+    p.add_argument("--no-browser", action="store_true",
+                   help="don't open a browser; print the URLs to open yourself")
     return p
 
 
@@ -105,16 +121,26 @@ def _say(deps: Deps, text: str) -> None:
     print(text, file=deps.stderr, flush=True)
 
 
+def _port_of(server: Any) -> int:
+    return int(server.start_url.rsplit(":", 1)[1].rstrip("/"))
+
+
 def _create(args: argparse.Namespace, deps: Deps) -> api.AppCredentials:
     state = deps.new_state()
-    server = deps.server_factory()
+    server = deps.server_factory(args.port)
     try:
         app_manifest = manifest.build_manifest(args.name, args.homepage, args.permissions,
                                                server.redirect_url)
         server.set_page(manifest.form_page(manifest.form_action(args.org, state), app_manifest))
-        _say(deps, f"Opening {server.start_url} in your browser; open it yourself if nothing appears.")
+        if args.no_browser:
+            _say(deps, f"Open {server.start_url} in your browser.")
+            _say(deps, f"On another machine? Forward the port first: "
+                       f"ssh -L {_port_of(server)}:127.0.0.1:{_port_of(server)} {socket.gethostname()}")
+        else:
+            _say(deps, f"Opening {server.start_url} in your browser; open it yourself if nothing appears.")
         _say(deps, "On GitHub, check the name and hit Create GitHub App.")
-        deps.open_browser(server.start_url)
+        if not args.no_browser:
+            deps.open_browser(server.start_url)
         code = manifest.check_callback(server.wait(args.timeout), state)
     finally:
         server.close()
@@ -155,8 +181,11 @@ def _rescue_key(deps: Deps, app: api.AppCredentials) -> None:
 
 def _install(args: argparse.Namespace, deps: Deps, app: api.AppCredentials) -> int:
     url = f"https://github.com/apps/{app.slug}/installations/new"
-    _say(deps, f"Opening {url}; pick the repositories and hit Install.")
-    deps.open_browser(url)
+    if args.no_browser:
+        _say(deps, f"Open {url}; pick the repositories and hit Install.")
+    else:
+        _say(deps, f"Opening {url}; pick the repositories and hit Install.")
+        deps.open_browser(url)
     return api.wait_for_installation(
         lambda: api.make_jwt(app.jwt_issuer, app.pem, sign=deps.sign), deps.http,
         timeout=args.timeout, interval=POLL_INTERVAL, clock=deps.clock, sleep=deps.sleep)
@@ -167,6 +196,8 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
     args = _args(argv)
     try:
         app = _create(args, deps)
+    except manifest.PortInUseError as error:
+        _parser().error(str(error))
     except FlowError as error:
         _say(deps, f"error: {error}")
         return 1

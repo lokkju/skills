@@ -18,6 +18,14 @@ class FlowError(Exception):
     """The manifest flow can't continue; the message says why."""
 
 
+class PortInUseError(FlowError):
+    """The requested callback port can't be bound."""
+
+    def __init__(self, port: int, reason: str) -> None:
+        super().__init__(f"can't listen on 127.0.0.1:{port} ({reason}); pick another --port")
+        self.port = port
+
+
 def build_manifest(name: str, homepage: str, permissions: Mapping[str, str],
                    redirect_url: str) -> dict:
     return {
@@ -66,9 +74,9 @@ def check_callback(query: Mapping[str, List[str]], expected_state: str) -> str:
 
 
 class CallbackServer:
-    """A one-shot HTTP server on 127.0.0.1: serves the form at /, takes the redirect at /callback."""
+    """A one-shot HTTP server on 127.0.0.1 (port 0 picks a free one): serves the form at /, takes the redirect at /callback."""
 
-    def __init__(self) -> None:
+    def __init__(self, port: int = 0) -> None:
         self._page = ""
         self._queries: "queue.Queue[Dict[str, List[str]]]" = queue.Queue()
         owner = self
@@ -97,7 +105,10 @@ class CallbackServer:
             def log_message(self, format: str, *args: object) -> None:  # noqa: A002
                 pass
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        try:
+            self._server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        except OSError as error:
+            raise PortInUseError(port, error.strerror or str(error)) from error
         self._server.daemon_threads = True
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()

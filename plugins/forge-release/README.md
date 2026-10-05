@@ -18,11 +18,11 @@ plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
 
 What it does:
 
-1. Starts a server on `127.0.0.1` on a free port and opens a page that posts the manifest to
+1. Starts a server on `127.0.0.1` on a free port (or the one `--port` names) and opens a page that posts the manifest to
    GitHub (the org's `settings/apps/new`, or your account's with `--user`). The manifest asks for
    a private App with webhooks off and the permissions you give; the default is
    `contents=write` and `pull_requests=write`, which is what yeet needs. If no browser opens, the
-   script prints the local URL.
+   script prints the local URL; `--no-browser` skips the attempt and just prints it.
 2. GitHub redirects back with a one-time code. The script checks the `state` it sent, then
    trades the code for the App's ID, client ID and private key (no auth needed for that call).
 3. Stores the client ID and key (see below).
@@ -57,8 +57,25 @@ printed (and is in the `--to stdout` JSON) if a tool insists on it.
   instead of depending on a crypto package.
 - `gh`, logged in with admin access to each `--repo`, for `--to github`; `pulumi`, logged in to
   the stack's backend, for `--to pulumi`.
-- A local browser. On a headless host, open the printed URLs on a machine that can reach the
-  host's `127.0.0.1` port (an SSH tunnel will do).
+- A browser that can reach the script's `127.0.0.1` port: a local one, or see the next section.
+
+### Running on a remote host
+
+The callback server listens on `127.0.0.1` only, so a browser on another machine can't reach it.
+Pick a port, forward it from the machine with the browser, then run the script on the host:
+
+```bash
+# on the laptop
+ssh -L 8765:127.0.0.1:8765 ml-01
+# on ml-01, in that session
+plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
+  --repo acme/site --port 8765 --no-browser
+```
+
+Open the printed `http://127.0.0.1:8765/` on the laptop. GitHub redirects the browser back to
+that same address, which the tunnel carries to the script. `--no-browser` also prints the install
+page URL instead of opening it, and a hint with the `ssh -L` command for the port in use. If the
+port is taken, the script exits with a usage error naming it.
 
 ## Development
 
