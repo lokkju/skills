@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import stat
 import subprocess
 from pathlib import Path
@@ -48,7 +49,7 @@ class World:
         self.http_calls.append((method, url))
         return self.http_responses.pop(0)
 
-    def run(self, argv, input=None, capture_output=None, text=None):
+    def run(self, argv, input=None, capture_output=None, text=None, cwd=None):
         self.commands.append((argv, input))
         code = 1 if self.run_fail and argv[:3] == self.run_fail else 0
         return subprocess.CompletedProcess(argv, code, "", "")
@@ -269,3 +270,124 @@ def test_busy_port_is_a_usage_error_naming_the_port(capsys):
     err = capsys.readouterr().err
     assert e.value.code == 2 and f"127.0.0.1:{port}" in err and "Traceback" not in err
     assert w.opened == [] and w.http_calls == []
+
+
+class FakeSops:
+    """Stands in for sops: "encrypted" files are ENC: plus the JSON document, kept on disk."""
+
+    def __init__(self, break_readback=False):
+        self.calls = []
+        self.break_readback = break_readback
+
+    def __call__(self, argv, input=None, capture_output=None, text=None, cwd=None):
+        self.calls.append((argv, input, cwd))
+        ok = lambda out="": subprocess.CompletedProcess(argv, 0, out, "")
+        if argv[1] == "--decrypt":
+            doc = json.loads(Path(argv[-1]).read_text()[4:])
+            if self.break_readback and "late.pem" in json.dumps(doc):
+                doc["stringData"]["late.pem"] = "other"
+            return ok(json.dumps(doc))
+        if argv[1] == "--encrypt":
+            assert argv[argv.index("--filename-override") + 1] and argv[-1] == "/dev/stdin"
+            return ok("ENC:" + input)
+        assert argv[1] == "set" and "--value-stdin" in argv
+        path = argv[-2]
+        field, key = re.findall(r'\["([^"]+)"\]', argv[-1])
+        doc = json.loads(Path(path).read_text()[4:])
+        doc.setdefault(field, {})[key] = json.loads(input)
+        Path(path).write_text("ENC:" + json.dumps(doc))
+        return ok()
+
+
+def sops_world(fake):
+    w = World()
+    w.run = fake
+    return w
+
+
+def sops_doc(path):
+    return json.loads(path.read_text()[4:])
+
+
+def test_sops_new_file(tmp_path):
+    f = tmp_path / "app-keys.sops.yaml"
+    fake = FakeSops()
+    w = sops_world(fake)
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
+                   "--secret-name", "garm-app-keys", "--namespace", "garm"]) == 0
+    assert sops_doc(f) == {"apiVersion": "v1", "kind": "Secret",
+                           "metadata": {"name": "garm-app-keys", "namespace": "garm"},
+                           "type": "Opaque", "stringData": {"acme-release.pem": PEM}}
+    assert json.loads(w.out.getvalue()) == {
+        "app_id": 42, "slug": "acme-release", "client_id": "Iv23abc", "installation_id": 777,
+        "html_url": "https://github.com/apps/acme-release", "sops_file": str(f),
+        "sops_key": "acme-release.pem"}
+    assert all(cwd == str(tmp_path) for _, _, cwd in fake.calls)
+    assert [p.name for p in tmp_path.iterdir()] == ["app-keys.sops.yaml"]
+    w.no_pem_leak()
+
+
+def test_sops_adds_to_existing_file_with_custom_key(tmp_path):
+    f = tmp_path / "k.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"stringData": {"other.pem": "x"}}))
+    w = sops_world(FakeSops())
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
+                   "--sops-key", "garm.pem"]) == 0
+    assert sops_doc(f) == {"stringData": {"other.pem": "x", "garm.pem": PEM}}
+    assert [p.name for p in tmp_path.iterdir()] == ["k.sops.yaml"]
+
+
+def test_sops_data_file_gets_base64(tmp_path):
+    import base64
+    f = tmp_path / "k.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"data": {}}))
+    w = sops_world(FakeSops())
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f)]) == 0
+    assert base64.b64decode(sops_doc(f)["data"]["acme-release.pem"]).decode() == PEM
+
+
+def test_sops_duplicate_refused_without_replace(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    f = tmp_path / "k.sops.yaml"
+    before = "ENC:" + json.dumps({"stringData": {"acme-release.pem": "old"}})
+    f.write_text(before)
+    w = sops_world(FakeSops())
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f)]) == 1
+    assert "--replace" in w.err.getvalue() and f.read_text() == before
+    assert (tmp_path / "acme-release.private-key.pem").read_text() == PEM
+    w = sops_world(FakeSops())
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
+                   "--replace"]) == 0
+    assert sops_doc(f)["stringData"]["acme-release.pem"] == PEM
+
+
+def test_sops_verification_failure(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    f = tmp_path / "k.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"stringData": {}}))
+    w = sops_world(FakeSops(break_readback=True))
+    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
+                   "--sops-key", "late.pem"]) == 1
+    assert "doesn't read back" in w.err.getvalue()
+    w.no_pem_leak()
+
+
+def test_sops_pem_never_in_argv(tmp_path):
+    new, old = tmp_path / "new.sops.yaml", tmp_path / "old.sops.yaml"
+    old.write_text("ENC:" + json.dumps({"stringData": {}}))
+    fake = FakeSops()
+    for f in (new, old):
+        sops_world(fake).main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
+                               "--secret-name", "s", "--namespace", "ns"])
+    assert len(fake.calls) >= 5
+    assert all("MIIfake" not in " ".join(argv) for argv, _, _ in fake.calls)
+
+
+@pytest.mark.parametrize("args,msg", [
+    (["--to", "sops"], "--sops-file"),
+    (["--to", "sops", "--sops-file", "/nonexistent/x.sops.yaml"], "--secret-name"),
+])
+def test_sops_usage_errors(args, msg, capsys):
+    with pytest.raises(SystemExit):
+        World().main(["--org", "acme", "--name", "n", *args])
+    assert msg in capsys.readouterr().err
