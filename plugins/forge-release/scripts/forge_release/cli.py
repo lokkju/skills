@@ -69,13 +69,23 @@ def _parser() -> argparse.ArgumentParser:
                    help="name for the stored private key (default: %(default)s)")
     p.add_argument("--installation-id-var", default="YEET_APP_INSTALLATION_ID",
                    help="name for the stored installation ID, pulumi mode only (default: %(default)s)")
-    p.add_argument("--to", choices=("github", "pulumi", "stdout"), default="github",
+    p.add_argument("--to", choices=("github", "pulumi", "stdout", "sops"), default="github",
                    help="github: Actions variable and secret on each --repo via gh; pulumi: secret "
-                        "config via pulumi; stdout: JSON on stdout, key in --key-file (default: github)")
+                        "config via pulumi; stdout: JSON on stdout, key in --key-file; sops: key into a "
+                        "SOPS-encrypted Kubernetes Secret file, never written in plaintext (default: github)")
     p.add_argument("--stack", help="Pulumi stack (required with --to pulumi)")
     p.add_argument("--cwd", default=".", help="Pulumi project directory (default: current directory)")
     p.add_argument("--key-file", help="where --to stdout writes the key, mode 0600 "
                                       "(default: ./<slug>.private-key.pem)")
+    p.add_argument("--sops-file", metavar="PATH",
+                   help="SOPS-encrypted Secret file for --to sops (required); edited in place if it "
+                        "exists, created if not")
+    p.add_argument("--sops-key", metavar="NAME",
+                   help="key name inside the Secret's stringData (or data) (default: <slug>.pem)")
+    p.add_argument("--secret-name", help="metadata.name of a new Secret file (needed if --sops-file is new)")
+    p.add_argument("--namespace", help="metadata.namespace of a new Secret file (needed if --sops-file is new)")
+    p.add_argument("--replace", action="store_true",
+                   help="with --to sops, overwrite an existing entry under the same key")
     p.add_argument("--timeout", type=float, default=600,
                    help="seconds to wait for each browser step (default: %(default)g)")
     p.add_argument("--port", type=_port, default=0, metavar="N",
@@ -109,6 +119,12 @@ def _args(argv: Sequence[str]) -> argparse.Namespace:
         parser.error("--to github needs at least one --repo")
     if args.to == "pulumi" and not args.stack:
         parser.error("--to pulumi needs --stack")
+    if args.to == "sops":
+        if not args.sops_file:
+            parser.error("--to sops needs --sops-file")
+        if not os.path.exists(args.sops_file) and not (args.secret_name and args.namespace):
+            parser.error(f"--sops-file {args.sops_file} doesn't exist; creating it needs "
+                         "--secret-name and --namespace")
     if args.to == "stdout" and args.key_file and os.path.exists(args.key_file):
         parser.error(f"--key-file {args.key_file} already exists; not overwriting it")
     if not args.homepage:
@@ -162,6 +178,10 @@ def _store_credentials(args: argparse.Namespace, deps: Deps, app: api.AppCredent
              (store.pulumi_key(args.key_secret), app.pem)], args.stack, args.cwd), deps.run)
         _say(deps, f"Set Pulumi secrets {store.pulumi_key(args.client_id_var)} and "
                    f"{store.pulumi_key(args.key_secret)} on stack {args.stack}.")
+    elif args.to == "sops":
+        store.sops_store_key(args.sops_file, args.sops_key, app.pem, replace=args.replace,
+                             secret_name=args.secret_name, namespace=args.namespace, run=deps.run)
+        _say(deps, f"Encrypted the private key into {args.sops_file} as {args.sops_key}.")
     else:
         store.write_key_file(args.key_file, app.pem)
         _say(deps, f"Wrote the private key to {args.key_file} (mode 0600).")
@@ -203,6 +223,8 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
         return 1
     if args.to == "stdout" and not args.key_file:
         args.key_file = f"{app.slug}.private-key.pem"
+    if args.to == "sops" and not args.sops_key:
+        args.sops_key = f"{app.slug}.pem"
     try:
         _store_credentials(args, deps, app)
     except (FlowError, OSError) as error:
@@ -234,6 +256,11 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
         print(json.dumps({"app_id": app.app_id, "slug": app.slug, "client_id": app.client_id,
                           "installation_id": installation_id, "private_key_file": args.key_file,
                           "html_url": app.html_url}, indent=2), file=deps.stdout)
+    elif args.to == "sops":
+        print(json.dumps({"app_id": app.app_id, "slug": app.slug, "client_id": app.client_id,
+                          "installation_id": installation_id, "html_url": app.html_url,
+                          "sops_file": args.sops_file, "sops_key": args.sops_key}, indent=2),
+              file=deps.stdout)
     elif installation_id is not None:
         print(f"{app.slug}: App ID {app.app_id}, client ID {app.client_id}, "
               f"installation ID {installation_id}", file=deps.stdout)

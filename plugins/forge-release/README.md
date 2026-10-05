@@ -38,6 +38,7 @@ The private key is never printed. If storing it fails, the script writes it to
 |---|---|---|---|
 | `github` (default) | `gh variable set YEET_APP_ID -R <repo>` per `--repo` | `gh secret set YEET_APP_PRIVATE_KEY -R <repo>`, value on stdin | printed |
 | `pulumi --stack <stack> [--cwd <dir>]` | `pulumi config set --secret yeetAppId` | `pulumi config set --secret yeetAppPrivateKey`, value on stdin | `yeetAppInstallationId` |
+| `sops --sops-file <path> [--sops-key <name>]` | printed (JSON) | entry in a SOPS-encrypted Kubernetes Secret file, default key `<slug>.pem` | printed (JSON) |
 | `stdout [--key-file <path>]` | JSON on stdout | file, mode 0600 (default `./<slug>.private-key.pem`) | JSON on stdout |
 
 Rename the stored values with `--client-id-var`, `--key-secret` and `--installation-id-var`.
@@ -50,13 +51,49 @@ The value stored as `YEET_APP_ID` is the client ID, not the numeric App ID: GitH
 either to identify the App when signing a JWT and recommends the client ID. The numeric ID is
 printed (and is in the `--to stdout` JSON) if a tool insists on it.
 
+### Storing the key in a SOPS Secret file
+
+`--to sops` encrypts the key straight into a Kubernetes Secret file in a git repo, so the
+plaintext never reaches disk. For a GARM runner pool:
+
+```bash
+plugins/forge-release/scripts/github-app-create --org acme --name acme-garm \
+  --permission administration=write --permission organization_self_hosted_runners=write \
+  --to sops --sops-file ~/infra/homelab/platform/garm/app-keys.sops.yaml \
+  --secret-name garm-app-keys --namespace garm
+```
+
+The key lands under `stringData` as `<slug>.pem`; `--sops-key` picks another name. If the file
+uses `data` instead, the value is base64-encoded there. `--secret-name` and `--namespace` only
+matter when the file doesn't exist yet (the script refuses to start without them in that case).
+An existing entry with the same key is left alone unless you pass `--replace`.
+
+The script stays standard library only, so it doesn't parse YAML. sops does the editing:
+
+- An existing file is decrypted once to JSON (in memory, to check for the key and see whether it
+  uses `stringData` or `data`). The script then copies the still-encrypted file to a temp file in
+  the same directory, runs `sops set --value-stdin` on the copy (the key travels on stdin, never in
+  argv), and renames the copy over the original.
+- A new file is built as a JSON Secret document and piped to
+  `sops --encrypt --filename-override <path> --input-type json --output-type yaml /dev/stdin`, so
+  the repo's `.sops.yaml` creation rule for that path applies. The result is written to a temp
+  file and renamed.
+- sops runs with the file's directory as its working directory, so it finds `.sops.yaml` by its
+  normal upward search, and your usual key setup (for age, `SOPS_AGE_KEY_FILE`) must work there.
+- Afterwards the file is decrypted again and the entry compared with the key in memory; a
+  mismatch is an error. Nothing prints the key.
+
+stdout gets the same JSON as `--to stdout` minus `private_key_file`, plus `sops_file` and
+`sops_key`. If storing fails, the usual `./<slug>.private-key.pem` rescue file is written.
+
 ### Requirements
 
 - `python3` 3.9 or newer; standard library only.
 - `openssl` on `PATH`. The script signs the App JWT (RS256) with `openssl dgst -sha256 -sign`
   instead of depending on a crypto package.
 - `gh`, logged in with admin access to each `--repo`, for `--to github`; `pulumi`, logged in to
-  the stack's backend, for `--to pulumi`.
+  the stack's backend, for `--to pulumi`; `sops` (3.13 or newer, for `set --value-stdin`) with a
+  key that can decrypt and encrypt the file, for `--to sops`.
 - A browser that can reach the script's `127.0.0.1` port: a local one, or see the next section.
 
 ### Running on a remote host
