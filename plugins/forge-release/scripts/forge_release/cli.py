@@ -76,7 +76,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--stack", help="Pulumi stack (required with --to pulumi)")
     p.add_argument("--cwd", default=".", help="Pulumi project directory (default: current directory)")
     p.add_argument("--key-file", help="where --to stdout writes the key, mode 0600 "
-                                      "(default: ./<slug>.private-key.pem)")
+                                      "(default: ./<slug>.private-key.pem, or "
+                                      "./<slug>.private-key.<n>.pem if that exists)")
     p.add_argument("--sops-file", metavar="PATH",
                    help="SOPS-encrypted Secret file for --to sops (required); edited in place if it "
                         "exists, created if not")
@@ -182,15 +183,32 @@ def _store_credentials(args: argparse.Namespace, deps: Deps, app: api.AppCredent
         store.sops_store_key(args.sops_file, args.sops_key, app.pem, replace=args.replace,
                              secret_name=args.secret_name, namespace=args.namespace, run=deps.run)
         _say(deps, f"Encrypted the private key into {args.sops_file} as {args.sops_key}.")
-    else:
+    elif args.key_file:
         store.write_key_file(args.key_file, app.pem)
+        _say(deps, f"Wrote the private key to {args.key_file} (mode 0600).")
+    else:
+        args.key_file = _write_fresh_key_file(app)
         _say(deps, f"Wrote the private key to {args.key_file} (mode 0600).")
 
 
+def _write_fresh_key_file(app: api.AppCredentials) -> str:
+    """Write the key to ./<slug>.private-key.pem, or the first free ./<slug>.private-key.<n>.pem.
+
+    The App already exists on GitHub by now, so a file left over from an earlier run must not
+    cost this run its only copy of the key."""
+    for n in range(1000):
+        path = f"{app.slug}.private-key.pem" if n == 0 else f"{app.slug}.private-key.{n}.pem"
+        try:
+            store.write_key_file(path, app.pem)
+        except FlowError:
+            continue
+        return path
+    raise FlowError(f"no free {app.slug}.private-key.<n>.pem name in the current directory")
+
+
 def _rescue_key(deps: Deps, app: api.AppCredentials) -> None:
-    path = f"{app.slug}.private-key.pem"
     try:
-        store.write_key_file(path, app.pem)
+        path = _write_fresh_key_file(app)
     except (FlowError, OSError) as error:
         _say(deps, f"Couldn't save the private key either ({error}); generate a new one at "
                    f"{app.html_url} under the App's settings.")
@@ -221,16 +239,13 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
     except FlowError as error:
         _say(deps, f"error: {error}")
         return 1
-    if args.to == "stdout" and not args.key_file:
-        args.key_file = f"{app.slug}.private-key.pem"
     if args.to == "sops" and not args.sops_key:
         args.sops_key = f"{app.slug}.pem"
     try:
         _store_credentials(args, deps, app)
     except (FlowError, OSError) as error:
         _say(deps, f"error: storing the credentials failed: {error}")
-        if args.to != "stdout":
-            _rescue_key(deps, app)
+        _rescue_key(deps, app)
         return 1
 
     installation_id: Optional[int] = None

@@ -155,6 +155,38 @@ def test_stdout_mode_json_and_key_file(tmp_path):
     w.no_pem_leak()
 
 
+def test_stdout_default_key_file_never_overwrites_and_never_loses_the_key(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "acme-release.private-key.pem").write_text("old")
+    (tmp_path / "acme-release.private-key.1.pem").write_text("old")
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--to", "stdout"]) == 0
+    saved = tmp_path / "acme-release.private-key.2.pem"
+    assert saved.read_text() == PEM and stat.S_IMODE(os.stat(saved).st_mode) == 0o600
+    assert (tmp_path / "acme-release.private-key.pem").read_text() == "old"
+    assert json.loads(w.out.getvalue())["private_key_file"] == saved.name
+    assert saved.name in w.err.getvalue()
+    w.no_pem_leak()
+
+
+def test_stdout_key_file_taken_after_the_check_is_rescued(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    key = tmp_path / "app.pem"
+    w = World()
+    original = w.http
+
+    def http(method, url, headers, body=None):
+        if not key.exists():
+            key.write_text("old")
+        return original(method, url, headers, body)
+
+    w.http = http
+    assert w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key)]) == 1
+    assert key.read_text() == "old"
+    assert (tmp_path / "acme-release.private-key.pem").read_text() == PEM
+    w.no_pem_leak()
+
+
 def test_installation_timeout_reports_and_keeps_stored_credentials(tmp_path):
     w = World(installations=[(200, [])] * 500)
     key = tmp_path / "app.pem"

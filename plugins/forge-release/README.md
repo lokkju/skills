@@ -30,7 +30,8 @@ What it does:
    seconds until the installation shows up, then prints its ID (and stores it in Pulumi mode).
 
 The private key is never printed. If storing it fails, the script writes it to
-`./<slug>.private-key.pem` (mode 0600) so it isn't lost.
+`./<slug>.private-key.pem` (mode 0600) so it isn't lost, or to `./<slug>.private-key.<n>.pem`
+(the first free `<n>`) if a file by that name is already there, and says which file it used.
 
 ### Where the credentials go
 
@@ -39,7 +40,7 @@ The private key is never printed. If storing it fails, the script writes it to
 | `github` (default) | `gh variable set YEET_APP_ID -R <repo>` per `--repo` | `gh secret set YEET_APP_PRIVATE_KEY -R <repo>`, value on stdin | printed |
 | `pulumi --stack <stack> [--cwd <dir>]` | `pulumi config set --secret yeetAppId` | `pulumi config set --secret yeetAppPrivateKey`, value on stdin | `yeetAppInstallationId` |
 | `sops --sops-file <path> [--sops-key <name>]` | printed (JSON) | entry in a SOPS-encrypted Kubernetes Secret file, default key `<slug>.pem` | printed (JSON) |
-| `stdout [--key-file <path>]` | JSON on stdout | file, mode 0600 (default `./<slug>.private-key.pem`) | JSON on stdout |
+| `stdout [--key-file <path>]` | JSON on stdout | file, mode 0600 (default `./<slug>.private-key.pem`, or the first free `./<slug>.private-key.<n>.pem`) | JSON on stdout |
 
 Rename the stored values with `--client-id-var`, `--key-secret` and `--installation-id-var`.
 Pulumi keys are the camelCase form of those names (`YEET_APP_ID` becomes `yeetAppId`); a name
