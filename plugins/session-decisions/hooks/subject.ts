@@ -15,7 +15,8 @@ const LABELLED = /^([DA])(\d+) (DECIDE|ACTION): ([\s\S]*)$/
 // The link is the last bracketed token, at the very end of the body.
 const LINK = /\[[^[\]]*\S[^[\]]*\]$/
 const RECOMMEND = /\(recommend\s+\S/i
-const CHOICE = /\(recommend\s+([^)]*?)\s*\)/i
+// One level of nested parentheses, so "(recommend B (cheaper))" keeps "B (cheaper)" whole.
+const CHOICE = /\(recommend\s+((?:[^()]|\([^()]*\))*?)\s*\)/i
 
 export type Draft = { kind: Kind; body: string }
 export type Label = { letter: Letter; number: number; kind: Kind; body: string }

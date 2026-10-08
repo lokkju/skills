@@ -32,6 +32,8 @@ describe('subject', () => {
     expect(parseLabel('A12 ACTION: run gh auth login [no link]')).toEqual({ letter: 'A', number: 12, kind: 'ACTION', body: 'run gh auth login [no link]' })
     expect(parseLabel('DECIDE: no label yet')).toBeNull()
     expect(recommendation('Postgres or SQLite? (recommend SQLite) [#3]')).toBe('SQLite')
+    expect(recommendation('Which plan? (recommend B (the cheaper one)) [no link]')).toBe('B (the cheaper one)')
+    expect(splitBody('Which plan? (recommend B (cheaper)) [no link]').question).toBe('Which plan?')
     expect(rulingIn('context\nRuling (2026-10-01): no\nRuling (2026-10-03): yes')).toBe('Ruling (2026-10-03): yes')
 
   })
@@ -65,6 +67,10 @@ describe('queue', () => {
     const done = applyUpdate(list, { taskId: '1', status: 'completed', description: 'Ruling (2026-10-03): yes' })
     expect(done[0]).toMatchObject({ status: 'completed', description: 'Ruling (2026-10-03): yes' })
     expect(applyUpdate(list, { taskId: '1', status: 'deleted' })).toEqual([])
+    // An update to a task that isn't a decision item leaves the list as it was, so nothing is persisted.
+    expect(applyUpdate(list, { taskId: '9', status: 'completed' })).toBe(list)
+    expect(applyUpdate(list, { taskId: '9', status: 'deleted' })).toBe(list)
+    expect(applyUpdate(list, { taskId: '9', subject: 'refactor the parser' })).toBe(list)
     expect(applyUpdate(list, { taskId: '1', subject: 'Just a task now' })).toEqual([])
     expect(applyUpdate(list, { taskId: '9', status: 'completed' })).toEqual(list)
   })
