@@ -282,8 +282,9 @@ class FakeSops:
     def __call__(self, argv, input=None, capture_output=None, text=None, cwd=None):
         self.calls.append((argv, input, cwd))
         ok = lambda out="": subprocess.CompletedProcess(argv, 0, out, "")
+        at = lambda name: Path(cwd or ".") / name  # like sops, relative paths resolve against cwd
         if argv[1] == "--decrypt":
-            doc = json.loads(Path(argv[-1]).read_text()[4:])
+            doc = json.loads(at(argv[-1]).read_text()[4:])
             if self.break_readback and "late.pem" in json.dumps(doc):
                 doc["stringData"]["late.pem"] = "other"
             return ok(json.dumps(doc))
@@ -291,11 +292,11 @@ class FakeSops:
             assert argv[argv.index("--filename-override") + 1] and argv[-1] == "/dev/stdin"
             return ok("ENC:" + input)
         assert argv[1] == "set" and "--value-stdin" in argv
-        path = argv[-2]
+        path = at(argv[-2])
         field, key = re.findall(r'\["([^"]+)"\]', argv[-1])
-        doc = json.loads(Path(path).read_text()[4:])
+        doc = json.loads(path.read_text()[4:])
         doc.setdefault(field, {})[key] = json.loads(input)
-        Path(path).write_text("ENC:" + json.dumps(doc))
+        path.write_text("ENC:" + json.dumps(doc))
         return ok()
 
 
@@ -381,6 +382,18 @@ def test_sops_pem_never_in_argv(tmp_path):
                                "--secret-name", "s", "--namespace", "ns"])
     assert len(fake.calls) >= 5
     assert all("MIIfake" not in " ".join(argv) for argv, _, _ in fake.calls)
+
+
+def test_sops_relative_path_with_a_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "old.sops.yaml").write_text("ENC:" + json.dumps({"stringData": {}}))
+    for name in ("sub/new.sops.yaml", "sub/old.sops.yaml"):
+        w = sops_world(FakeSops())
+        assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", name,
+                       "--secret-name", "s", "--namespace", "ns"]) == 0, w.err.getvalue()
+        assert sops_doc(tmp_path / name)["stringData"]["acme-release.pem"] == PEM
+    assert sorted(p.name for p in (tmp_path / "sub").iterdir()) == ["new.sops.yaml", "old.sops.yaml"]
 
 
 @pytest.mark.parametrize("args,msg", [

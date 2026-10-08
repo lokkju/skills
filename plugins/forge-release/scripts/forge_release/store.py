@@ -114,7 +114,10 @@ def sops_store_key(path: str, key: str, pem: str, replace: bool = False,
     The plaintext only travels on pipes: an existing file is edited with `sops set --value-stdin`
     on a copy of its (encrypted) bytes, and a new one is encrypted from stdin. The result replaces
     `path` by rename, so a failed run leaves the original alone."""
-    cwd = os.path.dirname(os.path.abspath(path))
+    # sops runs with the file's directory as cwd (so it finds the right .sops.yaml); a relative
+    # path like sub/x.sops.yaml would then point at sub/sub/x.sops.yaml.
+    path = os.path.abspath(path)
+    cwd = os.path.dirname(path)
     if os.path.exists(path):
         doc = _decrypt(run, path, cwd, pem)
         field = "data" if "data" in doc and "stringData" not in doc else "stringData"
