@@ -5,7 +5,7 @@ buried in long messages and scroll away; this plugin pins each one as a numbered
 decision, `A1` for something only you can do) in the transcript, a sidebar and the footer, with a
 recommendation you can accept in one click.
 
-![A Claude Code session queues three decisions and two actions while planning a SQLite to Postgres move; Accept all answers the decisions in one message, and the sidebar drops to the two open actions](docs/demo.gif)
+![A Claude Code session queues its decisions and two actions while planning a SQLite to Postgres move; Accept all answers the decisions in one message, and the sidebar drops to the two open actions](docs/demo.gif)
 
 <sub>A real session, sped up while the assistant works. Asked to plan a SQLite to Postgres move
 without writing code, it queues its decisions and actions. Accept all puts an answer line for
@@ -49,7 +49,7 @@ write a recommendation isn't ready to ask yet, which is the point.
   open the queue; Esc closes it.
 - **Cards:** a `DECIDE` or `ACTION` chip, the label, a `recommends <choice>` tag, the question
   with any qualifier under it, the link, and the item's age, which turns red after a day.
-- **Task list:** the items are tasks, so ctrl+t lists them too.
+- **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
 
@@ -83,9 +83,11 @@ Claude Code with function hooks, which interactive sessions and background jobs 
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 
-Some child sessions (a session started from inside another Claude Code session, for one) don't
-get TaskCreate. There the assistant uses the plugin's `decision_add` and `decision_close` tools
-instead; the items show the same way, with a `ledger` tag on each card.
+Not every session gets TaskCreate. On Claude Code 2.1.286, Haiku sessions do, while Sonnet and
+Opus sessions get only TaskStop ([#4](https://github.com/lokkju/skills/issues/4)). Without it, the
+assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
+same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
+but they don't appear in ctrl+t.
 
 With `NO_COLOR` set or `TERM=dumb`, chips and glyphs fall back to ASCII (`[DECIDE]`, `+`, `x`).
 Otherwise the cards use Claude Code's theme colors and follow your theme.
@@ -132,5 +134,5 @@ spends one short Sonnet conversation.
 bash plugins/session-decisions/docs/record-demo.sh   # writes docs/demo.gif
 ```
 
-Run it from a normal terminal. From inside a Claude Code session, the recorded session is a child
-session without TaskCreate, and the cards show the `ledger` tag.
+The demo runs on Sonnet, which doesn't get TaskCreate, so its cards show the `ledger` tag. Set
+`DEMO_MODEL=haiku` to record the task-list path instead.
