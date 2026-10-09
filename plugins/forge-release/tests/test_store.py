@@ -3,7 +3,6 @@ import stat
 import subprocess
 
 import pytest
-
 from forge_release import store
 from forge_release.manifest import FlowError
 
@@ -11,8 +10,9 @@ PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIfake\n-----END RSA PRIVATE KEY-----\n
 
 
 def test_github_commands_per_repo_secret_on_stdin():
-    cmds = store.github_commands("Iv23abc", PEM, ["acme/site", "acme/api"],
-                                 "YEET_APP_ID", "YEET_APP_PRIVATE_KEY")
+    cmds = store.github_commands(
+        "Iv23abc", PEM, ["acme/site", "acme/api"], "YEET_APP_ID", "YEET_APP_PRIVATE_KEY"
+    )
     assert cmds == [
         (["gh", "variable", "set", "YEET_APP_ID", "-R", "acme/site", "--body", "Iv23abc"], None),
         (["gh", "secret", "set", "YEET_APP_PRIVATE_KEY", "-R", "acme/site"], PEM),
@@ -22,22 +22,52 @@ def test_github_commands_per_repo_secret_on_stdin():
     assert all(PEM not in " ".join(argv) for argv, _ in cmds)
 
 
-@pytest.mark.parametrize("name,key", [("YEET_APP_ID", "yeetAppId"),
-                                      ("YEET_APP_PRIVATE_KEY", "yeetAppPrivateKey"),
-                                      ("yeet-app-installation-id", "yeetAppInstallationId"),
-                                      ("already:namespaced", "already:namespaced")])
+@pytest.mark.parametrize(
+    "name,key",
+    [
+        ("YEET_APP_ID", "yeetAppId"),
+        ("YEET_APP_PRIVATE_KEY", "yeetAppPrivateKey"),
+        ("yeet-app-installation-id", "yeetAppInstallationId"),
+        ("already:namespaced", "already:namespaced"),
+    ],
+)
 def test_pulumi_key(name, key):
     assert store.pulumi_key(name) == key
 
 
 def test_pulumi_commands_values_on_stdin():
-    cmds = store.pulumi_commands([("yeetAppId", "Iv23abc"), ("yeetAppPrivateKey", PEM)],
-                                 stack="prod", cwd="/srv/infra")
+    cmds = store.pulumi_commands(
+        [("yeetAppId", "Iv23abc"), ("yeetAppPrivateKey", PEM)], stack="prod", cwd="/srv/infra"
+    )
     assert cmds == [
-        (["pulumi", "config", "set", "--secret", "--stack", "prod", "--cwd", "/srv/infra", "yeetAppId"],
-         "Iv23abc"),
-        (["pulumi", "config", "set", "--secret", "--stack", "prod", "--cwd", "/srv/infra",
-          "yeetAppPrivateKey"], PEM),
+        (
+            [
+                "pulumi",
+                "config",
+                "set",
+                "--secret",
+                "--stack",
+                "prod",
+                "--cwd",
+                "/srv/infra",
+                "yeetAppId",
+            ],
+            "Iv23abc",
+        ),
+        (
+            [
+                "pulumi",
+                "config",
+                "set",
+                "--secret",
+                "--stack",
+                "prod",
+                "--cwd",
+                "/srv/infra",
+                "yeetAppPrivateKey",
+            ],
+            PEM,
+        ),
     ]
 
 

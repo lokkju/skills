@@ -1,0 +1,32 @@
+# Install once with `uvx pre-commit install`; run everything with
+# `uvx pre-commit run --all-files`.
+exclude: \.(gif|png|jpe?g|webp|ico)$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: local
+    hooks:
+      - id: check-skill-names
+        name: skill names match their directories
+        entry: uv run --no-project scripts/check-skill-names.py
+        language: system
+        files: (^|/)SKILL\.md$|^scripts/check-skill-names\.py$
+        pass_filenames: false

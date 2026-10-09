@@ -31,17 +31,37 @@ versions.
 
 ## Validation
 
-Run these before committing:
+Install the pre-commit hooks once per clone:
+
+```bash
+uvx pre-commit install
+```
+
+They run JSON and YAML checks, end-of-file and trailing-whitespace fixes, `ruff check` and
+`ruff format` (settings in `ruff.toml`), shellcheck, and `scripts/check-skill-names.py`, which
+fails when a skill's frontmatter `name` differs from its directory (`validate` doesn't check
+that). `uvx pre-commit run --all-files` runs them on everything.
+
+CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
+
+- `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, then
+  `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
+- `forge-release`: `ruff check`, `ruff format --check` and the pytest suite on Python 3.11 and
+  3.14.
+- `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
+- `skill-names`: `scripts/check-skill-names.py`.
+
+`.github/workflows/pr-title.yml` checks that the PR title is a Conventional Commit. To run the CI
+checks by hand:
 
 ```bash
 claude plugin validate --strict .
 claude plugin validate --strict plugins/<name>
 claude plugin test plugins/session-decisions
+uvx ruff check plugins/forge-release && uvx ruff format --check plugins/forge-release
 uv run --no-project --with pytest pytest plugins/forge-release/tests
+uv run --no-project scripts/check-skill-names.py
 ```
-
-`validate` doesn't check that a skill's frontmatter `name` matches its directory; check that by
-eye.
 
 ## Commits
 

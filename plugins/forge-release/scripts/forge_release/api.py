@@ -10,8 +10,9 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from .manifest import FlowError
 
@@ -19,11 +20,12 @@ API = "https://api.github.com"
 USER_AGENT = "forge-release-github-app-create"
 
 # (method, url, headers, body) -> (status, parsed JSON body)
-Http = Callable[[str, str, Mapping[str, str], Optional[bytes]], Tuple[int, Any]]
+Http = Callable[[str, str, Mapping[str, str], Optional[bytes]], tuple[int, Any]]
 
 
-def urllib_http(method: str, url: str, headers: Mapping[str, str],
-                body: Optional[bytes] = None) -> Tuple[int, Any]:
+def urllib_http(
+    method: str, url: str, headers: Mapping[str, str], body: Optional[bytes] = None
+) -> tuple[int, Any]:
     request = urllib.request.Request(url, data=body, method=method, headers=dict(headers))
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -39,8 +41,11 @@ def urllib_http(method: str, url: str, headers: Mapping[str, str],
 
 
 def _headers(token: Optional[str] = None) -> dict:
-    headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-               "User-Agent": USER_AGENT}
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": USER_AGENT,
+    }
     if token:
         headers["Authorization"] = f"Bearer {token}"
     return headers
@@ -71,10 +76,13 @@ def convert_manifest(code: str, http: Http) -> AppCredentials:
     _check(status, body, "manifest conversion")
     if not isinstance(body, dict) or not body.get("pem") or not body.get("slug"):
         raise FlowError("manifest conversion returned an unexpected response")
-    return AppCredentials(app_id=int(body["id"]), slug=str(body["slug"]),
-                          client_id=body.get("client_id"),
-                          html_url=str(body.get("html_url") or f"https://github.com/apps/{body['slug']}"),
-                          pem=str(body["pem"]))
+    return AppCredentials(
+        app_id=int(body["id"]),
+        slug=str(body["slug"]),
+        client_id=body.get("client_id"),
+        html_url=str(body.get("html_url") or f"https://github.com/apps/{body['slug']}"),
+        pem=str(body["pem"]),
+    )
 
 
 def _b64(data: bytes) -> str:
@@ -88,7 +96,9 @@ def openssl_sign(data: bytes, pem: str, run: Callable[..., Any] = subprocess.run
         with os.fdopen(fd, "w") as handle:
             handle.write(pem)
         try:
-            result = run(["openssl", "dgst", "-sha256", "-sign", path], input=data, capture_output=True)
+            result = run(
+                ["openssl", "dgst", "-sha256", "-sign", path], input=data, capture_output=True
+            )
         except FileNotFoundError:
             raise FlowError("openssl isn't on PATH; it's needed to sign the App JWT") from None
     finally:
@@ -98,19 +108,31 @@ def openssl_sign(data: bytes, pem: str, run: Callable[..., Any] = subprocess.run
     return result.stdout
 
 
-def make_jwt(issuer: str, pem: str, now: Optional[float] = None,
-             sign: Callable[[bytes, str], bytes] = openssl_sign) -> str:
+def make_jwt(
+    issuer: str,
+    pem: str,
+    now: Optional[float] = None,
+    sign: Callable[[bytes, str], bytes] = openssl_sign,
+) -> str:
     now = int(time.time() if now is None else now)
     header = _b64(json.dumps({"alg": "RS256", "typ": "JWT"}, separators=(",", ":")).encode())
-    claims = _b64(json.dumps({"iat": now - 60, "exp": now + 540, "iss": issuer},
-                             separators=(",", ":")).encode())
+    claims = _b64(
+        json.dumps(
+            {"iat": now - 60, "exp": now + 540, "iss": issuer}, separators=(",", ":")
+        ).encode()
+    )
     signing_input = f"{header}.{claims}"
     return f"{signing_input}.{_b64(sign(signing_input.encode(), pem))}"
 
 
-def wait_for_installation(token: Callable[[], str], http: Http, timeout: float = 600,
-                          interval: float = 5, clock: Callable[[], float] = time.monotonic,
-                          sleep: Callable[[float], None] = time.sleep) -> int:
+def wait_for_installation(
+    token: Callable[[], str],
+    http: Http,
+    timeout: float = 600,
+    interval: float = 5,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> int:
     deadline = clock() + timeout
     while True:
         status, body = http("GET", f"{API}/app/installations", _headers(token()), None)
