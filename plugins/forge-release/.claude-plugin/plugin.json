@@ -3,7 +3,7 @@
   "description": "Release-PR setup across forges (yeet, release-plz, release-please). This release has the GitHub App helper only: github-app-create registers a release App in two browser clicks and stores its credentials (--port and --no-browser for remote hosts; --to sops writes the key into a SOPS Secret file).",
   "version": "0.3.1",
   "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
-  "repository": "https://github.com/lokkju/skills-marketplace",
+  "repository": "https://github.com/lokkju/skills",
   "license": "PolyForm-Shield-1.0.0",
   "keywords": ["release", "github-app", "yeet", "release-please", "release-plz"]
 }

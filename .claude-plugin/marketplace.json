@@ -1,0 +1,22 @@
+{
+  "name": "lokkju",
+  "owner": { "name": "lokkju", "url": "https://github.com/lokkju" },
+  "description": "lokkju's Claude Code plugins and agent skills.",
+  "plugins": [
+    {
+      "name": "session-decisions",
+      "source": "./plugins/session-decisions",
+      "description": "An in-session queue of the decisions and actions an assistant is waiting on you for, in the task list, shown as cards in the transcript and a sidebar."
+    },
+    {
+      "name": "forge-release",
+      "source": "./plugins/forge-release",
+      "description": "Release-PR setup across forges; for now, a helper that creates a GitHub App for release tokens and stores its credentials."
+    },
+    {
+      "name": "claude-session-index",
+      "source": { "source": "github", "repo": "lokkju/claude-session-index" },
+      "description": "Index, search, and report on Claude Code sessions. TPS skill for work summarization."
+    }
+  ]
+}

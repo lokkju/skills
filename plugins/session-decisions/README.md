@@ -15,7 +15,7 @@ open.</sub>
 ## Install
 
 ```bash
-claude plugin marketplace add lokkju/skills-marketplace
+claude plugin marketplace add lokkju/skills
 claude plugin install session-decisions@lokkju
 ```
 
