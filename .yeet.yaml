@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/v0.17.0/yeet.schema.json
+#
+# yeet (.github/workflows/yeet.yml) releases each plugin under plugins/ on
+# its own: one combined release PR from yeet/release-main covers every
+# plugin with releasable commits, and its merge tags each one
+# <plugin>--vYYYY.MM.DD.N (Claude Code's `claude plugin tag` form,
+# {name}--v{version}) with its own GitHub Release. yeet writes the version
+# into the plugin's plugin.json and the entry into its CHANGELOG.md. The
+# first release of a plugin in a UTC day is .1.
+
+versioning: calver
+calver:
+  format: YYYY.0M.0D.MICRO
+timezone: UTC
+telemetry:
+  enabled: false
+
+# Only these types release.
+bump_types:
+  minor: [feat]
+  patch: [fix, perf]
+
+# The section headings in each plugin's CHANGELOG.md; a target's own
+# changelog block sets only the file and inherits these.
+changelog:
+  include: [feat, fix, perf]
+  sections:
+    feat: Features
+    fix: Fixes
+    perf: Performance
+
+# A commit counts for a plugin only when it touches what an installed plugin
+# runs or reads. README.md, docs/ (the demo GIF and its recorder), tests and
+# type-checking config don't ship behavior, so they're excluded. CHANGELOG.md
+# is excluded so yeet's own release commits never count.
+targets:
+  session-decisions:
+    type: path
+    path: plugins/session-decisions
+    tag_prefix: session-decisions--v
+    version_files:
+      - path: plugins/session-decisions/.claude-plugin/plugin.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: plugins/session-decisions/CHANGELOG.md
+    exclude_paths:
+      - plugins/session-decisions/CHANGELOG.md
+      - plugins/session-decisions/README.md
+      - plugins/session-decisions/docs
+      - plugins/session-decisions/tests
+      - plugins/session-decisions/tsconfig.json
+
+  forge-release:
+    type: path
+    path: plugins/forge-release
+    tag_prefix: forge-release--v
+    version_files:
+      - path: plugins/forge-release/.claude-plugin/plugin.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: plugins/forge-release/CHANGELOG.md
+    exclude_paths:
+      - plugins/forge-release/CHANGELOG.md
+      - plugins/forge-release/README.md
+      - plugins/forge-release/tests
