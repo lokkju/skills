@@ -61,10 +61,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # shellcheck is preinstalled on ubuntu-latest. Checks *.sh plus any tracked
-      # file with an sh or bash shebang.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      # Same shellcheck as .pre-commit-config.yaml; ubuntu-latest ships 0.9.0, which
+      # flags optional function arguments (SC2120) that 0.11 accepts. Checks *.sh
+      # plus any tracked file with an sh or bash shebang.
       - name: ShellCheck
+        env:
+          SHELLCHECK_PY: "0.11.0.1"
         run: |
+          shellcheck() { uvx --from "shellcheck-py==$SHELLCHECK_PY" shellcheck "$@"; }
           shellcheck --version
           files=()
           while IFS= read -r -d '' f; do
