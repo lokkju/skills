@@ -7,6 +7,9 @@
 # {name}--v{version}) with its own GitHub Release. yeet writes the version
 # into the plugin's plugin.json and the entry into its CHANGELOG.md. The
 # first release of a plugin in a UTC day is .1.
+#
+# .github/scripts/release-check.sh reads the targets and exclude_paths
+# below, so a PR is held to the same idea of "releasable" that yeet uses.
 
 versioning: calver
 calver:
