@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      # validate and test run without an Anthropic login or API key.
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.286
+      - name: Validate marketplace and plugins
+        run: |
+          claude plugin validate --strict .
+          for plugin in plugins/*/; do
+            claude plugin validate --strict "$plugin"
+          done
+      - name: Test session-decisions
+        run: claude plugin test plugins/session-decisions
+
+  forge-release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - name: Ruff
+        run: |
+          uvx ruff check plugins/forge-release
+          uvx ruff format --check plugins/forge-release
+      - name: Tests
+        run: uv run --no-project --with pytest pytest plugins/forge-release/tests
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # shellcheck is preinstalled on ubuntu-latest. Checks *.sh plus any tracked
+      # file with an sh or bash shebang.
+      - name: ShellCheck
+        run: |
+          shellcheck --version
+          files=()
+          while IFS= read -r -d '' f; do
+            if [[ "$f" == *.sh ]] || head -n1 "$f" | grep -Eq '^#!.*[/ ](ba)?sh([[:space:]]|$)'; then
+              files+=("$f")
+            fi
+          done < <(git ls-files -z)
+          printf '%s\n' "${files[@]}"
+          shellcheck "${files[@]}"
+
+  skill-names:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+      - name: Skill names match their directories
+        run: uv run --no-project scripts/check-skill-names.py
