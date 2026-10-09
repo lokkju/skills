@@ -61,9 +61,10 @@ EOF
 t() { tmux -L "$sock" "$@"; }
 screen() { t capture-pane -t demo -p; }
 
-# No update notices in the frame.
+# No update notices in the frame. Not CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: a session started
+# with it recorded without TaskCreate, so every card fell back to the ledger.
 t -f /dev/null new-session -d -s demo -x "$cols" -y "$rows" -c "$proj" \
-  env DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 claude --model "$model" --permission-mode default --settings "$work/settings.json" --plugin-dir "$plugin"
+  env DISABLE_AUTOUPDATER=1 claude --model "$model" --permission-mode default --settings "$work/settings.json" --plugin-dir "$plugin"
 t set -g window-size manual
 t set -g mouse on
 t resize-window -t demo -x "$cols" -y "$rows"
@@ -172,3 +173,13 @@ wait "$capture_pid"
 
 agg --idle-time-limit 2 --last-frame-duration 4 --font-size 14 "$cast" "$out"
 echo "record-demo: wrote $out"
+
+# Which path the recorded session took: TaskCreate, or the fallback ledger (a `ledger` tag on
+# every card). The transcript lives under the config dir, named after the project path.
+transcripts="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$proj" | sed 's|[/.]|-|g')"
+if jq -e 'select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "TaskCreate")' \
+  "$transcripts"/*.jsonl >/dev/null 2>&1; then
+  echo "record-demo: the session queued its items with TaskCreate"
+else
+  echo "record-demo: warning: the session never called TaskCreate, so the cards show the ledger tag" >&2
+fi
