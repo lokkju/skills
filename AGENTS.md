@@ -21,13 +21,31 @@ is installable for any agent as well as through the marketplace.
    repository, license) and put skills in `plugins/<name>/skills/<skill>/SKILL.md`. Each skill's
    frontmatter `name` must match its directory name.
 2. Add the entry to `.claude-plugin/marketplace.json` and the table in `README.md`.
+3. Add a target to `.yeet.yaml` shaped like the existing ones: `tag_prefix: <name>--v`, the
+   `plugin.json` version file, its own `CHANGELOG.md`, and `exclude_paths` for whatever it has
+   that doesn't ship behavior.
 
 ## Versioning
 
-Plugins carry a SemVer `version` in `plugin.json`. There is no release tooling; bump the version
-by hand in the same commit that changes the plugin's content (patch for fixes and wording, minor
-for new or changed behavior, major for removals or renames). Marketplace entries don't carry
-versions.
+[yeet](https://github.com/monkescience/yeet) owns plugin versions and changelogs (`.yeet.yaml`,
+`.github/workflows/yeet.yml`). Each plugin is its own target with a CalVer version
+(`YYYY.0M.0D.MICRO`, UTC), a `<plugin>--v<version>` tag and its own
+`plugins/<plugin>/CHANGELOG.md`. Don't edit `version` in `plugin.json` or a `CHANGELOG.md` by
+hand; yeet writes both. Marketplace entries carry no version.
+
+Conventional Commit types decide what releases: `feat`, `fix`, `perf` and any breaking change
+(`type!:`) release the plugins whose files they touch; other types don't. yeet reads the commit
+messages that land on `main`, so a squash merge releases by its PR title and a merge commit by the
+PR's individual commits. README.md, `docs/`, `tests/` and type-checking config don't count toward
+a release (`exclude_paths` in `.yeet.yaml`).
+
+A PR that changes a plugin's releasable files needs a `feat`, `fix` or `perf` title, or the
+`no-release` label when the change shouldn't reach users; `release-check` fails it otherwise.
+
+After a releasable merge, yeet opens or refreshes one release PR (`yeet/release-main`) covering
+every plugin with pending changes. Merging that PR ships the release: yeet tags each plugin and
+creates its GitHub Release from the changelog entry. To edit release notes, edit the changelog on
+the release branch before merging.
 
 ## Validation
 
