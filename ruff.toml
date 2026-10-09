@@ -1,0 +1,10 @@
+# Ruff settings for the Python in this repo (forge-release so far).
+line-length = 100
+# forge-release's README promises python3 3.9 or newer.
+target-version = "py39"
+# Extensionless Python entry points.
+extend-include = ["plugins/forge-release/scripts/github-app-create"]
+
+[lint]
+# `X | None` fails at runtime before 3.10 without `from __future__ import annotations`.
+ignore = ["UP045"]
