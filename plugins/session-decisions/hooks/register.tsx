@@ -325,7 +325,9 @@ export const register: Register = on => {
     const now = await $.clock.now()
     if (arg === 'pane') {
       await update($, paneDismissed, () => false)
-      const opened = await $.ui.open({ id: PANE, title: 'Decisions', focus: true, closeOnEscape: true, columns: 52 })
+      const opened = await $.ui
+        .open({ id: PANE, title: 'Decisions', focus: true, closeOnEscape: true, columns: 52 })
+        .catch((err: unknown) => ({ isPlaced: false as const, reason: String(err) }))
       return { text: opened.isPlaced ? 'Decisions pane opened.' : `${listing(list, now)}\n\n(The pane can't be shown here: ${opened.reason})` }
     }
     if (arg === 'wrap') {

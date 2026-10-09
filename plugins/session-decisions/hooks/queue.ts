@@ -71,15 +71,15 @@ export type TaskChange = {
   status?: Status | 'deleted'
 }
 
-/** Apply a TaskUpdate that succeeded to the items. */
+/** Apply a TaskUpdate that succeeded to the items; `items` itself when it touches none of them. */
 export function applyUpdate(items: readonly Item[], change: TaskChange): Item[] {
   const id = String(change.taskId)
   const current = items.find(one => one.source === 'tasks' && one.id === id)
-  if (change.status === 'deleted') return items.filter(one => one !== current)
+  if (change.status === 'deleted') return current ? items.filter(one => one !== current) : (items as Item[])
   if (!current) {
-    if (change.subject === undefined) return [...items]
+    if (change.subject === undefined) return items as Item[]
     const added = itemFromTask({ id, subject: change.subject, description: change.description, status: change.status })
-    return added ? [...items, added] : [...items]
+    return added ? [...items, added] : (items as Item[])
   }
   let next: Item | null = { ...current }
   if (change.subject !== undefined) {
