@@ -27,8 +27,9 @@ class PortInUseError(FlowError):
         self.port = port
 
 
-def build_manifest(name: str, homepage: str, permissions: Mapping[str, str],
-                   redirect_url: str) -> dict:
+def build_manifest(
+    name: str, homepage: str, permissions: Mapping[str, str], redirect_url: str
+) -> dict:
     return {
         "name": name,
         "url": homepage,
@@ -48,14 +49,14 @@ def form_action(org: Optional[str], state: str) -> str:
 def form_page(action: str, manifest: dict) -> str:
     value = html.escape(json.dumps(manifest), quote=True)
     return (
-        "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Create GitHub App</title></head>\n"
+        '<!doctype html>\n<html><head><meta charset="utf-8"><title>Create GitHub App</title></head>\n'
         "<body>\n"
-        f"<form id=\"manifest\" method=\"post\" action=\"{html.escape(action, quote=True)}\">\n"
-        f"<input type=\"hidden\" name=\"manifest\" value=\"{value}\">\n"
+        f'<form id="manifest" method="post" action="{html.escape(action, quote=True)}">\n'
+        f'<input type="hidden" name="manifest" value="{value}">\n'
         "<p>Sending the App manifest to GitHub...</p>\n"
-        "<noscript><button type=\"submit\">Continue to GitHub</button></noscript>\n"
+        '<noscript><button type="submit">Continue to GitHub</button></noscript>\n'
         "</form>\n"
-        "<script>document.getElementById(\"manifest\").submit();</script>\n"
+        '<script>document.getElementById("manifest").submit();</script>\n'
         "</body></html>\n"
     )
 
@@ -88,8 +89,11 @@ class CallbackServer:
                 if parsed.path == "/":
                     self._reply(200, owner._page)
                 elif parsed.path == CALLBACK_PATH:
-                    self._reply(200, "<!doctype html><p>Back from GitHub. "
-                                     "You can close this tab and go back to the terminal.</p>")
+                    self._reply(
+                        200,
+                        "<!doctype html><p>Back from GitHub. "
+                        "You can close this tab and go back to the terminal.</p>",
+                    )
                     owner._queries.put(urllib.parse.parse_qs(parsed.query))
                 else:
                     self._reply(404, "not found")

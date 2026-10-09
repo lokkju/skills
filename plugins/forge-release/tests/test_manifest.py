@@ -12,8 +12,9 @@ PERMS = {"contents": "write", "pull_requests": "write"}
 
 
 def test_manifest_fields():
-    m = manifest.build_manifest("acme-release", "https://example.com/acme", PERMS,
-                                "http://127.0.0.1:5000/callback")
+    m = manifest.build_manifest(
+        "acme-release", "https://example.com/acme", PERMS, "http://127.0.0.1:5000/callback"
+    )
     assert m == {
         "name": "acme-release",
         "url": "https://example.com/acme",
@@ -26,31 +27,41 @@ def test_manifest_fields():
 def test_manifest_has_no_webhook_block():
     # GitHub rejects a manifest whose hook_attributes lack a url ('"url" wasn't supplied'),
     # even with active: false. Leaving the block out creates the App with no webhook.
-    m = manifest.build_manifest("acme-release", "https://example.com/acme", PERMS,
-                                "http://127.0.0.1:5000/callback")
+    m = manifest.build_manifest(
+        "acme-release", "https://example.com/acme", PERMS, "http://127.0.0.1:5000/callback"
+    )
     assert "hook_attributes" not in m
 
 
 def test_form_action_org():
-    assert manifest.form_action("acme", "s3cr3t") == \
-        "https://github.com/organizations/acme/settings/apps/new?state=s3cr3t"
+    assert (
+        manifest.form_action("acme", "s3cr3t")
+        == "https://github.com/organizations/acme/settings/apps/new?state=s3cr3t"
+    )
 
 
 def test_form_action_user():
-    assert manifest.form_action(None, "s3cr3t") == "https://github.com/settings/apps/new?state=s3cr3t"
+    assert (
+        manifest.form_action(None, "s3cr3t") == "https://github.com/settings/apps/new?state=s3cr3t"
+    )
 
 
 def test_form_action_quotes_org():
-    assert manifest.form_action("a b", "x") == \
-        "https://github.com/organizations/a%20b/settings/apps/new?state=x"
+    assert (
+        manifest.form_action("a b", "x")
+        == "https://github.com/organizations/a%20b/settings/apps/new?state=x"
+    )
 
 
 def test_form_page_posts_manifest_and_autosubmits():
-    m = manifest.build_manifest("n\"<x>", "https://e.x", PERMS, "http://127.0.0.1:1/callback")
+    m = manifest.build_manifest('n"<x>', "https://e.x", PERMS, "http://127.0.0.1:1/callback")
     page = manifest.form_page(manifest.form_action("acme", "st"), m)
     form = re.search(r'<form[^>]*method="post"[^>]*action="([^"]+)"', page)
-    assert form and html.unescape(form.group(1)) == \
-        "https://github.com/organizations/acme/settings/apps/new?state=st"
+    assert (
+        form
+        and html.unescape(form.group(1))
+        == "https://github.com/organizations/acme/settings/apps/new?state=st"
+    )
     value = re.search(r'<input type="hidden" name="manifest" value="([^"]*)"', page).group(1)
     assert json.loads(html.unescape(value)) == m
     assert ".submit()" in page
@@ -111,6 +122,7 @@ def test_local_server_wait_times_out():
 
 def test_local_server_binds_the_requested_port_on_loopback_only():
     import socket
+
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -125,6 +137,7 @@ def test_local_server_binds_the_requested_port_on_loopback_only():
 
 def test_local_server_busy_port_raises_flow_error_naming_it():
     import socket
+
     with socket.socket() as busy:
         busy.bind(("127.0.0.1", 0))
         busy.listen()

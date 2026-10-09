@@ -8,8 +8,14 @@ from forge_release import api
 from forge_release.manifest import FlowError
 
 PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIfake\n-----END RSA PRIVATE KEY-----\n"
-CONVERSION = {"id": 42, "slug": "acme-release", "client_id": "Iv23abc", "pem": PEM,
-              "html_url": "https://github.com/apps/acme-release", "webhook_secret": None}
+CONVERSION = {
+    "id": 42,
+    "slug": "acme-release",
+    "client_id": "Iv23abc",
+    "pem": PEM,
+    "html_url": "https://github.com/apps/acme-release",
+    "webhook_secret": None,
+}
 
 
 class FakeHttp:
@@ -73,14 +79,29 @@ def test_issuer_prefers_client_id():
 def test_openssl_sign_verifies(tmp_path):
     key = tmp_path / "k.pem"
     subprocess.run(["openssl", "genrsa", "-out", str(key), "2048"], check=True, capture_output=True)
-    subprocess.run(["openssl", "rsa", "-in", str(key), "-pubout", "-out", str(tmp_path / "p.pem")],
-                   check=True, capture_output=True)
+    subprocess.run(
+        ["openssl", "rsa", "-in", str(key), "-pubout", "-out", str(tmp_path / "p.pem")],
+        check=True,
+        capture_output=True,
+    )
     sig = api.openssl_sign(b"hello", key.read_text())
     (tmp_path / "sig").write_bytes(sig)
     (tmp_path / "data").write_bytes(b"hello")
-    out = subprocess.run(["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "p.pem"),
-                          "-signature", str(tmp_path / "sig"), str(tmp_path / "data")],
-                         capture_output=True, text=True, check=False)
+    out = subprocess.run(
+        [
+            "openssl",
+            "dgst",
+            "-sha256",
+            "-verify",
+            str(tmp_path / "p.pem"),
+            "-signature",
+            str(tmp_path / "sig"),
+            str(tmp_path / "data"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert "Verified OK" in out.stdout
 
 
@@ -105,12 +126,17 @@ class Clock:
 
 
 def test_poll_stops_at_first_installation():
-    http = FakeHttp((200, []), (200, []), (200, [{"id": 777, "account": {"login": "acme"}}]),
-                    (200, [{"id": 888}]))
+    http = FakeHttp(
+        (200, []),
+        (200, []),
+        (200, [{"id": 777, "account": {"login": "acme"}}]),
+        (200, [{"id": 888}]),
+    )
     clock = Clock()
     tokens = iter(["t1", "t2", "t3", "t4"])
-    got = api.wait_for_installation(lambda: next(tokens), http, timeout=600, interval=5,
-                                    clock=clock.now, sleep=clock.sleep)
+    got = api.wait_for_installation(
+        lambda: next(tokens), http, timeout=600, interval=5, clock=clock.now, sleep=clock.sleep
+    )
     assert got == 777
     assert len(http.calls) == 3
     method, url, headers, _ = http.calls[2]
@@ -123,12 +149,19 @@ def test_poll_times_out_cleanly():
     http = FakeHttp(*[(200, [])] * 200)
     clock = Clock()
     with pytest.raises(FlowError, match="timed out"):
-        api.wait_for_installation(lambda: "t", http, timeout=30, interval=5,
-                                  clock=clock.now, sleep=clock.sleep)
+        api.wait_for_installation(
+            lambda: "t", http, timeout=30, interval=5, clock=clock.now, sleep=clock.sleep
+        )
     assert clock.t <= 30 and len(http.calls) <= 8
 
 
 def test_poll_api_error_raises():
     with pytest.raises(FlowError, match="401"):
-        api.wait_for_installation(lambda: "t", FakeHttp((401, {"message": "Bad credentials"})),
-                                  timeout=30, interval=5, clock=lambda: 0, sleep=lambda s: None)
+        api.wait_for_installation(
+            lambda: "t",
+            FakeHttp((401, {"message": "Bad credentials"})),
+            timeout=30,
+            interval=5,
+            clock=lambda: 0,
+            sleep=lambda s: None,
+        )

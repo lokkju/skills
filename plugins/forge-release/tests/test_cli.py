@@ -10,8 +10,13 @@ import pytest
 from forge_release import cli
 
 PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIfakeSECRET\n-----END RSA PRIVATE KEY-----\n"
-CONVERSION = {"id": 42, "slug": "acme-release", "client_id": "Iv23abc", "pem": PEM,
-              "html_url": "https://github.com/apps/acme-release"}
+CONVERSION = {
+    "id": 42,
+    "slug": "acme-release",
+    "client_id": "Iv23abc",
+    "pem": PEM,
+    "html_url": "https://github.com/apps/acme-release",
+}
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "github-app-create"
 
 
@@ -61,10 +66,18 @@ class World:
         def sleep(s):
             self.t += s
 
-        return cli.Deps(server_factory=self.factory, open_browser=self.opened.append,
-                        http=self.http, run=self.run, sign=lambda data, pem: b"sig",
-                        clock=lambda: self.t, sleep=sleep, new_state=lambda: "st",
-                        stdout=self.out, stderr=self.err)
+        return cli.Deps(
+            server_factory=self.factory,
+            open_browser=self.opened.append,
+            http=self.http,
+            run=self.run,
+            sign=lambda data, pem: b"sig",
+            clock=lambda: self.t,
+            sleep=sleep,
+            new_state=lambda: "st",
+            stdout=self.out,
+            stderr=self.err,
+        )
 
     def main(self, args):
         return cli.main(args, self.deps())
@@ -76,12 +89,15 @@ class World:
 def manifest_of(page):
     import html
     import re
+
     return json.loads(html.unescape(re.search(r'name="manifest" value="([^"]*)"', page).group(1)))
 
 
 def test_github_mode_end_to_end():
     w = World()
-    code = w.main(["--org", "acme", "--name", "acme-release", "--repo", "acme/site", "--repo", "acme/api"])
+    code = w.main(
+        ["--org", "acme", "--name", "acme-release", "--repo", "acme/site", "--repo", "acme/api"]
+    )
     assert code == 0
     assert w.commands == [
         (["gh", "variable", "set", "YEET_APP_ID", "-R", "acme/site", "--body", "Iv23abc"], None),
@@ -92,8 +108,13 @@ def test_github_mode_end_to_end():
     m = manifest_of(w.server.page)
     assert m["default_permissions"] == {"contents": "write", "pull_requests": "write"}
     assert m["redirect_url"] == w.server.redirect_url and m["name"] == "acme-release"
-    assert 'action="https://github.com/organizations/acme/settings/apps/new?state=st"' in w.server.page
-    assert w.opened == [w.server.start_url, "https://github.com/apps/acme-release/installations/new"]
+    assert (
+        'action="https://github.com/organizations/acme/settings/apps/new?state=st"' in w.server.page
+    )
+    assert w.opened == [
+        w.server.start_url,
+        "https://github.com/apps/acme-release/installations/new",
+    ]
     assert w.http_calls[0] == ("POST", "https://api.github.com/app-manifests/c0de/conversions")
     assert w.http_calls[1] == ("GET", "https://api.github.com/app/installations")
     out = w.out.getvalue() + w.err.getvalue()
@@ -104,8 +125,24 @@ def test_github_mode_end_to_end():
 
 def test_user_mode_and_custom_permissions_and_homepage():
     w = World()
-    assert w.main(["--user", "--name", "mine", "--repo", "me/r", "--permission", "contents=read",
-                   "--permission", "issues=write", "--homepage", "https://example.com"]) == 0
+    assert (
+        w.main(
+            [
+                "--user",
+                "--name",
+                "mine",
+                "--repo",
+                "me/r",
+                "--permission",
+                "contents=read",
+                "--permission",
+                "issues=write",
+                "--homepage",
+                "https://example.com",
+            ]
+        )
+        == 0
+    )
     assert 'action="https://github.com/settings/apps/new?state=st"' in w.server.page
     m = manifest_of(w.server.page)
     assert m["default_permissions"] == {"contents": "read", "issues": "write"}
@@ -121,8 +158,23 @@ def test_state_mismatch_is_rejected_before_conversion():
 
 def test_pulumi_mode():
     w = World()
-    assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "prod",
-                   "--cwd", "/srv/infra"]) == 0
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "pulumi",
+                "--stack",
+                "prod",
+                "--cwd",
+                "/srv/infra",
+            ]
+        )
+        == 0
+    )
     base = ["pulumi", "config", "set", "--secret", "--stack", "prod", "--cwd", "/srv/infra"]
     assert w.commands == [
         (base + ["yeetAppId"], "Iv23abc"),
@@ -134,11 +186,32 @@ def test_pulumi_mode():
 
 def test_pulumi_mode_custom_names():
     w = World()
-    assert w.main(["--org", "acme", "--name", "n", "--to", "pulumi", "--stack", "s",
-                   "--client-id-var", "RELEASE_APP_ID", "--key-secret", "RELEASE_APP_KEY",
-                   "--installation-id-var", "RELEASE_APP_INSTALLATION"]) == 0
-    assert [argv[-1] for argv, _ in w.commands] == ["releaseAppId", "releaseAppKey",
-                                                     "releaseAppInstallation"]
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "pulumi",
+                "--stack",
+                "s",
+                "--client-id-var",
+                "RELEASE_APP_ID",
+                "--key-secret",
+                "RELEASE_APP_KEY",
+                "--installation-id-var",
+                "RELEASE_APP_INSTALLATION",
+            ]
+        )
+        == 0
+    )
+    assert [argv[-1] for argv, _ in w.commands] == [
+        "releaseAppId",
+        "releaseAppKey",
+        "releaseAppInstallation",
+    ]
     assert w.commands[0][0][7] == "."
 
 
@@ -147,8 +220,13 @@ def test_stdout_mode_json_and_key_file(tmp_path):
     key = tmp_path / "app.pem"
     assert w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key)]) == 0
     assert json.loads(w.out.getvalue()) == {
-        "app_id": 42, "slug": "acme-release", "client_id": "Iv23abc", "installation_id": 777,
-        "private_key_file": str(key), "html_url": "https://github.com/apps/acme-release"}
+        "app_id": 42,
+        "slug": "acme-release",
+        "client_id": "Iv23abc",
+        "installation_id": 777,
+        "private_key_file": str(key),
+        "html_url": "https://github.com/apps/acme-release",
+    }
     assert key.read_text() == PEM and stat.S_IMODE(os.stat(key).st_mode) == 0o600
     assert w.commands == []
     w.no_pem_leak()
@@ -189,8 +267,23 @@ def test_stdout_key_file_taken_after_the_check_is_rescued(tmp_path, monkeypatch)
 def test_installation_timeout_reports_and_keeps_stored_credentials(tmp_path):
     w = World(installations=[(200, [])] * 500)
     key = tmp_path / "app.pem"
-    assert w.main(["--org", "acme", "--name", "n", "--to", "stdout", "--key-file", str(key),
-                   "--timeout", "20"]) == 1
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "stdout",
+                "--key-file",
+                str(key),
+                "--timeout",
+                "20",
+            ]
+        )
+        == 1
+    )
     assert json.loads(w.out.getvalue())["installation_id"] is None
     assert "timed out" in w.err.getvalue() and "installations/new" in w.err.getvalue()
     assert key.exists()
@@ -208,14 +301,20 @@ def test_storage_failure_saves_key_to_file(tmp_path, monkeypatch):
     w.no_pem_leak()
 
 
-@pytest.mark.parametrize("args,msg", [
-    (["--org", "acme", "--name", "n"], "--repo"),
-    (["--org", "acme", "--name", "n", "--to", "pulumi"], "--stack"),
-    (["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents"], "contents"),
-    (["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents=all"], "contents"),
-    (["--org", "acme", "--name", "n", "--repo", "nope"], "owner/repo"),
-    (["--org", "acme", "--user", "--name", "n", "--repo", "a/b"], "not allowed"),
-])
+@pytest.mark.parametrize(
+    "args,msg",
+    [
+        (["--org", "acme", "--name", "n"], "--repo"),
+        (["--org", "acme", "--name", "n", "--to", "pulumi"], "--stack"),
+        (["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents"], "contents"),
+        (
+            ["--org", "acme", "--name", "n", "--repo", "a/b", "--permission", "contents=all"],
+            "contents",
+        ),
+        (["--org", "acme", "--name", "n", "--repo", "nope"], "owner/repo"),
+        (["--org", "acme", "--user", "--name", "n", "--repo", "a/b"], "not allowed"),
+    ],
+)
 def test_usage_errors(args, msg, capsys):
     w = World()
     with pytest.raises(SystemExit) as e:
@@ -275,7 +374,10 @@ def test_no_browser_prints_urls_and_ssh_hint_without_opening(monkeypatch):
     assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site", "--no-browser"]) == 0
     assert w.opened == []
     err = w.err.getvalue()
-    assert w.server.start_url in err and "https://github.com/apps/acme-release/installations/new" in err
+    assert (
+        w.server.start_url in err
+        and "https://github.com/apps/acme-release/installations/new" in err
+    )
     assert "On another machine? Forward the port first: ssh -L 9999:127.0.0.1:9999 ml-01" in err
 
 
@@ -290,6 +392,7 @@ def test_bad_port_is_a_usage_error(port, capsys):
 
 def test_busy_port_is_a_usage_error_naming_the_port(capsys):
     import socket
+
     with socket.socket() as busy:
         busy.bind(("127.0.0.1", 0))
         busy.listen()
@@ -345,15 +448,41 @@ def test_sops_new_file(tmp_path):
     f = tmp_path / "app-keys.sops.yaml"
     fake = FakeSops()
     w = sops_world(fake)
-    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
-                   "--secret-name", "garm-app-keys", "--namespace", "garm"]) == 0
-    assert sops_doc(f) == {"apiVersion": "v1", "kind": "Secret",
-                           "metadata": {"name": "garm-app-keys", "namespace": "garm"},
-                           "type": "Opaque", "stringData": {"acme-release.pem": PEM}}
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "sops",
+                "--sops-file",
+                str(f),
+                "--secret-name",
+                "garm-app-keys",
+                "--namespace",
+                "garm",
+            ]
+        )
+        == 0
+    )
+    assert sops_doc(f) == {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": "garm-app-keys", "namespace": "garm"},
+        "type": "Opaque",
+        "stringData": {"acme-release.pem": PEM},
+    }
     assert json.loads(w.out.getvalue()) == {
-        "app_id": 42, "slug": "acme-release", "client_id": "Iv23abc", "installation_id": 777,
-        "html_url": "https://github.com/apps/acme-release", "sops_file": str(f),
-        "sops_key": "acme-release.pem"}
+        "app_id": 42,
+        "slug": "acme-release",
+        "client_id": "Iv23abc",
+        "installation_id": 777,
+        "html_url": "https://github.com/apps/acme-release",
+        "sops_file": str(f),
+        "sops_key": "acme-release.pem",
+    }
     assert all(cwd == str(tmp_path) for _, _, cwd in fake.calls)
     assert [p.name for p in tmp_path.iterdir()] == ["app-keys.sops.yaml"]
     w.no_pem_leak()
@@ -363,14 +492,30 @@ def test_sops_adds_to_existing_file_with_custom_key(tmp_path):
     f = tmp_path / "k.sops.yaml"
     f.write_text("ENC:" + json.dumps({"stringData": {"other.pem": "x"}}))
     w = sops_world(FakeSops())
-    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
-                   "--sops-key", "garm.pem"]) == 0
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "sops",
+                "--sops-file",
+                str(f),
+                "--sops-key",
+                "garm.pem",
+            ]
+        )
+        == 0
+    )
     assert sops_doc(f) == {"stringData": {"other.pem": "x", "garm.pem": PEM}}
     assert [p.name for p in tmp_path.iterdir()] == ["k.sops.yaml"]
 
 
 def test_sops_data_file_gets_base64(tmp_path):
     import base64
+
     f = tmp_path / "k.sops.yaml"
     f.write_text("ENC:" + json.dumps({"data": {}}))
     w = sops_world(FakeSops())
@@ -388,8 +533,10 @@ def test_sops_duplicate_refused_without_replace(tmp_path, monkeypatch):
     assert "--replace" in w.err.getvalue() and f.read_text() == before
     assert (tmp_path / "acme-release.private-key.pem").read_text() == PEM
     w = sops_world(FakeSops())
-    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
-                   "--replace"]) == 0
+    assert (
+        w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f), "--replace"])
+        == 0
+    )
     assert sops_doc(f)["stringData"]["acme-release.pem"] == PEM
 
 
@@ -398,8 +545,23 @@ def test_sops_verification_failure(tmp_path, monkeypatch):
     f = tmp_path / "k.sops.yaml"
     f.write_text("ENC:" + json.dumps({"stringData": {}}))
     w = sops_world(FakeSops(break_readback=True))
-    assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
-                   "--sops-key", "late.pem"]) == 1
+    assert (
+        w.main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "sops",
+                "--sops-file",
+                str(f),
+                "--sops-key",
+                "late.pem",
+            ]
+        )
+        == 1
+    )
     assert "doesn't read back" in w.err.getvalue()
     w.no_pem_leak()
 
@@ -409,8 +571,22 @@ def test_sops_pem_never_in_argv(tmp_path):
     old.write_text("ENC:" + json.dumps({"stringData": {}}))
     fake = FakeSops()
     for f in (new, old):
-        sops_world(fake).main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", str(f),
-                               "--secret-name", "s", "--namespace", "ns"])
+        sops_world(fake).main(
+            [
+                "--org",
+                "acme",
+                "--name",
+                "n",
+                "--to",
+                "sops",
+                "--sops-file",
+                str(f),
+                "--secret-name",
+                "s",
+                "--namespace",
+                "ns",
+            ]
+        )
     assert len(fake.calls) >= 5
     assert all("MIIfake" not in " ".join(argv) for argv, _, _ in fake.calls)
 
@@ -421,16 +597,39 @@ def test_sops_relative_path_with_a_directory(tmp_path, monkeypatch):
     (tmp_path / "sub" / "old.sops.yaml").write_text("ENC:" + json.dumps({"stringData": {}}))
     for name in ("sub/new.sops.yaml", "sub/old.sops.yaml"):
         w = sops_world(FakeSops())
-        assert w.main(["--org", "acme", "--name", "n", "--to", "sops", "--sops-file", name,
-                       "--secret-name", "s", "--namespace", "ns"]) == 0, w.err.getvalue()
+        assert (
+            w.main(
+                [
+                    "--org",
+                    "acme",
+                    "--name",
+                    "n",
+                    "--to",
+                    "sops",
+                    "--sops-file",
+                    name,
+                    "--secret-name",
+                    "s",
+                    "--namespace",
+                    "ns",
+                ]
+            )
+            == 0
+        ), w.err.getvalue()
         assert sops_doc(tmp_path / name)["stringData"]["acme-release.pem"] == PEM
-    assert sorted(p.name for p in (tmp_path / "sub").iterdir()) == ["new.sops.yaml", "old.sops.yaml"]
+    assert sorted(p.name for p in (tmp_path / "sub").iterdir()) == [
+        "new.sops.yaml",
+        "old.sops.yaml",
+    ]
 
 
-@pytest.mark.parametrize("args,msg", [
-    (["--to", "sops"], "--sops-file"),
-    (["--to", "sops", "--sops-file", "/nonexistent/x.sops.yaml"], "--secret-name"),
-])
+@pytest.mark.parametrize(
+    "args,msg",
+    [
+        (["--to", "sops"], "--sops-file"),
+        (["--to", "sops", "--sops-file", "/nonexistent/x.sops.yaml"], "--secret-name"),
+    ],
+)
 def test_sops_usage_errors(args, msg, capsys):
     with pytest.raises(SystemExit):
         World().main(["--org", "acme", "--name", "n", *args])
