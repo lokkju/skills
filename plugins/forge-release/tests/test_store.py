@@ -3,7 +3,6 @@ import stat
 import subprocess
 
 import pytest
-
 from forge_release import store
 from forge_release.manifest import FlowError
 

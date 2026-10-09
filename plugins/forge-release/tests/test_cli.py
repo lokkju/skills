@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from forge_release import cli
 
 PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIfakeSECRET\n-----END RSA PRIVATE KEY-----\n"
@@ -226,7 +225,7 @@ def test_usage_errors(args, msg, capsys):
 
 
 def test_script_help_runs():
-    out = subprocess.run([str(SCRIPT), "--help"], capture_output=True, text=True)
+    out = subprocess.run([str(SCRIPT), "--help"], capture_output=True, text=True, check=False)
     assert out.returncode == 0 and "--permission" in out.stdout
 
 

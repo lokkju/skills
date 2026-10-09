@@ -4,7 +4,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from forge_release import api
 from forge_release.manifest import FlowError
 
@@ -30,7 +29,7 @@ def b64json(part):
 def test_convert_posts_code_without_auth_and_parses():
     http = FakeHttp((201, CONVERSION))
     app = api.convert_manifest("c0de", http)
-    method, url, headers, body = http.calls[0]
+    method, url, headers, _body = http.calls[0]
     assert method == "POST" and url == "https://api.github.com/app-manifests/c0de/conversions"
     assert "Authorization" not in headers
     assert (app.app_id, app.slug, app.client_id, app.pem) == (42, "acme-release", "Iv23abc", PEM)
@@ -81,7 +80,7 @@ def test_openssl_sign_verifies(tmp_path):
     (tmp_path / "data").write_bytes(b"hello")
     out = subprocess.run(["openssl", "dgst", "-sha256", "-verify", str(tmp_path / "p.pem"),
                           "-signature", str(tmp_path / "sig"), str(tmp_path / "data")],
-                         capture_output=True, text=True)
+                         capture_output=True, text=True, check=False)
     assert "Verified OK" in out.stdout
 
 

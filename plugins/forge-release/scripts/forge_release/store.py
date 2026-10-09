@@ -8,17 +8,18 @@ import os
 import re
 import subprocess
 import tempfile
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any, Callable, Optional
 
 from .manifest import FlowError
 
 # argv and the value to feed on stdin; secrets travel on stdin, never in argv.
-Command = Tuple[List[str], Optional[str]]
+Command = tuple[list[str], Optional[str]]
 
 
 def github_commands(client_id: str, pem: str, repos: Sequence[str], client_id_var: str,
-                    key_secret: str) -> List[Command]:
-    commands: List[Command] = []
+                    key_secret: str) -> list[Command]:
+    commands: list[Command] = []
     for repo in repos:
         commands.append((["gh", "variable", "set", client_id_var, "-R", repo, "--body", client_id], None))
         commands.append((["gh", "secret", "set", key_secret, "-R", repo], pem))
@@ -35,7 +36,7 @@ def pulumi_key(name: str) -> str:
     return words[0].lower() + "".join(w[:1].upper() + w[1:].lower() for w in words[1:])
 
 
-def pulumi_commands(values: Sequence[Tuple[str, str]], stack: str, cwd: str) -> List[Command]:
+def pulumi_commands(values: Sequence[tuple[str, str]], stack: str, cwd: str) -> list[Command]:
     return [(["pulumi", "config", "set", "--secret", "--stack", stack, "--cwd", cwd, key], value)
             for key, value in values]
 
@@ -64,7 +65,7 @@ def write_key_file(path: str, pem: str) -> None:
     os.chmod(path, 0o600)
 
 
-def _sops(run: Callable[..., Any], argv: List[str], stdin: Optional[str], cwd: str, secret: str) -> str:
+def _sops(run: Callable[..., Any], argv: list[str], stdin: Optional[str], cwd: str, secret: str) -> str:
     """Run sops with the path's directory as cwd; stdout comes back in memory, never in an error."""
     try:
         result = run(argv, input=stdin, capture_output=True, text=True, cwd=cwd)

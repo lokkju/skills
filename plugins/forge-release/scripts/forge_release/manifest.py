@@ -8,8 +8,9 @@ import queue
 import secrets
 import threading
 import urllib.parse
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Dict, List, Mapping, Optional
+from typing import Optional
 
 CALLBACK_PATH = "/callback"
 
@@ -63,7 +64,7 @@ def new_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-def check_callback(query: Mapping[str, List[str]], expected_state: str) -> str:
+def check_callback(query: Mapping[str, list[str]], expected_state: str) -> str:
     state = (query.get("state") or [""])[0]
     if not secrets.compare_digest(state, expected_state):
         raise FlowError("the callback's state doesn't match this run; refusing the code")
@@ -78,11 +79,11 @@ class CallbackServer:
 
     def __init__(self, port: int = 0) -> None:
         self._page = ""
-        self._queries: "queue.Queue[Dict[str, List[str]]]" = queue.Queue()
+        self._queries: queue.Queue[dict[str, list[str]]] = queue.Queue()
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
-            def do_GET(self) -> None:  # noqa: N802
+            def do_GET(self) -> None:
                 parsed = urllib.parse.urlsplit(self.path)
                 if parsed.path == "/":
                     self._reply(200, owner._page)
@@ -102,7 +103,7 @@ class CallbackServer:
                 self.end_headers()
                 self.wfile.write(data)
 
-            def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+            def log_message(self, format: str, *args: object) -> None:
                 pass
 
         try:
@@ -124,7 +125,7 @@ class CallbackServer:
     def set_page(self, page: str) -> None:
         self._page = page
 
-    def wait(self, timeout: float) -> Dict[str, List[str]]:
+    def wait(self, timeout: float) -> dict[str, list[str]]:
         try:
             return self._queries.get(timeout=timeout)
         except queue.Empty:

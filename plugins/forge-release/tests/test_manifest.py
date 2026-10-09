@@ -6,7 +6,6 @@ import urllib.error
 import urllib.request
 
 import pytest
-
 from forge_release import manifest
 
 PERMS = {"contents": "write", "pull_requests": "write"}

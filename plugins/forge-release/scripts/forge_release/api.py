@@ -10,8 +10,9 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from .manifest import FlowError
 
@@ -19,11 +20,11 @@ API = "https://api.github.com"
 USER_AGENT = "forge-release-github-app-create"
 
 # (method, url, headers, body) -> (status, parsed JSON body)
-Http = Callable[[str, str, Mapping[str, str], Optional[bytes]], Tuple[int, Any]]
+Http = Callable[[str, str, Mapping[str, str], Optional[bytes]], tuple[int, Any]]
 
 
 def urllib_http(method: str, url: str, headers: Mapping[str, str],
-                body: Optional[bytes] = None) -> Tuple[int, Any]:
+                body: Optional[bytes] = None) -> tuple[int, Any]:
     request = urllib.request.Request(url, data=body, method=method, headers=dict(headers))
     try:
         with urllib.request.urlopen(request, timeout=30) as response:

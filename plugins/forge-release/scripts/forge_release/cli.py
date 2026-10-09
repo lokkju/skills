@@ -11,8 +11,9 @@ import subprocess
 import sys
 import time
 import webbrowser
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import IO, Any, Callable, Dict, Optional, Sequence
+from typing import IO, Any, Callable, Optional
 
 from . import api, manifest, store
 from .manifest import FlowError
@@ -97,10 +98,10 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-def _permissions(parser: argparse.ArgumentParser, raw: Sequence[str]) -> Dict[str, str]:
+def _permissions(parser: argparse.ArgumentParser, raw: Sequence[str]) -> dict[str, str]:
     if not raw:
         return dict(DEFAULT_PERMISSIONS)
-    perms: Dict[str, str] = {}
+    perms: dict[str, str] = {}
     for item in raw:
         name, sep, access = item.partition("=")
         if not sep or not re.fullmatch(r"[a-z_]+", name) or access not in ACCESS:
