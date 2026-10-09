@@ -61,10 +61,11 @@ EOF
 t() { tmux -L "$sock" "$@"; }
 screen() { t capture-pane -t demo -p; }
 
-# No update notices in the frame. Not CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: a session started
-# with it recorded without TaskCreate, so every card fell back to the ledger.
+# No update notices in the frame. For models newer than Claude 4.x, Claude Code turns the task
+# tools (TaskCreate and the rest) on only for background jobs, a launch tool list that names them,
+# or CLAUDE_CODE_ENABLE_TODO_TOOLS; without one of those, every card falls back to the ledger.
 t -f /dev/null new-session -d -s demo -x "$cols" -y "$rows" -c "$proj" \
-  env DISABLE_AUTOUPDATER=1 claude --model "$model" --permission-mode default --settings "$work/settings.json" --plugin-dir "$plugin"
+  env DISABLE_AUTOUPDATER=1 CLAUDE_CODE_ENABLE_TODO_TOOLS=1 claude --model "$model" --permission-mode default --settings "$work/settings.json" --plugin-dir "$plugin"
 t set -g window-size manual
 t set -g mouse on
 t resize-window -t demo -x "$cols" -y "$rows"
