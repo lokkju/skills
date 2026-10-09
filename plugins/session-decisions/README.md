@@ -83,8 +83,8 @@ Claude Code with function hooks, which interactive sessions and background jobs 
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 
-Not every session gets TaskCreate. On Claude Code 2.1.286, Haiku sessions do, while Sonnet and
-Opus sessions get only TaskStop ([#4](https://github.com/lokkju/skills/issues/4)). Without it, the
+Not every session gets TaskCreate, and Claude Code doesn't document which ones do. Some of my test
+sessions listed only TaskStop ([#4](https://github.com/lokkju/skills/issues/4)). Without it, the
 assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
 same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
 but they don't appear in ctrl+t.
@@ -134,5 +134,5 @@ spends one short Sonnet conversation.
 bash plugins/session-decisions/docs/record-demo.sh   # writes docs/demo.gif
 ```
 
-The demo runs on Sonnet, which doesn't get TaskCreate, so its cards show the `ledger` tag. Set
-`DEMO_MODEL=haiku` to record the task-list path instead.
+The committed recording ran in a session without TaskCreate, so its cards show the `ledger` tag.
+`DEMO_MODEL` picks the model the recorded session runs on.
