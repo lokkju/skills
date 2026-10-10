@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# Fails a pull request that changes a plugin's releasable files under a title
-# that won't release it, unless the PR carries the no-release label.
+# Two checks on a pull request's commits, which is what yeet reads once they
+# land on main (this repo merges with merge commits, so every commit lands):
 #
-# yeet releases a plugin for feat, fix and perf commits (bump_types in
-# .yeet.yaml) and for any breaking commit (type!:) that touch the plugin's
-# path outside its exclude_paths. This script reads the targets and types
-# from .yeet.yaml, so the two agree. yeet's own release PRs (yeet/release-*)
-# are skipped.
+# 1. Every commit subject is a Conventional Commit. Merge commits are skipped,
+#    since yeet ignores them too.
+# 2. A PR that changes a plugin's releasable files has at least one commit that
+#    releases (feat, fix or perf from bump_types in .yeet.yaml, or a breaking
+#    change: type!: or a BREAKING CHANGE footer), unless it carries the
+#    no-release label.
+#
+# Check 2 is per PR, not per commit: it doesn't confirm that the releasing
+# commit is the one touching the plugin. It reads the targets and types from
+# .yeet.yaml, so the two agree. yeet's own release PRs (yeet/release-*) are
+# skipped.
 #
 # Needs: GITHUB_EVENT_PATH (a pull_request event), GITHUB_REPOSITORY, GH_TOKEN
 # with pull-requests: read, and yq (mikefarah) and jq on PATH.
@@ -21,25 +27,52 @@ if [[ $head_ref == yeet/release-* ]]; then
   exit 0
 fi
 
-title=$(jq -r '.pull_request.title' "$event")
 number=$(jq -r '.pull_request.number' "$event")
+types=$(yq -o json '.bump_types' "$config" | jq -r '[.minor[]?, .patch[]?] | .[]')
 
-if jq -e '.pull_request.labels | any(.name == "no-release")' "$event" >/dev/null; then
-  echo "Labeled no-release; nothing to check."
-  exit 0
-fi
+# Each commit as one JSON string (its full message), so subjects and footers
+# both survive.
+messages=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$number/commits" \
+  --jq '.[] | .commit.message | @json')
 
 # Conventional Commits header: type(scope)!: description
-types=$(yq -o json '.bump_types' "$config" | jq -r '[.minor[]?, .patch[]?] | .[]')
-releasable_title=false
-if [[ $title =~ ^([A-Za-z]+)(\([^\)]*\))?(!)?:\  ]]; then
-  type=$(tr '[:upper:]' '[:lower:]' <<<"${BASH_REMATCH[1]}")
-  if [[ -n ${BASH_REMATCH[3]} ]] || grep -qxF "$type" <<<"$types"; then
-    releasable_title=true
+header='^([A-Za-z]+)(\([^\)]*\))?(!)?: .+'
+bad=()
+releasing=()
+while IFS= read -r m; do
+  [[ -z $m ]] && continue
+  message=$(jq -r . <<<"$m")
+  subject=${message%%$'\n'*}
+  if [[ $subject == "Merge "* ]]; then continue; fi
+  if [[ ! $subject =~ $header ]]; then
+    bad+=("$subject")
+    continue
   fi
+  type=$(tr '[:upper:]' '[:lower:]' <<<"${BASH_REMATCH[1]}")
+  if [[ -n ${BASH_REMATCH[3]} ]] || grep -qxF "$type" <<<"$types" ||
+    grep -qE '^BREAKING[ -]CHANGE: ' <<<"$message"; then
+    releasing+=("$subject")
+  fi
+done <<<"$messages"
+
+if ((${#bad[@]} > 0)); then
+  {
+    echo "These commits aren't Conventional Commits, so yeet can't read them:"
+    printf '  %s\n' "${bad[@]}"
+    echo
+    echo "Reword them (git rebase -i, then reword) as type(scope): description."
+  } >&2
+  echo "::error title=Commit check::Some commit subjects aren't Conventional Commits."
+  exit 1
 fi
-if $releasable_title; then
-  echo "Title \"$title\" releases; nothing to check."
+
+if jq -e '.pull_request.labels | any(.name == "no-release")' "$event" >/dev/null; then
+  echo "Commits are conventional; labeled no-release, so no release check."
+  exit 0
+fi
+if ((${#releasing[@]} > 0)); then
+  echo "Commits are conventional, and these release:"
+  printf '  %s\n' "${releasing[@]}"
   exit 0
 fi
 
@@ -73,9 +106,9 @@ fi
   echo "This PR changes files that release a plugin:"
   printf '  %s\n' "${hits[@]}"
   echo
-  echo "but its title, \"$title\", is not a releasable type (${types//$'\n'/, }, or any type with !)."
-  echo "Retitle it (for example fix(<plugin>): ... or feat(<plugin>): ...) if users should get this change,"
-  echo "or add the no-release label if they shouldn't."
+  echo "but none of its commits releases (${types//$'\n'/, }, or a breaking change)."
+  echo "If users should get this change, reword the commit that makes it (fix(<plugin>): ... or"
+  echo "feat(<plugin>): ...). If they shouldn't, add the no-release label."
 } >&2
-echo "::error title=Release check::Plugin files changed under a non-releasable title; retitle the PR as feat/fix/perf or add the no-release label."
+echo "::error title=Release check::Plugin files changed, but no commit releases them; reword a commit as feat/fix/perf or add the no-release label."
 exit 1
