@@ -83,9 +83,16 @@ Claude Code with function hooks, which interactive sessions and background jobs 
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 
-Not every session gets TaskCreate, and Claude Code doesn't document which ones do. Some of my test
-sessions listed only TaskStop ([#4](https://github.com/lokkju/skills/issues/4)). Without it, the
-assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
+Not every session gets TaskCreate. For models newer than Claude 4.x, Claude Code turns the task
+tools on only for background jobs, a launch tool list that names them, or
+`CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). To get them in an
+ordinary session, set it in `~/.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1" } }
+```
+
+Without them, the assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
 same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
 but they don't appear in ctrl+t.
 
@@ -134,5 +141,6 @@ spends one short Sonnet conversation.
 bash plugins/session-decisions/docs/record-demo.sh   # writes docs/demo.gif
 ```
 
-The committed recording ran in a session without TaskCreate, so its cards show the `ledger` tag.
+The recorder opts its session into the task tools with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, and its last
+line says whether the session queued its items with TaskCreate or fell back to the ledger.
 `DEMO_MODEL` picks the model the recorded session runs on.
