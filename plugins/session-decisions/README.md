@@ -5,12 +5,13 @@ buried in long messages and scroll away; this plugin pins each one as a numbered
 decision, `A1` for something only you can do) in the transcript, a sidebar and the footer, with a
 recommendation you can accept in one click.
 
-![A Claude Code session queues its decisions and two actions while planning a SQLite to Postgres move; Accept all answers the decisions in one message, and the sidebar drops to the two open actions](docs/demo.gif)
+![A Claude Code session queues its decisions while planning a SQLite to Postgres move; Accept all answers them in one message, and the sidebar drops to the two actions still waiting](docs/demo.gif)
 
-<sub>A real session, sped up while the assistant works. Asked to plan a SQLite to Postgres move
-without writing code, it queues its decisions and actions. Accept all puts an answer line for
-each recommendation in the prompt; one Enter settles them all, and only the actions stay
-open.</sub>
+That's a real session, sped up while the assistant works. I asked Claude to plan moving a small Flask
+service from SQLite to Postgres without writing any code. It queued its questions as tasks, shown
+as cards in the sidebar, each with the answer it recommends. One click on Accept all put an answer
+line for every recommendation in my prompt, and one Enter settled them. What's left are the two
+things only I can do: tell it where the database lives, and hand over a sample of the data.
 
 ## Install
 
@@ -83,9 +84,16 @@ Claude Code with function hooks, which interactive sessions and background jobs 
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 
-Not every session gets TaskCreate, and Claude Code doesn't document which ones do. Some of my test
-sessions listed only TaskStop ([#4](https://github.com/lokkju/skills/issues/4)). Without it, the
-assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
+Not every session gets TaskCreate. For models newer than Claude 4.x, Claude Code turns the task
+tools on only for background jobs, a launch tool list that names them, or
+`CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). To get them in an
+ordinary session, set it in `~/.claude/settings.json`:
+
+```json
+{ "env": { "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1" } }
+```
+
+Without them, the assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
 same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
 but they don't appear in ctrl+t.
 
@@ -134,5 +142,6 @@ spends one short Sonnet conversation.
 bash plugins/session-decisions/docs/record-demo.sh   # writes docs/demo.gif
 ```
 
-The committed recording ran in a session without TaskCreate, so its cards show the `ledger` tag.
+The recorder opts its session into the task tools with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, and its last
+line says whether the session queued its items with TaskCreate or fell back to the ledger.
 `DEMO_MODEL` picks the model the recorded session runs on.
