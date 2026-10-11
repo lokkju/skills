@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import html
 import json
 import queue
 import secrets
 import threading
 import urllib.parse
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 
@@ -28,15 +30,25 @@ class PortInUseError(FlowError):
 
 
 def build_manifest(
-    name: str, homepage: str, permissions: Mapping[str, str], redirect_url: str
+    name: str,
+    homepage: str,
+    permissions: Mapping[str, str],
+    redirect_url: str,
+    public: bool = False,
+    callback_urls: Optional[Sequence[str]] = None,
 ) -> dict:
-    return {
+    """No hook_attributes: GitHub rejects the block without a url, and leaving it out creates the
+    App with no webhook. callback_urls are where the user authorization (OAuth) flow may return."""
+    app_manifest = {
         "name": name,
         "url": homepage,
         "redirect_url": redirect_url,
-        "public": False,
+        "public": public,
         "default_permissions": dict(permissions),
     }
+    if callback_urls:
+        app_manifest["callback_urls"] = list(callback_urls)
+    return app_manifest
 
 
 def form_action(org: Optional[str], state: str) -> str:
@@ -65,7 +77,32 @@ def new_state() -> str:
     return secrets.token_urlsafe(32)
 
 
+def pkce_pair() -> tuple[str, str]:
+    """A PKCE code verifier and its S256 challenge."""
+    verifier = secrets.token_urlsafe(48)
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return verifier, base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def authorize_url(client_id: str, redirect_uri: str, state: str, challenge: str) -> str:
+    """GitHub's web application flow: the user authorizes the App and comes back with a code."""
+    query = urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
+    )
+    return f"https://github.com/login/oauth/authorize?{query}"
+
+
 def check_callback(query: Mapping[str, list[str]], expected_state: str) -> str:
+    error = (query.get("error") or [""])[0]
+    if error:
+        detail = (query.get("error_description") or [""])[0]
+        raise FlowError(f"GitHub sent back {error}" + (f" ({detail})" if detail else ""))
     state = (query.get("state") or [""])[0]
     if not secrets.compare_digest(state, expected_state):
         raise FlowError("the callback's state doesn't match this run; refusing the code")

@@ -46,6 +46,72 @@ def test_credentials_repr_hides_pem():
     assert "MIIfake" not in repr(app) and "MIIfake" not in str(app)
 
 
+def test_convert_keeps_client_secret_out_of_repr():
+    app = api.convert_manifest("c", FakeHttp((201, dict(CONVERSION, client_secret="SECRETcs"))))
+    assert app.client_secret == "SECRETcs"
+    assert "SECRETcs" not in repr(app)
+
+
+def test_exchange_user_code_expiring():
+    import urllib.parse
+
+    http = FakeHttp(
+        (
+            200,
+            {
+                "access_token": "ghu_SECRET",
+                "expires_in": 28800,
+                "refresh_token": "ghr_SECRET",
+                "refresh_token_expires_in": 15897600,
+                "token_type": "bearer",
+            },
+        )
+    )
+    token = api.exchange_user_code(
+        "Iv23abc", "cs", "c0de", "http://127.0.0.1:1/callback", "verif", http
+    )
+    method, url, headers, body = http.calls[0]
+    assert method == "POST" and url == "https://github.com/login/oauth/access_token"
+    assert headers["Accept"] == "application/json" and "Authorization" not in headers
+    assert urllib.parse.parse_qs(body.decode()) == {
+        "client_id": ["Iv23abc"],
+        "client_secret": ["cs"],
+        "code": ["c0de"],
+        "redirect_uri": ["http://127.0.0.1:1/callback"],
+        "code_verifier": ["verif"],
+    }
+    assert (token.access_token, token.expires_in) == ("ghu_SECRET", 28800)
+    assert (token.refresh_token, token.refresh_token_expires_in) == ("ghr_SECRET", 15897600)
+    assert "SECRET" not in repr(token)
+
+
+def test_exchange_user_code_non_expiring():
+    token = api.exchange_user_code(
+        "i", "s", "c", "r", "v", FakeHttp((200, {"access_token": "ghu_x", "token_type": "bearer"}))
+    )
+    assert token.access_token == "ghu_x"
+    assert token.expires_in is None and token.refresh_token is None
+
+
+def test_exchange_user_code_error_in_200_body():
+    with pytest.raises(FlowError, match="bad_verification_code.*expired"):
+        api.exchange_user_code(
+            "i",
+            "s",
+            "c",
+            "r",
+            "v",
+            FakeHttp(
+                (200, {"error": "bad_verification_code", "error_description": "code expired"})
+            ),
+        )
+
+
+def test_exchange_user_code_unexpected_reply():
+    with pytest.raises(FlowError, match="unexpected"):
+        api.exchange_user_code("i", "s", "c", "r", "v", FakeHttp((200, {})))
+
+
 def test_convert_error_raises_with_github_message():
     with pytest.raises(FlowError, match="404.*Not Found"):
         api.convert_manifest("c", FakeHttp((404, {"message": "Not Found"})))
