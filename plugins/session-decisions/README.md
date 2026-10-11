@@ -5,7 +5,13 @@ buried in long messages and scroll away; this plugin pins each one as a numbered
 decision, `A1` for something only you can do) in the transcript, a sidebar and the footer, with a
 recommendation you can accept in one click.
 
-The [repo README](../../README.md) has a recording of it in a real session.
+![A Claude Code session queues its decisions while planning a SQLite to Postgres move; Accept all answers them in one message, and the sidebar drops to the two actions still waiting](docs/demo.gif)
+
+That's a real session, sped up while the assistant works. I asked Claude to plan moving a small Flask
+service from SQLite to Postgres without writing any code. It queued its questions as tasks, shown
+as cards in the sidebar, each with the answer it recommends. One click on Accept all put an answer
+line for every recommendation in my prompt, and one Enter settled them. What's left are the two
+things only I can do: tell it where the database lives, and hand over a sample of the data.
 
 ## Install
 
