@@ -5,12 +5,7 @@ buried in long messages and scroll away; this plugin pins each one as a numbered
 decision, `A1` for something only you can do) in the transcript, a sidebar and the footer, with a
 recommendation you can accept in one click.
 
-![A Claude Code session queues its decisions and two actions while planning a SQLite to Postgres move; Accept all answers the decisions in one message, and the sidebar drops to the two open actions](docs/demo.gif)
-
-<sub>A real session, sped up while the assistant works. Asked to plan a SQLite to Postgres move
-without writing code, it queues its decisions and actions. Accept all puts an answer line for
-each recommendation in the prompt; one Enter settles them all, and only the actions stay
-open.</sub>
+The [repo README](../../README.md) has a recording of it in a real session.
 
 ## Install
 
