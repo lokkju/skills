@@ -94,6 +94,45 @@ export function applyUpdate(items: readonly Item[], change: TaskChange): Item[] 
   return items.map(one => (one === current ? (next as Item) : one))
 }
 
+/** An item completed with a dated ruling line added to its description. */
+export function settle(item: Item, ruling: string, date: string): Item {
+  return {
+    ...item,
+    status: 'completed',
+    description: [item.description, `Ruling (${date}): ${ruling}`].filter(Boolean).join('\n'),
+  }
+}
+
+/**
+ * The queue rebuilt at session start or after compaction, merging rather than replacing:
+ * - task items come from the task files, or from `current` when they couldn't be read;
+ * - an item `closed` records as settled stays settled while its task file still shows it open,
+ *   and stays in the queue if its task file has gone;
+ * - ledger items are the stored ledger and the ones already in `current`, the latter winning.
+ */
+export function mergeHydrated(
+  fromFiles: readonly Item[] | null,
+  current: readonly Item[],
+  stored: { ledger: readonly Item[]; closed: Readonly<Record<string, Item>> },
+): Item[] {
+  const tasks = (fromFiles ?? current.filter(item => item.source === 'tasks')).map(item => {
+    const settled = stored.closed[item.id]
+    if (!settled) return item
+    const ruling = rulingIn(settled.description)
+    const description =
+      ruling && !rulingIn(item.description) ? [item.description, ruling].filter(Boolean).join('\n') : item.description
+    return { ...item, status: isOpen(item) ? settled.status : item.status, description }
+  })
+  const gone = Object.values(stored.closed).filter(
+    item => item.source === 'tasks' && !tasks.some(task => task.id === item.id),
+  )
+  const ledger = current.filter(item => item.source === 'ledger')
+  for (const item of stored.ledger) {
+    if (item.source === 'ledger' && !ledger.some(one => one.id === item.id)) ledger.push(item)
+  }
+  return [...tasks, ...gone, ...ledger]
+}
+
 /**
  * What a TaskUpdate's new subject does to the queue, decided before the tool runs:
  * - `pass`: not a decision subject; the update goes through as written.

@@ -10,10 +10,12 @@ import {
   itemFromTask,
   listing,
   mergeAnswers,
+  mergeHydrated,
   nextNumber,
   ordered,
   reminder,
   retitle,
+  settle,
   subjectOf,
   upsert,
 } from './queue'
@@ -30,6 +32,8 @@ const KEEP_SESSIONS = 100
 const items = atom({ plugin: 'session-decisions', key: 'items' } as const, [] as Item[])
 const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const, { D: 0, A: 0 } as Counters)
 const created = atom({ plugin: 'session-decisions', key: 'created' } as const, {} as Record<string, number>)
+// Task-list items decision_close settled while TaskUpdate wasn't available, by task id.
+const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} as Record<string, Item>)
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
@@ -79,12 +83,22 @@ async function readTaskFiles($: $, dir: string): Promise<Item[] | null> {
   return found
 }
 
+/** Whether the model can call TaskUpdate now; false when the host can't say. */
+async function taskUpdateOffered($: $): Promise<boolean> {
+  try {
+    return (await $.tool.list()).some(tool => tool.name === 'TaskUpdate')
+  } catch {
+    return false
+  }
+}
+
 async function loadRecord($: $, sid: string): Promise<SessionRecord> {
   const raw = (await $.store.get(`session:${sid}`)) as Partial<SessionRecord> | undefined
   return {
     counters: { D: Number(raw?.counters?.D) || 0, A: Number(raw?.counters?.A) || 0 },
     created: raw?.created && typeof raw.created === 'object' ? raw.created : {},
     ledger: Array.isArray(raw?.ledger) ? raw.ledger : [],
+    closed: raw?.closed && typeof raw.closed === 'object' ? raw.closed : {},
     touched: Number(raw?.touched) || 0,
   }
 }
@@ -96,6 +110,7 @@ async function persist($: $): Promise<void> {
     counters: await read($, counters),
     created: await read($, created),
     ledger: (await read($, items)).filter(item => item.source === 'ledger'),
+    closed: await read($, closed),
     touched: await $.clock.now(),
   }
   await $.store.set(`session:${sid}`, record)
@@ -112,21 +127,25 @@ async function prune($: $): Promise<void> {
   await Promise.all(touched.slice(KEEP_SESSIONS).map(([key]) => $.store.delete(key)))
 }
 
-/** Rebuild the items from the task files and the stored ledger; the one read this plugin makes. */
+/**
+ * Rebuild the items from the task files, the stored ledger and stored rulings, keeping what's
+ * already in state; the one read this plugin makes.
+ */
 async function hydrate($: $): Promise<void> {
   const sid = await sessionId($)
   if (!sid) return
   const record = await loadRecord($, sid)
   const fromFiles = await readTaskFiles($, await tasksDir($, sid))
   const current = await read($, items)
-  const tasks = fromFiles ?? current.filter(item => item.source === 'tasks')
+  const settled = { ...record.closed, ...(await read($, closed)) }
   const known = { ...record.created, ...(await read($, created)) }
-  const merged = [...tasks, ...record.ledger].map(item => ({
+  const merged = mergeHydrated(fromFiles, current, { ledger: record.ledger, closed: settled }).map(item => ({
     ...item,
     created: item.created ?? current.find(one => one.id === item.id && one.source === item.source)?.created ?? known[item.label],
   }))
   await update($, items, () => merged)
   await update($, created, () => known)
+  await update($, closed, () => settled)
   await update($, counters, now =>
     coverLabels({ D: Math.max(now.D, record.counters.D), A: Math.max(now.A, record.counters.A) }, merged),
   )
@@ -211,7 +230,8 @@ export const register: Register = on => {
     }))
     await quietly($.tool.register({
       name: 'decision_close',
-      description: 'Settles a fallback-ledger item from decision_add with the user\'s ruling. Task-list items are settled with TaskUpdate instead.',
+      description:
+        "Settles a fallback-ledger item from decision_add with the user's ruling. Task-list items are settled with TaskUpdate instead, unless TaskUpdate is not available in this session.",
       inputSchema: {
         type: 'object',
         properties: {
@@ -282,7 +302,19 @@ export const register: Register = on => {
     const after = await change($, list =>
       applyUpdate(list, { taskId, subject, description: e.description, status: e.status }),
     )
-    if (after === before) return ran
+    // A status set through TaskUpdate is in the task file now, so a ruling decision_close kept
+    // for this task gives way to it.
+    const handBack = e.status !== undefined && (await read($, closed))[taskId] !== undefined
+    if (handBack) {
+      await update($, closed, map => {
+        const { [taskId]: _, ...rest } = map
+        return rest
+      })
+    }
+    if (after === before) {
+      if (handBack) await persist($)
+      return ran
+    }
     await update($, counters, now => coverLabels(now, after))
     if (assigned) {
       const at = (await read($, created))[assigned] ?? (await $.clock.now())
@@ -323,25 +355,25 @@ export const register: Register = on => {
     const label = String(e.label ?? '').trim().toUpperCase()
     const ruling = String(e.ruling ?? '').trim()
     const list = await read($, items)
-    if (!list.some(item => item.source === 'ledger' && item.label === label)) {
+    const matches = list.filter(item => item.label === label)
+    // A ledger item first; of two task items with one label, the open one.
+    const target =
+      matches.find(item => item.source === 'ledger') ?? matches.find(isOpen) ?? matches[0]
+    if (!target) return { deny: `session-decisions: ${label} isn't in this session's decision queue.` }
+    if (target.source === 'tasks' && (await taskUpdateOffered($))) {
       return {
-        deny: `session-decisions: ${label} isn't in the fallback ledger. If it's a task-list item, mark it completed with TaskUpdate and add the ruling to its description.`,
+        deny: `session-decisions: ${label} is a task-list item; mark it completed with TaskUpdate and add the ruling to its description.`,
       }
     }
     const date = new Date(await $.clock.now()).toISOString().slice(0, 10)
-    await change($, now =>
-      now.map(item =>
-        item.source === 'ledger' && item.label === label
-          ? {
-              ...item,
-              status: 'completed',
-              description: [item.description, `Ruling (${date}): ${ruling}`].filter(Boolean).join('\n'),
-            }
-          : item,
-      ),
-    )
+    const done = settle(target, ruling, date)
+    await change($, now => now.map(item => (item.source === target.source && item.id === target.id ? done : item)))
+    if (target.source === 'tasks') await update($, closed, map => ({ ...map, [target.id]: done }))
     await persist($)
-    return { result: `${label} closed` }
+    if (target.source === 'ledger') return { result: `${label} closed` }
+    return {
+      result: `${label} closed in the decision queue. TaskUpdate isn't available, so its task still shows it open; the queue keeps the ruling.`,
+    }
   })
 
   on('command.run', { command: 'decisions' }, async ($, e) => {

@@ -20,11 +20,16 @@ export type Item = {
 
 export type Counters = { D: number; A: number }
 
-/** What `$.store` keeps per session, so a resumed session continues its numbering and ledger. */
+/**
+ * What `$.store` keeps per session, so a resumed session continues its numbering and ledger.
+ * `closed` holds the task-list items `decision_close` settled while TaskUpdate wasn't available,
+ * by task id, since their task files still show them open.
+ */
 export type SessionRecord = {
   counters: Counters
   created: Record<string, number>
   ledger: Item[]
+  closed: Record<string, Item>
   touched: number
 }
 
@@ -34,6 +39,7 @@ declare module 'claude-code' {
       items: Item[]
       counters: Counters
       created: Record<string, number>
+      closed: Record<string, Item>
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean
