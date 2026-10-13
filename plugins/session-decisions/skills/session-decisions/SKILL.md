@@ -40,14 +40,17 @@ If it really isn't available (some child sessions don't get it), use the fallbac
 never prose alone: call `mcp__session-decisions__decision_add` with `kind` (`DECIDE` or
 `ACTION`), `text` (the subject after the colon, recommendation and link included) and
 `description`. It returns the labelled subject. In fallback mode, end each reply that leaves items
-open with a short list of them.
+open with a short list of them. Ledger items stay in the ledger if the task tools come back later;
+keep closing them with `decision_close`.
 
 ## When the user answers
 
 - Mark the item completed with TaskUpdate, and add a line to its description:
   `Ruling (<YYYY-MM-DD>): <the answer>`. Don't delete it; completed items are the session's record
   of what was decided. (Fallback ledger: call `mcp__session-decisions__decision_close` with the
-  `label` and the `ruling`.)
+  `label` and the `ruling`. If TaskUpdate isn't available for a task-list item, as after a restart
+  that drops the task tools, `decision_close` settles that item too; while TaskUpdate is
+  available, use it.)
 - If the item has a link, record the ruling there too, using whatever the project uses for that.
 - Labels are session-scoped and restart every session. Anything written outside this session
   (commits, issues, pull requests, docs, files) gets the ruling's content and date, never `D3` or
