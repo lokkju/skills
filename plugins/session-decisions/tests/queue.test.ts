@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder } from '../hooks/queue'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder, retitle } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
 import type { Item } from '../types'
 
@@ -73,6 +73,30 @@ describe('queue', () => {
     expect(applyUpdate(list, { taskId: '9', subject: 'refactor the parser' })).toBe(list)
     expect(applyUpdate(list, { taskId: '1', subject: 'Just a task now' })).toEqual([])
     expect(applyUpdate(list, { taskId: '9', status: 'completed' })).toEqual(list)
+  })
+
+  test('a retitle keeps the label, checks a typed one, and labels a new item', () => {
+    const list = [item({}), item({ id: '2', label: 'A1', kind: 'ACTION', body: 'log in [no link]' })]
+    // Retitle without a label keeps the item's label.
+    expect(retitle(list, '1', 'DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    // Retitle with the matching label goes through as written.
+    expect(retitle(list, '1', 'D1 DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    // A different label is refused, whether free or another item's.
+    expect(retitle(list, '1', 'D7 DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'deny', reason: 'task 1 is D1; keep its label or drop it and the hook adds it' })
+    expect(retitle(list, '1', 'A1 ACTION: ship it [#4]')).toMatchObject({ kind: 'deny' })
+    // A revised DECIDE still needs its recommendation and link.
+    expect(retitle(list, '1', 'DECIDE: ship it today? [#4]')).toEqual({ kind: 'deny', reason: 'a DECIDE item needs a recommendation, written as (recommend <choice>)' })
+    expect(retitle(list, '2', 'ACTION: log in again')).toMatchObject({ kind: 'deny' })
+    // A task that wasn't an item, an unlabelled one, or a change of kind gets a new label.
+    expect(retitle(list, '9', 'ACTION: rotate the key [no link]')).toEqual({ kind: 'assign', draft: { kind: 'ACTION', body: 'rotate the key [no link]' } })
+    expect(retitle([item({ label: 'D?' })], '1', 'DECIDE: x? (recommend y) [no link]')).toMatchObject({ kind: 'assign' })
+    expect(retitle(list, '1', 'ACTION: ship it [#4]')).toMatchObject({ kind: 'assign' })
+    // A typed label on a new item is taken if it's free and fits the kind.
+    expect(retitle(list, '9', 'D5 DECIDE: x? (recommend y) [no link]')).toMatchObject({ kind: 'subject' })
+    expect(retitle(list, '9', 'A1 ACTION: x [no link]')).toMatchObject({ kind: 'deny' })
+    expect(retitle(list, '9', 'A5 DECIDE: x? (recommend y) [no link]')).toMatchObject({ kind: 'deny' })
+    // Anything else passes through.
+    expect(retitle(list, '1', 'Just a task now')).toEqual({ kind: 'pass' })
   })
 
   test('listing and reminder show what is open', () => {
