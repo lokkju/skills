@@ -33,7 +33,16 @@ function engine(on: On, env: Record<string, string> = {}) {
     status.push(e.text)
     return { value: undefined }
   })
-  on('ui.toast', () => ({ value: undefined }))
+  const toasts: string[] = []
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  const copied: string[] = []
+  on('ui.copy', (_$, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true as const } }
+  })
   const opened: { id: string; focus?: true }[] = []
   on('ui.open', (_$, e) => {
     opened.push({ id: e.id, focus: e.focus })
@@ -78,7 +87,7 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, filled, submitted, status, clock, opened, offered, session }
+  return { tasks, filled, submitted, status, clock, opened, offered, session, copied, toasts }
 }
 
 async function start($: any) {
@@ -154,7 +163,7 @@ describe('labelling', () => {
     expect(tasks.get('1')?.subject).toBe('D1 DECIDE: next? (recommend: ship #16 now, then a release (#14, #4 and #20), then #11) [#16]')
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     expect(await ui.find({ type: 'Text', text: 'recommends ship #16 now' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'next?' })).toBeDefined()
+    expect((await ui.find({ key: 'question-D1' }))?.text).toBe('next?')
     await ui.press({ key: 'accept-D1' })
     expect(filled.at(-1)).toBe('D1: go with ship #16 now, then a release (#14, #4 and #20), then #11')
   })
@@ -225,7 +234,7 @@ describe('queue', () => {
     // Its transcript row draws as the revised card.
     const props = { tool_use_id: 'r1', tool: 'mcp__session-decisions__decision_update', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: revised.result } as never
     const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 'r1', props })
-    expect(await row.find({ type: 'Text', text: 'serve it pre-gzipped?' })).toBeDefined()
+    expect((await row.find({ key: 'question-D1' }))?.text).toBe('serve it pre-gzipped?')
     await row.unmount()
     // Validated like decision_add, and refused with nothing to change.
     expect((await call('decision_update', { label: 'D1', text: 'serve it pre-gzipped? [no link]' })).deny).toContain('needs a recommendation')
@@ -418,8 +427,60 @@ describe('drawing', () => {
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
     expect(opened).toEqual([{ id: PLUGIN, focus: undefined }])
     const pane = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: { placement: 'dock', bodyColumns: 50 } as never })
-    expect(await pane.find({ type: 'Text', text: 'Postgres or SQLite?' })).toBeDefined()
+    expect((await pane.find({ key: 'question-D1' }))?.text).toBe('Postgres or SQLite?')
     expect(JSON.stringify(await pane.drawn())).not.toContain('borderStyle')
+  })
+})
+
+describe('markdown', () => {
+  const SUBJECT = 'DECIDE: run **`mise run core`** or read [the guide](https://example.com/guide) first? (recommend **core**, it is _faster_) [https://github.com/lokkju/skills/issues/20]'
+  const DESCRIPTION = 'Needs `sudo` on ml-01.\n\n```\nmise run flux-up core\n```'
+  const RAW = /\*\*|`|\]\(|(^|\s)_\w/
+
+  test('cards draw markdown, and no Text shows raw markers, on every surface', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, SUBJECT, DESCRIPTION)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PLUGIN, props: {} as never })
+      expect((await ui.find({ key: 'question-D1' }))?.type).toBe('Markdown')
+      expect(await ui.find({ type: 'Text', text: 'recommends core' })).toBeDefined()
+      for (const text of await ui.findAll({ type: 'Text' })) expect(text.text).not.toMatch(RAW)
+      await ui.unmount()
+    }
+  })
+
+  test('More shows the description, the link and copy buttons for its commands', async ($, on) => {
+    const { copied } = engine(on)
+    await start($)
+    await create($, SUBJECT, DESCRIPTION)
+    await create($, 'ACTION: log in [no link]', '')
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PLUGIN, props: {} as never })
+      expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
+      expect(await ui.find({ key: 'more-A1' })).toBeUndefined()
+      await ui.press({ key: 'more-D1' })
+      expect((await ui.find({ key: 'description-D1' }))?.text).toBe(DESCRIPTION)
+      expect(await ui.find({ type: 'Link' })).toBeDefined()
+      expect((await ui.find({ key: 'copy-D1-0' }))?.text).toBe('Copy mise run flux-up core')
+      await ui.press({ key: 'copy-D1-1' })
+      expect((await ui.find({ key: 'more-D1' }))?.text).toBe('Less')
+      await ui.press({ key: 'more-D1' })
+      expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
+      await ui.unmount()
+    }
+    expect(copied).toEqual(SURFACES.map(() => 'mise run core'))
+  })
+
+  test('a settled row and the toast use plain text', async ($, on) => {
+    const { toasts } = engine(on)
+    await start($)
+    await create($, SUBJECT, DESCRIPTION)
+    expect(toasts).toContain('D1 added: run mise run core or read the guide first?')
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '1', status: 'completed', description: 'Ruling (2026-10-04): **core**' })
+    const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: { task: { id: '1', subject: 'D1 DECIDE: x' } } } as never
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
+    expect(await ui.find({ type: 'Text', text: '2026-10-04 · core' })).toBeDefined()
   })
 })
 

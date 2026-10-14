@@ -43,6 +43,7 @@ declare module 'claude-code' {
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean
+      expanded: string[]
       ascii: boolean
     }
   }

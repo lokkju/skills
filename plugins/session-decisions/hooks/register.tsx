@@ -20,6 +20,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
+import { codeSpans, linkHref, plainText } from './markdown'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -39,6 +40,8 @@ const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} 
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
+// Cards showing their detail (description, link, copy buttons), by `<source>:<id>`.
+const expanded = atom({ plugin: 'session-decisions', key: 'expanded' } as const, [] as string[])
 // Whether this surface docks panes beside the transcript: fixed per session on the terminal and
 // learnt from the footer's drawing. A module variable, since a drawing may not write state.
 let docks = false
@@ -200,7 +203,7 @@ async function assign($: $, kind: Kind): Promise<string> {
 }
 
 async function announce($: $, item: Item): Promise<void> {
-  $.ui.toast(`${item.label} added: ${splitBody(item.body).question}`)
+  $.ui.toast(`${item.label} added: ${plainText(splitBody(item.body).question)}`)
   await offerSidebar($)
 }
 
@@ -552,6 +555,12 @@ function answer($: $, lines: string[]) {
       .catch(() => undefined)
 }
 
+/** Copy a command from a card; a surface with no clipboard path says so in a toast. */
+async function copy($: $, text: string, surface: Parameters<$['ui']['copy']>[0]['surface']): Promise<void> {
+  const done = await $.ui.copy({ text, surface }).catch((err: unknown) => ({ isCopied: false as const, reason: String(err) }))
+  $.ui.toast(done.isCopied ? 'Copied' : `Couldn't copy: ${done.reason}`)
+}
+
 type Elements = ReturnType<$['ui']['resolve']>
 
 function chip(Text: Elements['Text'], plain: boolean, text: string, color: string, dim = false) {
@@ -573,7 +582,7 @@ async function drawCard(
   item: Item,
   opts: { bordered: boolean; isNext: boolean; compact: boolean },
 ) {
-  const { Box, Button, Text } = $.ui.resolve(site) as Elements
+  const { Box, Button, Link, Markdown, Text } = $.ui.resolve(site) as Elements
   const plain = await read($, ascii)
   const now = await $.clock.now()
   const parts = splitBody(item.body)
@@ -591,7 +600,7 @@ async function drawCard(
         </Text>
         <Box flexShrink={1}>
           <Text dimColor wrap="truncate-end">
-            {ruling || parts.question}
+            {plainText(ruling || parts.question)}
           </Text>
         </Box>
       </Box>
@@ -599,6 +608,12 @@ async function drawCard(
   }
 
   const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
+  const choice = parts.recommendation ? shortRecommendation(plainText(parts.recommendation)).choice : null
+  const id = `${item.source}:${item.id}`
+  const open = (await read($, expanded)).includes(id)
+  const href = linkHref(parts.link)
+  const codes = codeSpans(`${parts.question}\n${item.description}`).slice(0, 5)
+  const more = item.description.trim() !== '' || codes.length > 0 || href !== null
   const stale = item.created !== undefined && now - item.created > DAY
   const revised = revisedIn(item.description)
   const frame = opts.bordered
@@ -611,7 +626,7 @@ async function drawCard(
         <Text bold color={opts.isNext && !opts.bordered ? ACCENT : undefined}>
           {item.label}
         </Text>
-        {rec && chip(Text, plain, `recommends ${rec.choice}`, 'success')}
+        {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
         <Box flexGrow={1} />
         {revised && <Text dimColor>{`revised ${revised}`}</Text>}
         {item.created !== undefined && (
@@ -620,8 +635,22 @@ async function drawCard(
           </Text>
         )}
       </Box>
-      <Text>{parts.question}</Text>
-      {rec?.qualifier && <Text dimColor>{rec.qualifier}</Text>}
+      <Markdown key={`question-${item.label}`} text={parts.question} />
+      {rec?.qualifier && <Markdown key={`qualifier-${item.label}`} text={rec.qualifier} dimColor />}
+      {open && (
+        <Box key="detail" flexDirection="column" marginTop={1}>
+          {item.description.trim() !== '' && <Markdown key={`description-${item.label}`} text={item.description.trim()} />}
+          {href && <Link href={href} />}
+          {codes.map((code, i) => (
+            <Button
+              key={`copy-${item.label}-${i}`}
+              plain
+              label={`Copy ${code.length > 40 ? `${code.slice(0, 39)}…` : code}`}
+              onPress={press => void copy($, code, press.surface)}
+            />
+          ))}
+        </Box>
+      )}
       <Box key="actions" flexDirection="row" gap={1}>
         {rec && item.kind === 'DECIDE' && (
           <Button
@@ -635,6 +664,14 @@ async function drawCard(
           <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer($, [`${item.label}: done`])} />
         )}
         <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
+        {more && (
+          <Button
+            key={`more-${item.label}`}
+            label={open ? 'Less' : 'More'}
+            dimColor
+            onPress={() => update($, expanded, list => (list.includes(id) ? list.filter(one => one !== id) : [...list, id]))}
+          />
+        )}
         <Box flexGrow={1} />
         <Text dimColor wrap="truncate-start">
           {parts.link ?? 'no link'}

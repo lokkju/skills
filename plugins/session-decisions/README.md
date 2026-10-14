@@ -53,7 +53,10 @@ write a recommendation isn't ready to ask yet, which is the point.
   the assistant revised after asking (its description has a `Revised (<date>): ...` line) shows
   `revised <date>`, so a changed recommendation doesn't slip past you. The assistant revises with
   TaskUpdate, or with the plugin's `decision_update` tool for an item it added without the task
-  tools.
+  tools. The question and qualifier draw as markdown; one-line rows, chips and toasts show it as
+  plain text. **More** shows the item's description, its link as a clickable one when it's a URL,
+  and a **Copy** button for each command in backticks (it copies on the terminal; Claude Code has
+  no clipboard path for the other surfaces yet).
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
