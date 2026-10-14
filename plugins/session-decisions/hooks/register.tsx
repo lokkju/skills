@@ -30,7 +30,8 @@ const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
-const KEEP_SESSIONS = 100
+const KEEP_RECORDS = 100
+const RECORD = /^(session|list):/
 
 const items = atom({ plugin: 'session-decisions', key: 'items' } as const, [] as Item[])
 const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const, { D: 0, A: 0 } as Counters)
@@ -52,16 +53,36 @@ const DAY = 24 * 60 * 60 * 1000
 const ACCENT = 'claude'
 const KIND_COLOR = { DECIDE: 'warning', ACTION: 'suggestion' } as const
 
+function safeId(id: unknown): string | null {
+  return typeof id === 'string' && SAFE_ID.test(id) && id !== '.' && id !== '..' ? id : null
+}
+
 async function sessionId($: $): Promise<string | null> {
-  const sid = await $.session.id()
-  return SAFE_ID.test(sid) && sid !== '.' && sid !== '..' ? sid : null
+  return safeId(await $.session.id())
+}
+
+/** The task list this session shares with others, when CLAUDE_CODE_TASK_LIST_ID names one. */
+async function sharedList($: $): Promise<string | null> {
+  return safeId(await $.env.get('CLAUDE_CODE_TASK_LIST_ID'))
+}
+
+async function tasksRoot($: $): Promise<string> {
+  return `${(await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`}/tasks`
 }
 
 /** The task list Claude Code keeps for this session (read only; the format is undocumented). */
 async function tasksDir($: $, sid: string): Promise<string> {
-  const listId = await $.env.get('CLAUDE_CODE_TASK_LIST_ID')
-  const config = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
-  return `${config}/tasks/${listId && SAFE_ID.test(listId) ? listId : sid}`
+  return `${await tasksRoot($)}/${(await sharedList($)) ?? sid}`
+}
+
+/**
+ * Where this session's record lives in `$.store`: under the shared task list when there is one,
+ * since a fork or a resume can change the session id while the list stays; otherwise under the
+ * session, whose id is its task list's name.
+ */
+async function recordKey($: $, sid: string): Promise<string> {
+  const list = await sharedList($)
+  return list ? `list:${list}` : `session:${sid}`
 }
 
 /** The decision items in the task files, or null when the directory can't be read. */
@@ -97,8 +118,8 @@ async function taskUpdateOffered($: $): Promise<boolean> {
   }
 }
 
-async function loadRecord($: $, sid: string): Promise<SessionRecord> {
-  const raw = (await $.store.get(`session:${sid}`)) as Partial<SessionRecord> | undefined
+function asRecord(value: unknown): SessionRecord {
+  const raw = value as Partial<SessionRecord> | undefined
   return {
     counters: { D: Number(raw?.counters?.D) || 0, A: Number(raw?.counters?.A) || 0 },
     created: raw?.created && typeof raw.created === 'object' ? raw.created : {},
@@ -108,39 +129,96 @@ async function loadRecord($: $, sid: string): Promise<SessionRecord> {
   }
 }
 
+/**
+ * This session's stored record. The first read under a shared task list takes over the record
+ * this session kept under its own id. A session with no record whose task files hold decision
+ * items was forked from another (backgrounding a session gives it a new id and a copy of the task
+ * files), so it starts from that session's record.
+ */
+async function loadRecord($: $, sid: string, fromFiles: readonly Item[] | null): Promise<SessionRecord> {
+  const key = await recordKey($, sid)
+  const stored = await $.store.get(key)
+  if (stored !== undefined) return asRecord(stored)
+  const own = key === `session:${sid}` ? undefined : await $.store.get(`session:${sid}`)
+  const found = own !== undefined ? asRecord(own) : key.startsWith('session:') ? await forkedFrom($, sid, fromFiles ?? []) : null
+  if (!found) return asRecord(undefined)
+  await $.store.set(key, { ...found, touched: await $.clock.now() })
+  if (own !== undefined) await $.store.delete(`session:${sid}`)
+  return found
+}
+
+/**
+ * The record of the session this one was forked from: the most recently used one whose task list
+ * holds every decision item in this one's by task id and label, and at least one of them word for
+ * word. A label survives a revised subject, so items either session changed after the fork still
+ * match; the word-for-word one keeps two short lists that both start at task 1, D1 apart.
+ */
+async function forkedFrom($: $, sid: string, carried: readonly Item[]): Promise<SessionRecord | null> {
+  if (carried.length === 0) return null
+  const root = await tasksRoot($)
+  const covers = (record: SessionRecord) =>
+    carried.every(item => record.counters[LETTER[item.kind]] >= Number(item.label.slice(1)))
+  let best: SessionRecord | null = null
+  for (const key of await $.store.keys()) {
+    const other = key.startsWith('session:') ? safeId(key.slice('session:'.length)) : null
+    if (!other || other === sid) continue
+    const record = asRecord(await $.store.get(key))
+    if (!covers(record) || (best && record.touched <= best.touched)) continue
+    const theirs = await readTaskFiles($, `${root}/${other}`)
+    const same = (item: Item, exact: boolean) =>
+      theirs?.some(one => one.id === item.id && one.label === item.label && (!exact || one.body === item.body))
+    if (carried.every(item => same(item, false)) && carried.some(item => same(item, true))) best = record
+  }
+  return best
+}
+
+/**
+ * Write this session's record. Sessions on one shared task list write one record, so what another
+ * wrote since is kept: the higher counters, every creation time, and every ledger item, with the
+ * settled copy of an item either side settled.
+ */
 async function persist($: $): Promise<void> {
   const sid = await sessionId($)
   if (!sid) return
+  const key = await recordKey($, sid)
+  const stored = asRecord(await $.store.get(key))
+  const mine = await read($, counters)
+  const ledger = (await read($, items)).filter(item => item.source === 'ledger')
+  const theirs = stored.ledger.filter(item => {
+    const own = ledger.find(one => one.id === item.id)
+    return !own || (isOpen(own) && !isOpen(item))
+  })
   const record: SessionRecord = {
-    counters: await read($, counters),
-    created: await read($, created),
-    ledger: (await read($, items)).filter(item => item.source === 'ledger'),
+    counters: { D: Math.max(mine.D, stored.counters.D), A: Math.max(mine.A, stored.counters.A) },
+    created: { ...stored.created, ...(await read($, created)) },
+    ledger: [...ledger.filter(item => !theirs.some(one => one.id === item.id)), ...theirs],
     closed: await read($, closed),
     touched: await $.clock.now(),
   }
-  await $.store.set(`session:${sid}`, record)
+  await $.store.set(key, record)
 }
 
-/** Drop the records of all but the most recently used sessions, to stay under the store's cap. */
+/** Drop all but the most recently used records, session and list alike, to stay under the store's cap. */
 async function prune($: $): Promise<void> {
-  const keys = (await $.store.keys()).filter(key => key.startsWith('session:'))
-  if (keys.length <= KEEP_SESSIONS) return
+  const keys = (await $.store.keys()).filter(key => RECORD.test(key))
+  if (keys.length <= KEEP_RECORDS) return
   const touched = await Promise.all(
     keys.map(async key => [key, Number(((await $.store.get(key)) as SessionRecord)?.touched) || 0] as const),
   )
   touched.sort((a, b) => b[1] - a[1])
-  await Promise.all(touched.slice(KEEP_SESSIONS).map(([key]) => $.store.delete(key)))
+  await Promise.all(touched.slice(KEEP_RECORDS).map(([key]) => $.store.delete(key)))
 }
 
 /**
  * Rebuild the items from the task files, the stored ledger and stored rulings, keeping what's
- * already in state; the one read this plugin makes.
+ * already in state; the one read this plugin makes. `given` is the session id a hook's input
+ * names, which a resume settles before `$.session.id()` does.
  */
-async function hydrate($: $): Promise<void> {
-  const sid = await sessionId($)
+async function hydrate($: $, given?: string): Promise<void> {
+  const sid = safeId(given) ?? (await sessionId($))
   if (!sid) return
-  const record = await loadRecord($, sid)
   const fromFiles = await readTaskFiles($, await tasksDir($, sid))
+  const record = await loadRecord($, sid, fromFiles)
   const current = await read($, items)
   const settled = { ...record.closed, ...(await read($, closed)) }
   const known = { ...record.created, ...(await read($, created)) }
@@ -274,7 +352,8 @@ export const register: Register = on => {
   on('classic.SessionStart', async ($, e, next) => {
     const result = await next(e)
     if (e.source !== 'compact' && e.source !== 'resume') return result
-    await hydrate($)
+    // Under --continue, $.session.id() still answers a placeholder here; the input has the real id.
+    await hydrate($, e.session_id)
     const text = reminder(await read($, items))
     if (!text) return result
     return { ...result, additionalContext: [...(result.additionalContext ?? []), text] }

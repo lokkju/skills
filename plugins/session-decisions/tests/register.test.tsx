@@ -4,15 +4,30 @@ import type { On } from 'claude-code'
 const PLUGIN = 'session-decisions'
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
 const SID = 'test-session'
-const DIR = `/home/me/.claude/tasks/${SID}`
+const ROOT = '/home/me/.claude/tasks'
 const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 160 } } as const
 
+type Task = { subject: string; description: string; status: string }
+
+/** What an earlier process left behind: the plugin's store, and task lists by name. */
+type Seed = { store?: Record<string, unknown>; lists?: Record<string, Record<string, Task>> }
+
 /**
- * The engine's own behaviour beneath the plugin: a clock, a store, a task list in memory that
- * the plugin's one read at session start sees as files, a prompt box, and the UI it reports to.
+ * The engine's own behaviour beneath the plugin: a clock, a store, task lists in memory that the
+ * plugin's reads see as files, a prompt box, and the UI it reports to. The session's own list is
+ * `tasks/<CLAUDE_CODE_TASK_LIST_ID>` when that is set and `tasks/<session id>` otherwise.
  */
-function engine(on: On, env: Record<string, string> = {}) {
-  const tasks = new Map<string, { subject: string; description: string; status: string }>()
+function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
+  const lists = new Map<string, Map<string, Task>>()
+  for (const [name, list] of Object.entries(seed.lists ?? {})) lists.set(`${ROOT}/${name}`, new Map(Object.entries(list)))
+  const listOf = (name: string) => {
+    const dir = `${ROOT}/${name}`
+    if (!lists.has(dir)) lists.set(dir, new Map())
+    return lists.get(dir)!
+  }
+  const session = { id: SID }
+  const own = () => listOf(env.CLAUDE_CODE_TASK_LIST_ID ?? session.id)
+  const tasks = own()
   // The tools the model is offered; a test empties it to take the task tools away.
   const offered = { tools: ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] }
   on('tool.list', () => ({ value: offered.tools.map(name => ({ name, description: '', mcp: false })) }))
@@ -20,11 +35,19 @@ function engine(on: On, env: Record<string, string> = {}) {
   let draft = ''
   const submitted: string[] = []
   const status: (string | undefined)[] = []
-  let next = 1
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 3, 12) })
-  mock.store(on)
+  const store = new Map(Object.entries(seed.store ?? {}))
+  on('store.get', (_$, e) => ({ value: store.get(e.key) }))
+  on('store.set', (_$, e) => {
+    store.set(e.key, JSON.parse(JSON.stringify(e.value)))
+    return { value: undefined }
+  })
+  on('store.delete', (_$, e) => {
+    store.delete(e.key)
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: [...store.keys()] }))
   mock.env(on, { HOME: '/home/me', ...env })
-  const session = { id: SID }
   on('session.id', () => ({ value: session.id }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
@@ -54,13 +77,15 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { text: e.text }
   })
   on('fs.list', (_$, e) => {
-    if (e.path !== DIR) throw new Error(`ENOENT: ${e.path}`)
-    return { value: [...tasks.keys()].map(id => ({ name: `${id}.json`, kind: 'file' as const, size: 1, mtimeMs: 0, isLink: false })) }
+    const list = lists.get(e.path)
+    if (!list) throw new Error(`ENOENT: ${e.path}`)
+    return { value: [...list.keys()].map(id => ({ name: `${id}.json`, kind: 'file' as const, size: 1, mtimeMs: 0, isLink: false })) }
   })
-  on('fs.exists', (_$, e) => ({ value: e.path === DIR }))
+  on('fs.exists', (_$, e) => ({ value: lists.has(e.path) }))
   on('fs.read', (_$, e) => {
-    const id = e.path.slice(DIR.length + 1).replace(/\.json$/, '')
-    const task = tasks.get(id)
+    const cut = e.path.lastIndexOf('/')
+    const id = e.path.slice(cut + 1).replace(/\.json$/, '')
+    const task = lists.get(e.path.slice(0, cut))?.get(id)
     if (!task) throw new Error(`ENOENT: ${e.path}`)
     return { value: JSON.stringify({ id, ...task, blocks: [], blockedBy: [] }) }
   })
@@ -69,12 +94,13 @@ function engine(on: On, env: Record<string, string> = {}) {
     return <Box key="engine" />
   })
   on('tool.call', { tool: 'TaskCreate' }, (_$, e) => {
-    const id = String(next++)
-    tasks.set(id, { subject: String(e.subject), description: String(e.description ?? ''), status: 'pending' })
+    const list = own()
+    const id = String(Math.max(0, ...[...list.keys()].map(Number)) + 1)
+    list.set(id, { subject: String(e.subject), description: String(e.description ?? ''), status: 'pending' })
     return { result: { task: { id, subject: String(e.subject) } } }
   })
   on('tool.call', { tool: 'TaskUpdate' }, (_$, e) => {
-    const task = tasks.get(String(e.taskId))
+    const task = own().get(String(e.taskId))
     if (!task) return { deny: `Task ${e.taskId} not found` }
     if (e.subject !== undefined) task.subject = String(e.subject)
     if (e.status) task.status = String(e.status)
@@ -87,7 +113,7 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, filled, submitted, status, clock, opened, offered, session, copied, toasts }
+  return { tasks, lists, store, filled, submitted, status, clock, opened, offered, session, copied, toasts }
 }
 
 async function start($: any) {
@@ -290,7 +316,7 @@ describe('queue', () => {
     expect(closed.result).toContain('A1 closed in the decision queue')
     expect(tasks.get('1')?.status).toBe('pending')
     // The task file still shows it open; the stored ruling wins when the files are read again.
-    const after = await $.classic.SessionStart({ source: 'resume' })
+    const after = await $.classic.SessionStart({ source: 'resume', session_id: SID })
     const text = after.additionalContext?.join('\n') ?? ''
     expect(text).toContain('D1 DECIDE')
     expect(text).not.toContain('A1')
@@ -312,10 +338,10 @@ describe('queue', () => {
     const added = await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'approve the deploy [no link]' })
     expect(added.result).toBe('A2 ACTION: approve the deploy [no link]')
     await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
-    // Resumed under a new session id, the stored record comes back empty: what's in state stays.
+    // Resumed under a new session id on the same task list, which keys the stored record.
     session.id = 'resumed-session'
     offered.tools = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate']
-    const after = await $.classic.SessionStart({ source: 'resume' })
+    const after = await $.classic.SessionStart({ source: 'resume', session_id: session.id })
     expect(after.additionalContext?.join('\n')).toBe(
       "Open items in this session's decision queue, still waiting on the user:\n- A2 ACTION: approve the deploy [no link] (fallback ledger)",
     )
@@ -331,10 +357,177 @@ describe('queue', () => {
     on('classic.SessionStart', () => ({}))
     await start($)
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
-    const after = await $.classic.SessionStart({ source: 'compact' })
+    const after = await $.classic.SessionStart({ source: 'compact', session_id: SID })
     expect(after.additionalContext?.join('\n')).toContain('- D1 DECIDE: Postgres or SQLite?')
     const fresh = await $.classic.SessionStart({ source: 'startup' })
     expect(fresh.additionalContext).toBeUndefined()
+  })
+})
+
+const task = (subject: string, status = 'pending', description = 'context'): Task => ({ subject, description, status })
+const ledgerItem = (label: string, body: string, status = 'pending', description = '') => ({
+  id: label,
+  source: 'ledger',
+  label,
+  kind: label.startsWith('D') ? 'DECIDE' : 'ACTION',
+  body,
+  status,
+  description,
+})
+const listAll = ($: any) => $.command.run({ command: 'decisions', args: 'all', ...RUN })
+
+describe('resume and fork', () => {
+  test('on a shared task list, the record is kept under the list', async ($, on) => {
+    const { store, offered } = engine(on, { CLAUDE_CODE_TASK_LIST_ID: 'shared' })
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    offered.tools = []
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'approve the deploy [no link]' })
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
+    expect([...store.keys()]).toEqual(['list:shared'])
+    const record = store.get('list:shared') as any
+    expect(record.counters).toEqual({ D: 0, A: 2 })
+    expect(record.ledger.map((item: any) => item.label)).toEqual(['A2'])
+    expect(record.closed['1'].description).toContain('Ruling (2026-10-03): done')
+    // Another session on the list writes the record in between: its items and numbers are kept.
+    store.set('list:shared', { ...record, counters: { D: 3, A: 2 }, ledger: [...record.ledger, ledgerItem('D3', 'theirs? (recommend yes) [no link]')] })
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l3', label: 'A2', ruling: 'approved' })
+    const merged = store.get('list:shared') as any
+    expect(merged.counters).toEqual({ D: 3, A: 2 })
+    expect(merged.ledger.map((item: any) => [item.label, item.status])).toEqual([['A2', 'completed'], ['D3', 'pending']])
+  })
+
+  test('a new session id on the same task list keeps counters, ledger and rulings', async ($, on) => {
+    const { session, tasks } = engine(
+      on,
+      { CLAUDE_CODE_TASK_LIST_ID: 'shared' },
+      {
+        lists: { shared: { '1': task('A1 ACTION: run gh auth login [no link]'), '2': task('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]') } },
+        store: {
+          'list:shared': {
+            counters: { D: 1, A: 2 },
+            created: { A1: 1, D1: 2, A2: 3 },
+            ledger: [ledgerItem('A2', 'approve the deploy [no link]')],
+            closed: { '1': { id: '1', source: 'tasks', label: 'A1', kind: 'ACTION', body: 'run gh auth login [no link]', status: 'completed', description: 'context\nRuling (2026-10-03): done' } },
+            touched: 3,
+          },
+        },
+      },
+    )
+    session.id = 'resumed-session'
+    await start($)
+    const all = await listAll($)
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
+    expect(all.text).toContain('Ruling (2026-10-03): done')
+    expect(all.text).toContain('A2 ACTION: approve the deploy [no link]  (ledger')
+    expect(all.text).toContain('D1 DECIDE: Postgres or SQLite?')
+    // Numbering carries on from the stored counters.
+    await create($, 'ACTION: rotate the deploy key [no link]')
+    await create($, 'DECIDE: retire kapp? (recommend yes) [no link]')
+    expect(tasks.get('3')?.subject).toBe('A3 ACTION: rotate the deploy key [no link]')
+    expect(tasks.get('4')?.subject).toBe('D2 DECIDE: retire kapp? (recommend yes) [no link]')
+    const closed = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'c1', label: 'A2', ruling: 'approved' })
+    expect(closed.result).toBe('A2 closed')
+  })
+
+  test("a session's own record moves under its task list on the first read", async ($, on) => {
+    const { store, tasks } = engine(
+      on,
+      { CLAUDE_CODE_TASK_LIST_ID: 'shared' },
+      {
+        lists: { shared: { '1': task('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]') } },
+        store: {
+          [`session:${SID}`]: { counters: { D: 1, A: 1 }, created: { D1: 1, A1: 2 }, ledger: [ledgerItem('A1', 'approve the deploy [no link]')], closed: {}, touched: 2 },
+          'session:someone-else': { counters: { D: 9, A: 9 }, created: {}, ledger: [], closed: {}, touched: 1 },
+        },
+      },
+    )
+    await start($)
+    expect(store.has(`session:${SID}`)).toBe(false)
+    expect((store.get('list:shared') as any).ledger.map((item: any) => item.label)).toEqual(['A1'])
+    // Another session's record is left where it is.
+    expect(store.has('session:someone-else')).toBe(true)
+    expect((await listAll($)).text).toContain('A1 ACTION: approve the deploy [no link]  (ledger')
+    await create($, 'ACTION: rotate the deploy key [no link]')
+    expect(tasks.get('2')?.subject).toBe('A2 ACTION: rotate the deploy key [no link]')
+  })
+
+  test('a forked session starts from the record of the session it was forked from', async ($, on) => {
+    const D1 = 'D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]'
+    const A1 = 'A1 ACTION: run gh auth login [no link]'
+    const A2 = 'A2 ACTION: merge the release PR [#16]'
+    const { session, store, lists } = engine(on, {}, {
+      lists: {
+        // The parent revised A2 after the fork; its label still matches.
+        parent: { '1': task(D1), '2': task(A1), '3': task('A2 ACTION: merge the release PR, then tag it [#16]') },
+        // Same task ids and labels, none of the same words: not this session's parent.
+        stranger: { '1': task('D1 DECIDE: tabs or spaces? (recommend tabs) [no link]'), '2': task('A1 ACTION: renew the cert [no link]'), '3': task('A2 ACTION: rotate the key [no link]') },
+        // Backgrounding copied the parent's task files under the new session id.
+        forked: { '1': task(D1), '2': task(A1), '3': task(A2) },
+      },
+      store: {
+        'session:parent': {
+          counters: { D: 1, A: 3 },
+          created: { D1: 1, A1: 2, A2: 3, A3: 4 },
+          ledger: [ledgerItem('A3', 'approve the deploy [no link]')],
+          closed: { '2': { id: '2', source: 'tasks', label: 'A1', kind: 'ACTION', body: 'run gh auth login [no link]', status: 'completed', description: 'context\nRuling (2026-10-03): done' } },
+          touched: 5,
+        },
+        'session:stranger': { counters: { D: 4, A: 4 }, created: {}, ledger: [ledgerItem('A4', 'not ours [no link]')], closed: {}, touched: 9 },
+      },
+    })
+    session.id = 'forked'
+    await start($)
+    const all = await listAll($)
+    expect(all.text).toContain('A3 ACTION: approve the deploy [no link]  (ledger')
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
+    expect(all.text).not.toContain('not ours')
+    // The fork keeps its own copy; the parent's record stays for the parent.
+    expect((store.get('session:forked') as any).ledger.map((item: any) => item.label)).toEqual(['A3'])
+    expect(store.has('session:parent')).toBe(true)
+    await create($, 'ACTION: rotate the deploy key [no link]')
+    expect(lists.get(`${ROOT}/forked`)?.get('4')?.subject).toBe('A4 ACTION: rotate the deploy key [no link]')
+  })
+
+  test('a fresh session adopts nothing', async ($, on) => {
+    const { store } = engine(on, {}, {
+      lists: { other: { '1': task('D1 DECIDE: tabs or spaces? (recommend tabs) [no link]') } },
+      store: { 'session:other': { counters: { D: 1, A: 1 }, created: {}, ledger: [ledgerItem('A1', 'not ours [no link]')], closed: {}, touched: 1 } },
+    })
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    expect((await listAll($)).text).not.toContain('not ours')
+    expect((store.get(`session:${SID}`) as any).ledger).toEqual([])
+  })
+
+  test('the resume hook reads the session the input names', async ($, on) => {
+    // Under --continue, $.session.id() still answers a placeholder when SessionStart runs.
+    const { session } = engine(on, {}, {
+      lists: { [SID]: { '1': task('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]') } },
+      store: { [`session:${SID}`]: { counters: { D: 1, A: 1 }, created: {}, ledger: [ledgerItem('A1', 'approve the deploy [no link]')], closed: {}, touched: 1 } },
+    })
+    on('classic.SessionStart', () => ({}))
+    session.id = 'placeholder'
+    const after = await $.classic.SessionStart({ source: 'resume', session_id: SID })
+    const text = after.additionalContext?.join('\n') ?? ''
+    expect(text).toContain('- D1 DECIDE: Postgres or SQLite?')
+    expect(text).toContain('- A1 ACTION: approve the deploy [no link] (fallback ledger)')
+  })
+
+  test('prune keeps the most recently used records of both kinds', async ($, on) => {
+    const records: Record<string, unknown> = { unrelated: 'kept' }
+    for (let i = 0; i < 110; i++) {
+      records[i % 2 ? `list:l${i}` : `session:s${i}`] = { counters: { D: 0, A: 0 }, created: {}, ledger: [], closed: {}, touched: i + 1 }
+    }
+    const { store } = engine(on, {}, { store: records })
+    await start($)
+    const kept = [...store.keys()].filter(key => /^(session|list):/.test(key))
+    expect(kept).toHaveLength(100)
+    expect(store.has('session:s0')).toBe(false)
+    expect(store.has('list:l9')).toBe(false)
+    expect(store.has('list:l11')).toBe(true)
+    expect(store.has('session:s108')).toBe(true)
+    expect(store.get('unrelated')).toBe('kept')
   })
 })
 

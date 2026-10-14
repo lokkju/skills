@@ -113,8 +113,22 @@ The plugin never polls. It keeps the items in the session's plugin state and upd
 TaskCreate and TaskUpdate calls as they finish; the footer, sidebar and cards redraw from that
 state. It reads the task files once, at session start and after compaction or resume, to pick up
 items it didn't see created, and merges them with the items it already holds and the ones in its
-store rather than replacing them. Label counters and the fallback ledger are kept per session in
-the plugin's store, so a resumed session continues its numbering.
+store rather than replacing them.
+
+Label counters, creation times, the fallback ledger and the rulings `decision_close` keeps for
+task-list items are stored as one record in the plugin's store, so a session picks up its
+numbering and ledger again whatever happens to its id:
+
+- `claude --resume`, `--continue` and compaction keep the session id and its task list, and the
+  record is the session's.
+- With `CLAUDE_CODE_TASK_LIST_ID` set, the record is keyed by that task list instead, so a session
+  that comes back under a new id on the same list finds it. A record kept under the session id
+  before the list was named moves under the list the first time it's read. Sessions sharing the
+  list write the one record, keeping each other's ledger items and the higher counters.
+- Backgrounding a session forks it: the job gets a new session id and a copy of the task files.
+  A session with no record of its own whose task files hold decision items starts from the record
+  of the session those files came from, found by matching task ids and labels.
+- `--fork-session` gives a new id and an empty task list, so the fork starts a fresh queue.
 
 The task tools can come and go within one session: a restart or resume can drop them, and
 `CLAUDE_CODE_ENABLE_TODO_TOOLS` brings them back. Items added with `decision_add` while they were
@@ -134,8 +148,15 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   document. If that changes, items created before a resume or compaction stop showing until
   they're updated; labelling is unaffected.
 - Two sessions sharing a task list (`CLAUDE_CODE_TASK_LIST_ID`) don't see each other's changes
-  until their next session start. Each keeps its own label counters, so items the two create in
-  that time can get the same label.
+  until their next session start. They share one stored record, but each numbers from what it
+  holds, so items the two create in that time can get the same label. Rulings `decision_close`
+  keeps for task-list items are written as the last session to write holds them.
+- A forked session is matched to its parent by the task files Claude Code copies into it, which
+  it doesn't document either. A fork whose task files hold no decision items (a session that
+  only used the fallback ledger, say) has nothing to match and starts a fresh queue. The parent's
+  record has to be among the 100 most recently used ones the store keeps.
+- A forked session takes a copy of its parent's record. Ledger items either one adds or settles
+  afterwards stay in that session.
 - A task-list item settled with `decision_close` stays open in its task file, so ctrl+t still
   lists it as pending until something marks it completed with TaskUpdate. The cards, the sidebar,
   `/decisions` and the reminder after compaction all show it settled.
