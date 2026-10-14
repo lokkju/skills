@@ -49,7 +49,11 @@ write a recommendation isn't ready to ask yet, which is the point.
 - **Footer:** while anything is open, `● 5 decisions` sits beside the mode labels. Click it to
   open the queue; Esc closes it.
 - **Cards:** a `DECIDE` or `ACTION` chip, the label, a `recommends <choice>` tag, the question
-  with any qualifier under it, the link, and the item's age, which turns red after a day.
+  with any qualifier under it, the link, and the item's age, which turns red after a day. The
+  question and qualifier draw as markdown; one-line rows, chips and toasts show it as plain text.
+  **More** shows the item's description, its link as a clickable one when it's a URL, and a
+  **Copy** button for each command in backticks (it copies on the terminal; Claude Code has no
+  clipboard path for the other surfaces yet).
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
