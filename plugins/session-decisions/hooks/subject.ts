@@ -8,12 +8,18 @@ import type { Kind, Letter } from '../types'
 
 export const LETTER: Record<Kind, Letter> = { DECIDE: 'D', ACTION: 'A' }
 
-// An optional existing label ("D12 "), the kind keyword, a colon, then the body. The keyword is
-// case-sensitive, so an ordinary task titled "Action: refactor the parser" isn't a decision item.
-const DRAFT = /^\s*(?:[DA]\d+\s+)?(DECIDE|ACTION)\s*:\s*([\s\S]*?)\s*$/
+// An optional label the assistant typed ("D12 ", "D7: ", "[D7] ", "(A2) ", "D7 - "), the kind
+// keyword, a colon, then the body. The label is dropped, so the hook numbers the item itself. The
+// keyword is case-sensitive, so an ordinary task titled "Action: refactor the parser" isn't a
+// decision item.
+const DRAFT = /^\s*(?:[[(]?[DA]\d+[\])]?[\s:.\-\u2013\u2014]*)?(DECIDE|ACTION)\s*:\s*([\s\S]*?)\s*$/
 const LABELLED = /^([DA])(\d+) (DECIDE|ACTION): ([\s\S]*)$/
-// The link is the last bracketed token, at the very end of the body.
-const LINK = /\[[^[\]]*\S[^[\]]*\]$/
+// The link is the bracketed token at the very end of the body, in one of the forms the skill
+// lists: #123, !45, owner/repo#123 (or !45), an http(s) URL, or "no link". Any other trailing
+// bracket, such as "press [Enter]", isn't a link.
+const LINK =
+  /\[\s*(#\d+|!\d+|[\w.-]+(?:\/[\w.-]+)+[#!]\d+|https?:\/\/[^\s[\]]+|no\s+link)\s*\]$/i
+const NO_LINK = /^no\s+link$/i
 const RECOMMEND = /\(recommend\s+\S/i
 // One level of nested parentheses, so "(recommend B (cheaper))" keeps "B (cheaper)" whole.
 const CHOICE = /\(recommend\s+((?:[^()]|\([^()]*\))*?)\s*\)/i
@@ -79,8 +85,8 @@ export function splitBody(body: string): BodyParts {
   let link: string | null = null
   const linked = LINK.exec(rest)
   if (linked) {
-    const token = linked[0].slice(1, -1).trim()
-    link = token.toLowerCase() === 'no link' ? null : token
+    const token = linked[1] ?? ''
+    link = NO_LINK.test(token) ? null : token
     rest = rest.slice(0, linked.index).trim()
   }
   const choice = recommendation(rest)

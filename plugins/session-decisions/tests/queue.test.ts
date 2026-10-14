@@ -135,3 +135,44 @@ describe('queue', () => {
     expect(mergeAnswers('D10: go with x', ['D1: go with y'])).toBe('D10: go with x\nD1: go with y')
   })
 })
+
+describe('link and label forms', () => {
+  test('only the listed link forms count as the link', () => {
+    for (const link of ['#12', '!45', 'lokkju/skills#13', 'group/sub/repo!7', 'https://example.com/a?b=1', 'http://x.test', 'no link', 'No Link', ' #3 ']) {
+      expect(problems({ kind: 'ACTION', body: `log in [${link}]` })).toEqual([])
+    }
+    for (const body of ['press [Enter]', 'log in [see above]', 'log in [12]', 'log in [ftp://x.test]', 'log in [#12] now', 'log in []']) {
+      expect(problems({ kind: 'ACTION', body })).toEqual([
+        'end the subject with one link token: [#123], [!45], [owner/repo#123], [<url>] or [no link]',
+      ])
+    }
+  })
+
+  test('the link token splits off a body', () => {
+    expect(splitBody('press [Enter] to confirm [#4]')).toEqual({ question: 'press [Enter] to confirm', recommendation: null, link: '#4' })
+    expect(splitBody('rotate the key [ lokkju/skills#13 ]').link).toBe('lokkju/skills#13')
+    expect(splitBody('rotate the key [No Link]')).toEqual({ question: 'rotate the key', recommendation: null, link: null })
+    expect(splitBody('press [Enter]')).toEqual({ question: 'press [Enter]', recommendation: null, link: null })
+  })
+
+  test('self-numbered forms parse as drafts with the label dropped', () => {
+    const body = 'ship it? (recommend yes) [#1]'
+    for (const prefix of ['D7 ', 'D7: ', 'D7. ', '[D7] ', '(D7) ', 'D7 - ', 'D7 — ', '[D7]: ']) {
+      expect(parseDraft(`${prefix}DECIDE: ${body}`)).toEqual({ kind: 'DECIDE', body })
+    }
+    expect(parseDraft('[A3] ACTION: log in [no link]')).toEqual({ kind: 'ACTION', body: 'log in [no link]' })
+    // Only the canonical "D7 DECIDE: ..." is a label the hook checks; the other forms aren't.
+    expect(parseLabel('D7: DECIDE: x')).toBeNull()
+    expect(parseLabel('[D7] DECIDE: x')).toBeNull()
+    expect(parseDraft('Task D7: DECIDE: x')).toBeNull()
+    expect(parseDraft('X7 DECIDE: x')).toBeNull()
+  })
+
+  test('a retitle with a self-numbered prefix keeps the item label, or assigns a fresh one', () => {
+    const list = [item({})]
+    expect(retitle(list, '1', '[D7] DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    expect(retitle(list, '1', 'D1: DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    expect(retitle(list, '9', 'A5 - ACTION: rotate the key [no link]')).toEqual({ kind: 'assign', draft: { kind: 'ACTION', body: 'rotate the key [no link]' } })
+    expect(retitle(list, '1', 'DECIDE: ship it? (recommend yes) [Enter]')).toMatchObject({ kind: 'deny' })
+  })
+})
