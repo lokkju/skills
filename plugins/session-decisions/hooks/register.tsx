@@ -613,8 +613,8 @@ async function drawCard(
         </Text>
         {rec && chip(Text, plain, `recommends ${rec.choice}`, 'success')}
         {item.source === 'ledger' && <Text dimColor>ledger</Text>}
-        {revised && <Text dimColor>{`revised ${revised}`}</Text>}
         <Box flexGrow={1} />
+        {revised && <Text dimColor>{`revised ${revised}`}</Text>}
         {item.created !== undefined && (
           <Text color={stale ? 'error' : undefined} dimColor={!stale}>
             {age(item.created, now).replace('waiting ', '')}
