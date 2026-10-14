@@ -2,6 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, settle } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
+import { codeSpans, linkHref, plainText } from '../hooks/markdown'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -133,5 +134,32 @@ describe('queue', () => {
     expect(mergeAnswers('D1: go with yes\nA2: done\n', ['D1: '])).toBe('D1: \nA2: done')
     expect(mergeAnswers('also, rebase first', ['D1: go with yes', 'D2: go with no'])).toBe('also, rebase first\nD1: go with yes\nD2: go with no')
     expect(mergeAnswers('D10: go with x', ['D1: go with y'])).toBe('D10: go with x\nD1: go with y')
+  })
+})
+
+describe('markdown', () => {
+  test('plainText drops emphasis, backticks and link syntax', () => {
+    expect(plainText('run **`mise run core`** or read [the guide](https://example.com/a_b) first?')).toBe(
+      'run mise run core or read the guide first?',
+    )
+    expect(plainText('__bold__, *it*, _it_ and ~~gone~~')).toBe('bold, it, it and gone')
+    expect(plainText('keep snake_case_names, 2 * 3 * 4 and `a_b*c*`')).toBe('keep snake_case_names, 2 * 3 * 4 and a_b*c*')
+    expect(plainText('``code with ` inside``')).toBe('code with ` inside')
+    expect(plainText('see:\n```sh\nmake test\n```')).toBe('see:\nmake test')
+  })
+
+  test('codeSpans lists fenced blocks then inline code, once each', () => {
+    expect(codeSpans('run `a` then `b`, or `a`\n```\nc d\n```')).toEqual(['c d', 'a', 'b'])
+    expect(codeSpans('no code here')).toEqual([])
+  })
+
+  test('linkHref accepts https URLs a Link can draw and nothing else', () => {
+    expect(linkHref('https://github.com/lokkju/skills/issues/20')).toBe('https://github.com/lokkju/skills/issues/20')
+    expect(linkHref('https://example.com')).toBe('https://example.com/')
+    expect(linkHref('http://localhost:8080/x')).toBe('http://localhost:8080/x')
+    expect(linkHref('https://example.com/a b')).toBe('https://example.com/a%20b')
+    for (const token of [null, '#12', 'owner/repo#3', '!45', 'http://example.com', 'https://me@example.com', 'ftp://x']) {
+      expect(linkHref(token)).toBeNull()
+    }
   })
 })
