@@ -46,6 +46,21 @@ would. ctrl+t doesn't list ledger items, so end each reply that leaves ledger it
 short list of them. Ledger items stay in the ledger if the task tools come back later; keep closing
 them with `decision_close`.
 
+## When an open item changes
+
+A follow-up question or a partial answer isn't a ruling. Leave the item open and revise it in the
+same turn as your reply whenever its question, options, recommendation or context change, so the
+queue never shows what the user has already moved past:
+
+- TaskUpdate the subject in the same form as when you created it (the hook keeps its `D<n>` or
+  `A<n>` label and checks the recommendation and link again), and append a line to the
+  description: `Revised (<YYYY-MM-DD>): <what changed and why>`. Append; don't overwrite the
+  context the user was shown. (Fallback ledger: call `mcp__session-decisions__decision_update`
+  with the `label`, the new `text` if the subject changed, and what changed as `description`; it
+  adds the Revised line.)
+- If the answer turns it into a different question, don't reuse the label: complete the old item
+  with `Ruling (<date>): superseded by D<m>` and create the new one.
+
 ## When the user answers
 
 - Mark the item completed with TaskUpdate, and add a line to its description:
