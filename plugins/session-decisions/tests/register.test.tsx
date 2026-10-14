@@ -180,6 +180,20 @@ describe('queue', () => {
     expect(missing.deny).toBe("session-decisions: D9 isn't in this session's decision queue.")
   })
 
+  test('a ledger item draws like a task item, and only /decisions tags it', async ($, on) => {
+    engine(on)
+    await start($)
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'DECIDE', text: 'Postgres or SQLite? (recommend SQLite) [#3]' })
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PLUGIN, props: {} as never })
+      expect(await ui.find({ type: 'Text', text: 'recommends SQLite' })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: 'ledger' })).toBeUndefined()
+      await ui.unmount()
+    }
+    const listed = await $.command.run({ command: 'decisions', args: '', ...RUN })
+    expect(listed.text).toBe('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]  (ledger, waiting 0m)')
+  })
+
   test('decision_close settles a task-list item once TaskUpdate is gone', async ($, on) => {
     const { tasks, offered } = engine(on)
     on('classic.SessionStart', () => ({}))

@@ -565,7 +565,6 @@ async function drawCard(
           {item.label}
         </Text>
         {rec && chip(Text, plain, `recommends ${rec.choice}`, 'success')}
-        {item.source === 'ledger' && <Text dimColor>ledger</Text>}
         <Box flexGrow={1} />
         {item.created !== undefined && (
           <Text color={stale ? 'error' : undefined} dimColor={!stale}>
