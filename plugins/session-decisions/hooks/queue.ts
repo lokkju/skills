@@ -2,7 +2,8 @@
 // Nothing here touches `$`, so it's tested directly.
 
 import type { Counters, Item, Kind, Status } from '../types'
-import { LETTER, parseDraft, parseLabel, rulingIn } from './subject'
+import { LETTER, formatSubject, parseDraft, parseLabel, problems, rulingIn } from './subject'
+import type { Draft } from './subject'
 
 const OPEN: ReadonlySet<string> = new Set(['pending', 'in_progress'])
 
@@ -91,6 +92,45 @@ export function applyUpdate(items: readonly Item[], change: TaskChange): Item[] 
   else next.description = current.description
   next.status = change.status ? asStatus(change.status) : current.status
   return items.map(one => (one === current ? (next as Item) : one))
+}
+
+/**
+ * What a TaskUpdate's new subject does to the queue, decided before the tool runs:
+ * - `pass`: not a decision subject; the update goes through as written.
+ * - `subject`: go through with this subject, which keeps or carries the item's label.
+ * - `assign`: the task becomes a new item (or changes kind), so it needs a fresh label.
+ * - `deny`: refuse the update, for this reason.
+ */
+export type Retitle =
+  | { kind: 'pass' }
+  | { kind: 'subject'; subject: string }
+  | { kind: 'assign'; draft: Draft }
+  | { kind: 'deny'; reason: string }
+
+export function retitle(items: readonly Item[], taskId: string, subject: string): Retitle {
+  const draft = parseDraft(subject)
+  if (!draft) return { kind: 'pass' }
+  const found = problems(draft)
+  if (found.length) return { kind: 'deny', reason: found.join('; ') }
+  const id = String(taskId)
+  const current = items.find(one => one.source === 'tasks' && one.id === id)
+  // An item the hook never labelled ("D?") takes a label like a new one.
+  const known = current && labelNumber(current.label) > 0 ? current : undefined
+  const labelled = parseLabel(subject)
+  if (labelled) {
+    const label = `${labelled.letter}${labelled.number}`
+    if (known && label !== known.label) {
+      return { kind: 'deny', reason: `task ${id} is ${known.label}; keep its label or drop it and the hook adds it` }
+    }
+    if (labelled.letter !== LETTER[labelled.kind]) {
+      return { kind: 'deny', reason: `${label} can't be a ${labelled.kind} item; drop the label and the hook adds the right one` }
+    }
+    const holder = items.find(one => one.label === label && !(one.source === 'tasks' && one.id === id))
+    if (holder) return { kind: 'deny', reason: `${label} is already in use; drop the label and the hook adds one` }
+    return { kind: 'subject', subject }
+  }
+  if (known && known.label[0] === LETTER[draft.kind]) return { kind: 'subject', subject: formatSubject(known.label, draft) }
+  return { kind: 'assign', draft }
 }
 
 /** Items in the order they were asked, oldest first; unknown times sort first, by label. */

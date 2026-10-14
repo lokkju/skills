@@ -13,6 +13,7 @@ import {
   nextNumber,
   ordered,
   reminder,
+  retitle,
   subjectOf,
   upsert,
 } from './queue'
@@ -260,14 +261,38 @@ export const register: Register = on => {
     return ran
   })
 
+  // A new subject keeps the item's label: the assistant writes drafts, and the hook relabels them
+  // the way TaskCreate does, so a revised question never loses its D<n> or A<n>.
   on('tool.call', { tool: 'TaskUpdate' }, async ($, e, next) => {
-    const ran = await next(e)
+    const taskId = String(e.taskId)
+    let subject = e.subject
+    let assigned: string | null = null
+    if (subject !== undefined) {
+      const plan = retitle(await read($, items), taskId, String(subject))
+      if (plan.kind === 'deny') return { deny: `session-decisions: ${plan.reason}` }
+      if (plan.kind === 'subject') subject = plan.subject
+      if (plan.kind === 'assign') {
+        assigned = await assign($, plan.draft.kind)
+        subject = formatSubject(assigned, plan.draft)
+      }
+    }
+    const ran = await next(subject === e.subject ? e : { ...e, subject })
     if (ran.deny !== undefined || ran.isError) return ran
     const before = await read($, items)
     const after = await change($, list =>
-      applyUpdate(list, { taskId: e.taskId, subject: e.subject, description: e.description, status: e.status }),
+      applyUpdate(list, { taskId, subject, description: e.description, status: e.status }),
     )
-    if (after !== before) await persist($)
+    if (after === before) return ran
+    await update($, counters, now => coverLabels(now, after))
+    if (assigned) {
+      const at = (await read($, created))[assigned] ?? (await $.clock.now())
+      const fresh = await change($, list =>
+        list.map(one => (one.source === 'tasks' && one.id === taskId ? { ...one, created: one.created ?? at } : one)),
+      )
+      const item = fresh.find(one => one.source === 'tasks' && one.id === taskId)
+      if (item) await announce($, item)
+    }
+    await persist($)
     return ran
   })
 

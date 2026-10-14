@@ -63,6 +63,7 @@ function engine(on: On, env: Record<string, string> = {}) {
   on('tool.call', { tool: 'TaskUpdate' }, (_$, e) => {
     const task = tasks.get(String(e.taskId))
     if (!task) return { deny: `Task ${e.taskId} not found` }
+    if (e.subject !== undefined) task.subject = String(e.subject)
     if (e.status) task.status = String(e.status)
     if (e.description !== undefined) task.description = String(e.description)
     return { result: { success: true, taskId: String(e.taskId), updatedFields: [] } }
@@ -105,6 +106,40 @@ describe('labelling', () => {
     await Promise.all([1, 2, 3, 4].map(n => create($, `DECIDE: option ${n}? (recommend a) [no link]`)))
     const labels = [...tasks.values()].map(t => t.subject.split(' ')[0]).sort()
     expect(labels).toEqual(['D1', 'D2', 'D3', 'D4'])
+  })
+
+  test('TaskUpdate keeps the label when the subject changes', async ($, on) => {
+    const { tasks } = engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const update = (subject: string) => $.tool.call({ tool: 'TaskUpdate', tool_use_id: `u-${Math.random()}`, taskId: '1', subject })
+    // Written as a draft, the way the skill writes subjects: the hook puts D1 back.
+    await update('DECIDE: Postgres, SQLite or DuckDB? (recommend SQLite) [#3]')
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres, SQLite or DuckDB? (recommend SQLite) [#3]')
+    // With the matching label it goes through as written.
+    await update('D1 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+    const listed = await $.command.run({ command: 'decisions', args: '', ...RUN })
+    expect(listed.text).toContain('D1 DECIDE: Postgres or DuckDB?')
+    // A mistyped label and a missing recommendation are refused, and the task is left alone.
+    const wrong = await update('D2 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+    expect(wrong.deny).toBe('session-decisions: task 1 is D1; keep its label or drop it and the hook adds it')
+    const vague = await update('DECIDE: Postgres or DuckDB? [#3]')
+    expect(vague.deny).toContain('needs a recommendation')
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+  })
+
+  test('a task retitled into a draft becomes a new item', async ($, on) => {
+    const { tasks } = engine(on)
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'Rotate the deploy key')
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '2', subject: 'ACTION: rotate the deploy key [#9]' })
+    expect(tasks.get('2')?.subject).toBe('A2 ACTION: rotate the deploy key [#9]')
+    const listed = await $.command.run({ command: 'decisions', args: '', ...RUN })
+    expect(listed.text).toContain('A2 ACTION: rotate the deploy key [#9]')
+    await create($, 'ACTION: approve the release [no link]')
+    expect(tasks.get('3')?.subject).toBe('A3 ACTION: approve the release [no link]')
   })
 
   test('a malformed item is refused with the reason', async ($, on) => {
