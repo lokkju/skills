@@ -175,12 +175,12 @@ wait "$capture_pid"
 agg --idle-time-limit 2 --last-frame-duration 4 --font-size 14 "$cast" "$out"
 echo "record-demo: wrote $out"
 
-# Which path the recorded session took: TaskCreate, or the fallback ledger (a `ledger` tag on
-# every card). The transcript lives under the config dir, named after the project path.
+# Which path the recorded session took: TaskCreate, or the fallback ledger (the cards look the
+# same, but ctrl+t and the `/decisions` tags differ). The transcript lives under the config dir, named after the project path.
 transcripts="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$(printf '%s' "$proj" | sed 's|[/.]|-|g')"
 if jq -e 'select(.type == "assistant") | .message.content[]? | select(.type == "tool_use" and .name == "TaskCreate")' \
   "$transcripts"/*.jsonl >/dev/null 2>&1; then
   echo "record-demo: the session queued its items with TaskCreate"
 else
-  echo "record-demo: warning: the session never called TaskCreate, so the cards show the ledger tag" >&2
+  echo "record-demo: warning: the session never called TaskCreate, so its items are ledger items" >&2
 fi

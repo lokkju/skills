@@ -49,7 +49,11 @@ write a recommendation isn't ready to ask yet, which is the point.
 - **Footer:** while anything is open, `● 5 decisions` sits beside the mode labels. Click it to
   open the queue; Esc closes it.
 - **Cards:** a `DECIDE` or `ACTION` chip, the label, a `recommends <choice>` tag, the question
-  with any qualifier under it, the link, and the item's age, which turns red after a day.
+  with any qualifier under it, the link, and the item's age, which turns red after a day. An item
+  the assistant revised after asking (its description has a `Revised (<date>): ...` line) shows
+  `revised <date>`, so a changed recommendation doesn't slip past you. The assistant revises with
+  TaskUpdate, or with the plugin's `decision_update` tool for an item it added without the task
+  tools.
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
@@ -94,8 +98,8 @@ ordinary session, set it in `~/.claude/settings.json`:
 ```
 
 Without them, the assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
-same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
-but they don't appear in ctrl+t.
+same way in the cards, the sidebar, the footer and `/decisions`; only `/decisions` tags them
+`ledger`, since that's the one difference you'd notice: they don't appear in ctrl+t.
 
 With `NO_COLOR` set or `TERM=dumb`, chips and glyphs fall back to ASCII (`[DECIDE]`, `+`, `x`).
 Otherwise the cards use Claude Code's theme colors and follow your theme.
@@ -134,6 +138,9 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   `/decisions` and the reminder after compaction all show it settled.
 - Whether TaskUpdate is offered comes from the session's tool list. A host that can't list its
   tools is treated as not offering it, so `decision_close` settles task-list items there too.
+- ctrl+t is Claude Code's own task list, which a plugin can't add to, so items added with
+  `decision_add` (no task tools in the session) never appear there. Everything else this plugin
+  draws shows them.
 - Function hooks are early access and their API can change between Claude Code releases.
 
 ## Development

@@ -5,9 +5,9 @@ description: "Use whenever you need a decision, an answer, or an action from the
 
 # Session decisions
 
-The user reads the session task list (ctrl+t) as the queue of things waiting on them. Every
-question you need answered, and every step only they can do, goes there in the same turn you ask
-it. The message still carries the detail; the queue is so nothing gets lost.
+The user reads the decision queue (the cards, the decisions sidebar and footer, `/decisions`, and
+ctrl+t where the session has task tools) as the list of things waiting on them. Every question you
+need answered, and every step only they can do, goes there in the same turn you ask it. The message still carries the detail; the queue is so nothing gets lost.
 
 ## Before you ask
 
@@ -36,12 +36,30 @@ subject to the next free `D<n>` or `A<n>` from TaskList, and check the recommend
 eye.
 
 If TaskCreate isn't in your tool list, look for it with tool search before deciding it's missing.
-If it really isn't available (some child sessions don't get it), use the fallback ledger instead,
-never prose alone: call `mcp__session-decisions__decision_add` with `kind` (`DECIDE` or
-`ACTION`), `text` (the subject after the colon, recommendation and link included) and
-`description`. It returns the labelled subject. In fallback mode, end each reply that leaves items
-open with a short list of them. Ledger items stay in the ledger if the task tools come back later;
-keep closing them with `decision_close`.
+Claude Code offers the task tools to background jobs, to older models, and to sessions with
+`CLAUDE_CODE_ENABLE_TODO_TOOLS` set; many ordinary sessions don't have them. There, the plugin's
+ledger is the normal path, not a degraded one, and never prose alone: call
+`mcp__session-decisions__decision_add` with `kind` (`DECIDE` or `ACTION`), `text` (the subject
+after the colon, recommendation and link included) and `description`. It returns the labelled
+subject, and the item shows in the cards, the sidebar, the footer and `/decisions` just as a task
+would. ctrl+t doesn't list ledger items, so end each reply that leaves ledger items open with a
+short list of them. Ledger items stay in the ledger if the task tools come back later; keep closing
+them with `decision_close`.
+
+## When an open item changes
+
+A follow-up question or a partial answer isn't a ruling. Leave the item open and revise it in the
+same turn as your reply whenever its question, options, recommendation or context change, so the
+queue never shows what the user has already moved past:
+
+- TaskUpdate the subject in the same form as when you created it (the hook keeps its `D<n>` or
+  `A<n>` label and checks the recommendation and link again), and append a line to the
+  description: `Revised (<YYYY-MM-DD>): <what changed and why>`. Append; don't overwrite the
+  context the user was shown. (Fallback ledger: call `mcp__session-decisions__decision_update`
+  with the `label`, the new `text` if the subject changed, and what changed as `description`; it
+  adds the Revised line.)
+- If the answer turns it into a different question, don't reuse the label: complete the old item
+  with `Ruling (<date>): superseded by D<m>` and create the new one.
 
 ## When the user answers
 
