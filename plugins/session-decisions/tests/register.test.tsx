@@ -146,6 +146,19 @@ describe('labelling', () => {
     expect(tasks.get('3')?.subject).toBe('A3 ACTION: approve the release [no link]')
   })
 
+  test('a recommendation written with a colon and nested parentheses is labelled and accepted whole', async ($, on) => {
+    const { tasks, filled } = engine(on)
+    await start($)
+    const ran = await create($, 'DECIDE: next? (recommend: ship #16 now, then a release (#14, #4 and #20), then #11) [#16]')
+    expect(ran.deny).toBeUndefined()
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: next? (recommend: ship #16 now, then a release (#14, #4 and #20), then #11) [#16]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: 'recommends ship #16 now' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'next?' })).toBeDefined()
+    await ui.press({ key: 'accept-D1' })
+    expect(filled.at(-1)).toBe('D1: go with ship #16 now, then a release (#14, #4 and #20), then #11')
+  })
+
   test('a malformed item is refused with the reason', async ($, on) => {
     const { tasks } = engine(on)
     await start($)

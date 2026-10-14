@@ -38,6 +38,26 @@ describe('subject', () => {
 
   })
 
+  test('a recommendation may have a colon and nested parentheses at any depth', () => {
+    const body =
+      'what to work on next in lokkju/skills? (recommend: ship release #16 now, then a session-decisions hardening release (#14 rest, #4 skill wording, #20, triage #15 and #13), then settle #10 and write the forge-release skill #11, then forge-tracker) [https://github.com/lokkju/skills/issues]'
+    const choice =
+      'ship release #16 now, then a session-decisions hardening release (#14 rest, #4 skill wording, #20, triage #15 and #13), then settle #10 and write the forge-release skill #11, then forge-tracker'
+    expect(problems({ kind: 'DECIDE', body })).toEqual([])
+    expect(problems({ kind: 'DECIDE', body: body.replace('(recommend: ', '(recommend ') })).toEqual([])
+    expect(recommendation(body)).toBe(choice)
+    expect(splitBody(body)).toEqual({ question: 'what to work on next in lokkju/skills?', recommendation: choice, link: 'https://github.com/lokkju/skills/issues' })
+    expect(shortRecommendation(choice)).toEqual({ choice: 'ship release #16 now', qualifier: choice.slice('ship release #16 now, '.length) })
+    expect(recommendation('Which? (recommend B (cheaper, (mostly))) [no link]')).toBe('B (cheaper, (mostly))')
+    expect(splitBody('Which? (recommend B (x (y))) and when [no link]').question).toBe('Which? and when')
+    expect(shortRecommendation('B (cheaper, faster); later')).toEqual({ choice: 'B (cheaper, faster)', qualifier: 'later' })
+    // Not a recommendation: an empty one, "recommendation", or one never closed (still accepted, with no Accept choice).
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommend ) [no link]' })).toHaveLength(1)
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommendation yes) [no link]' })).toHaveLength(1)
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommend yes [no link]' })).toEqual([])
+    expect(recommendation('ship? (recommend yes [no link]')).toBeNull()
+  })
+
   test('a recommendation shortens to a tag and a qualifier', () => {
     expect(shortRecommendation('SQLite')).toEqual({ choice: 'SQLite', qualifier: null })
     expect(shortRecommendation("yes, after you've tried the dev panel; solo repo")).toEqual({ choice: 'yes', qualifier: "after you've tried the dev panel; solo repo" })
