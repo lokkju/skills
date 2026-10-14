@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, mergeAnswers, nextNumber, reminder, retitle } from '../hooks/queue'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, settle } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
 import type { Item } from '../types'
 
@@ -97,6 +97,25 @@ describe('queue', () => {
     expect(retitle(list, '9', 'A5 DECIDE: x? (recommend y) [no link]')).toMatchObject({ kind: 'deny' })
     // Anything else passes through.
     expect(retitle(list, '1', 'Just a task now')).toEqual({ kind: 'pass' })
+  })
+
+  test('a re-read merges task files with the stored ledger and rulings', () => {
+    const file = item({ id: '3', label: 'A1', kind: 'ACTION', body: 'log in [no link]', description: 'context' })
+    const ruled = settle(file, 'done', '2026-10-03')
+    expect(ruled).toMatchObject({ status: 'completed', description: 'context\nRuling (2026-10-03): done' })
+    const kept = item({ id: 'A2', source: 'ledger', label: 'A2', kind: 'ACTION', body: 'approve [no link]' })
+    const stored = item({ id: 'A3', source: 'ledger', label: 'A3', kind: 'ACTION', body: 'sign [no link]' })
+    const gone = settle(item({ id: '8', label: 'D4' }), 'no', '2026-10-02')
+    const merged = mergeHydrated([file, item({})], [kept], { ledger: [stored, { ...kept, status: 'completed' }], closed: { '3': ruled, '8': gone } })
+    // The stored ruling wins over a task file still showing the item open.
+    expect(merged.find(one => one.id === '3')).toMatchObject({ status: 'completed', description: 'context\nRuling (2026-10-03): done' })
+    // A settled item whose task file has gone stays settled; ledger items from state win over the store.
+    expect(merged.map(one => `${one.label}:${one.status}`)).toEqual(['A1:completed', 'D1:pending', 'D4:completed', 'A2:pending', 'A3:pending'])
+    // A task file that already records a ruling keeps its own.
+    const fileRuled = { ...file, status: 'completed' as const, description: 'Ruling (2026-10-04): later' }
+    expect(mergeHydrated([fileRuled], [], { ledger: [], closed: { '3': ruled } })[0]?.description).toBe('Ruling (2026-10-04): later')
+    // Unreadable task files fall back to what's in state.
+    expect(mergeHydrated(null, [item({ id: '5' })], { ledger: [], closed: {} }).map(one => one.id)).toEqual(['5'])
   })
 
   test('listing and reminder show what is open', () => {

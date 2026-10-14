@@ -13,6 +13,9 @@ const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, 
  */
 function engine(on: On, env: Record<string, string> = {}) {
   const tasks = new Map<string, { subject: string; description: string; status: string }>()
+  // The tools the model is offered; a test empties it to take the task tools away.
+  const offered = { tools: ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] }
+  on('tool.list', () => ({ value: offered.tools.map(name => ({ name, description: '', mcp: false })) }))
   const filled: string[] = []
   let draft = ''
   const submitted: string[] = []
@@ -21,7 +24,8 @@ function engine(on: On, env: Record<string, string> = {}) {
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 3, 12) })
   mock.store(on)
   mock.env(on, { HOME: '/home/me', ...env })
-  on('session.id', () => ({ value: SID }))
+  const session = { id: SID }
+  on('session.id', () => ({ value: session.id }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
   on('tool.register', (_$, e) => ({ value: { tool: `mcp__${PLUGIN}__${e.name}` } }))
@@ -74,7 +78,7 @@ function engine(on: On, env: Record<string, string> = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, filled, submitted, status, clock, opened }
+  return { tasks, filled, submitted, status, clock, opened, offered, session }
 }
 
 async function start($: any) {
@@ -173,7 +177,60 @@ describe('queue', () => {
     const closed = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'a1', ruling: 'approved' })
     expect(closed.result).toBe('A1 closed')
     const missing = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l3', label: 'D9', ruling: 'x' })
-    expect(missing.deny).toContain("isn't in the fallback ledger")
+    expect(missing.deny).toBe("session-decisions: D9 isn't in this session's decision queue.")
+  })
+
+  test('decision_close settles a task-list item once TaskUpdate is gone', async ($, on) => {
+    const { tasks, offered } = engine(on)
+    on('classic.SessionStart', () => ({}))
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const close = (label: string, ruling: string) =>
+      $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: `c-${Math.random()}`, label, ruling })
+    // While TaskUpdate is offered, it stays the way to close a task item.
+    const refused = await close('A1', 'done')
+    expect(refused.deny).toContain('mark it completed with TaskUpdate')
+    // A restart drops the task tools: decision_close settles it in the queue instead.
+    offered.tools = []
+    const closed = await close('A1', 'done')
+    expect(closed.result).toContain('A1 closed in the decision queue')
+    expect(tasks.get('1')?.status).toBe('pending')
+    // The task file still shows it open; the stored ruling wins when the files are read again.
+    const after = await $.classic.SessionStart({ source: 'resume' })
+    const text = after.additionalContext?.join('\n') ?? ''
+    expect(text).toContain('D1 DECIDE')
+    expect(text).not.toContain('A1')
+    const all = await $.command.run({ command: 'decisions', args: 'all', ...RUN })
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
+    expect(all.text).toContain('Ruling (2026-10-03): done')
+    // Unknown labels are still refused.
+    const missing = await close('A7', 'x')
+    expect(missing.deny).toBe("session-decisions: A7 isn't in this session's decision queue.")
+  })
+
+  test('ledger items and stored rulings survive a re-read, and stay closable when the tools return', async ($, on) => {
+    // The task list keeps its id across the resume; the session doesn't.
+    const { offered, session } = engine(on, { CLAUDE_CODE_TASK_LIST_ID: SID })
+    on('classic.SessionStart', () => ({}))
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    offered.tools = []
+    const added = await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'approve the deploy [no link]' })
+    expect(added.result).toBe('A2 ACTION: approve the deploy [no link]')
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
+    // Resumed under a new session id, the stored record comes back empty: what's in state stays.
+    session.id = 'resumed-session'
+    offered.tools = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate']
+    const after = await $.classic.SessionStart({ source: 'resume' })
+    expect(after.additionalContext?.join('\n')).toBe(
+      "Open items in this session's decision queue, still waiting on the user:\n- A2 ACTION: approve the deploy [no link] (fallback ledger)",
+    )
+    const closed = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l3', label: 'A2', ruling: 'approved' })
+    expect(closed.result).toBe('A2 closed')
+    const all = await $.command.run({ command: 'decisions', args: 'all', ...RUN })
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
+    expect(all.text).toContain('A2 ACTION: approve the deploy [no link]  (ledger, completed)')
   })
 
   test('compaction re-shows open items to the model', async ($, on) => {

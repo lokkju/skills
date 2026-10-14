@@ -105,8 +105,18 @@ Otherwise the cards use Claude Code's theme colors and follow your theme.
 The plugin never polls. It keeps the items in the session's plugin state and updates them from
 TaskCreate and TaskUpdate calls as they finish; the footer, sidebar and cards redraw from that
 state. It reads the task files once, at session start and after compaction or resume, to pick up
-items it didn't see created. Label counters and the fallback ledger are kept per session in the
-plugin's store, so a resumed session continues its numbering.
+items it didn't see created, and merges them with the items it already holds and the ones in its
+store rather than replacing them. Label counters and the fallback ledger are kept per session in
+the plugin's store, so a resumed session continues its numbering.
+
+The task tools can come and go within one session: a restart or resume can drop them, and
+`CLAUDE_CODE_ENABLE_TODO_TOOLS` brings them back. Items added with `decision_add` while they were
+missing stay ledger items when they return, and `decision_close` still settles them. A task-list
+item asked before the tools went away can't be updated with TaskUpdate, so `decision_close`
+settles it instead: the plugin marks it completed with the ruling in its own state and store, and
+keeps it settled when it re-reads a task file that still shows it open. While TaskUpdate is
+offered, `decision_close` refuses task-list items and points the assistant at TaskUpdate, and a
+status TaskUpdate sets replaces the plugin's ruling.
 
 On VS Code and mobile there's no footer count (Claude Code only raises the footer on the terminal
 and desktop); the transcript cards, the sidebar and `/decisions` work everywhere.
@@ -118,6 +128,11 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   they're updated; labelling is unaffected.
 - Two sessions sharing a task list (`CLAUDE_CODE_TASK_LIST_ID`) don't see each other's changes
   until their next session start.
+- A task-list item settled with `decision_close` stays open in its task file, so ctrl+t still
+  lists it as pending until something marks it completed with TaskUpdate. The cards, the sidebar,
+  `/decisions` and the reminder after compaction all show it settled.
+- Whether TaskUpdate is offered comes from the session's tool list. A host that can't list its
+  tools is treated as not offering it, so `decision_close` settles task-list items there too.
 - Function hooks are early access and their API can change between Claude Code releases.
 
 ## Development
