@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, settle } from '../hooks/queue'
-import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, revise, settle } from '../hooks/queue'
+import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -145,6 +145,19 @@ describe('queue', () => {
     expect(reminder(list)).toContain('- D1 DECIDE:')
     expect(reminder([])).toBeNull()
     expect(age(undefined, 5)).toBe('')
+  })
+
+  test('a revision appends a dated Revised line and keeps what was shown', () => {
+    const before = item({ description: 'context' })
+    const changed = revise(before, { body: 'ship it? (recommend no) [no link]', note: 'the canary failed' }, '2026-10-14')
+    expect(changed).toMatchObject({ label: 'D1', status: 'pending', body: 'ship it? (recommend no) [no link]' })
+    expect(changed.description).toBe('context\nRevised (2026-10-14): the canary failed (was: ship it? (recommend yes) [no link])')
+    expect(revise(item({}), { note: 'more context' }, '2026-10-14').description).toBe('Revised (2026-10-14): more context')
+    expect(revisedIn(changed.description)).toBe('2026-10-14')
+    expect(revisedIn('Revised (2026-10-01): a\nRevised (2026-10-02): b')).toBe('2026-10-02')
+    expect(revisedIn('context')).toBeNull()
+    // /decisions tags a revised open item with the date.
+    expect(listing([{ ...changed, created: 1 }], 1)).toBe('D1 DECIDE: ship it? (recommend no) [no link]  (waiting 0m, revised 2026-10-14)')
   })
 
   test('answers merge into the draft one line per label', () => {

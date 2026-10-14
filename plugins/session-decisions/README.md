@@ -49,7 +49,11 @@ write a recommendation isn't ready to ask yet, which is the point.
 - **Footer:** while anything is open, `● 5 decisions` sits beside the mode labels. Click it to
   open the queue; Esc closes it.
 - **Cards:** a `DECIDE` or `ACTION` chip, the label, a `recommends <choice>` tag, the question
-  with any qualifier under it, the link, and the item's age, which turns red after a day.
+  with any qualifier under it, the link, and the item's age, which turns red after a day. An item
+  the assistant revised after asking (its description has a `Revised (<date>): ...` line) shows
+  `revised <date>`, so a changed recommendation doesn't slip past you. The assistant revises with
+  TaskUpdate, or with the plugin's `decision_update` tool for an item it added without the task
+  tools.
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
