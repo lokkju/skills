@@ -145,3 +145,58 @@ def test_local_server_busy_port_raises_flow_error_naming_it():
         with pytest.raises(manifest.PortInUseError) as e:
             manifest.CallbackServer(port)
     assert str(port) in str(e.value) and isinstance(e.value, manifest.FlowError)
+
+
+def test_manifest_public_and_callback_urls():
+    m = manifest.build_manifest(
+        "n",
+        "https://e.x",
+        {"metadata": "read"},
+        "http://127.0.0.1:5000/callback",
+        public=True,
+        callback_urls=["http://127.0.0.1:5000/callback"],
+    )
+    assert m["public"] is True
+    assert m["callback_urls"] == ["http://127.0.0.1:5000/callback"]
+    assert "request_oauth_on_install" not in m and "hook_attributes" not in m
+
+
+def test_manifest_without_callbacks_has_no_callback_urls():
+    m = manifest.build_manifest("n", "https://e.x", PERMS, "http://127.0.0.1:1/callback")
+    assert "callback_urls" not in m
+
+
+def test_pkce_pair_is_s256():
+    import base64
+    import hashlib
+
+    verifier, challenge = manifest.pkce_pair()
+    assert 43 <= len(verifier) <= 128
+    digest = hashlib.sha256(verifier.encode()).digest()
+    assert challenge == base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    assert manifest.pkce_pair()[0] != verifier
+
+
+def test_authorize_url():
+    import urllib.parse
+
+    url = manifest.authorize_url("Iv23abc", "http://127.0.0.1:5000/callback", "st", "ch")
+    parts = urllib.parse.urlsplit(url)
+    assert f"{parts.scheme}://{parts.netloc}{parts.path}" == (
+        "https://github.com/login/oauth/authorize"
+    )
+    assert urllib.parse.parse_qs(parts.query) == {
+        "client_id": ["Iv23abc"],
+        "redirect_uri": ["http://127.0.0.1:5000/callback"],
+        "state": ["st"],
+        "code_challenge": ["ch"],
+        "code_challenge_method": ["S256"],
+    }
+
+
+def test_check_callback_reports_github_error():
+    with pytest.raises(manifest.FlowError, match="access_denied.*denied"):
+        manifest.check_callback(
+            {"error": ["access_denied"], "error_description": ["user denied"], "state": ["st"]},
+            "st",
+        )

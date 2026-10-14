@@ -7,9 +7,11 @@ merging it tags and publishes. The setup skill comes later; this release has one
 
 Release tools like yeet and release-please push tags and open PRs with a GitHub App token, so a
 `release: published` workflow can run off them (the default `GITHUB_TOKEN` can't trigger other
-workflows). `scripts/github-app-create` registers that App through GitHub's
+workflows). `scripts/github-app-create` registers that App (or, with `--user-token`, an App whose user access
+token acts as you) through GitHub's
 [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
-and stores its credentials. You click twice in the browser: Create GitHub App, then Install.
+and stores its credentials. You click twice in the browser: Create GitHub App, then Install
+(and a third time, Authorize, with `--user-token`).
 
 ```bash
 plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
@@ -20,9 +22,9 @@ What it does:
 
 1. Starts a server on `127.0.0.1` on a free port (or the one `--port` names) and opens a page that posts the manifest to
    GitHub (the org's `settings/apps/new`, or your account's with `--user`). The manifest asks for
-   a private App with webhooks off and the permissions you give; the default is
-   `contents=write` and `pull_requests=write`, which is what yeet needs. If no browser opens, the
-   script prints the local URL; `--no-browser` skips the attempt and just prints it.
+   a private App (public with `--public`) with no webhook and the permissions you give; the
+   default is `contents=write` and `pull_requests=write`, which is what yeet needs. If no browser
+   opens, the script prints the local URL; `--no-browser` skips the attempt and just prints it.
 2. GitHub redirects back with a one-time code. The script checks the `state` it sent, then
    trades the code for the App's ID, client ID and private key (no auth needed for that call).
 3. Stores the client ID and key (see below).
@@ -87,6 +89,75 @@ The script stays standard library only, so it doesn't parse YAML. sops does the 
 stdout gets the same JSON as `--to stdout` minus `private_key_file`, plus `sops_file` and
 `sops_key`. If storing fails, the usual `./<slug>.private-key.pem` rescue file is written.
 
+### Webhooks
+
+The App never gets a webhook, so there's no flag for it. GitHub rejects a manifest whose
+`hook_attributes` has no `url`, even with `active: false`; the manifest leaves the block out, and
+GitHub then creates the App with its webhook off.
+
+### Public Apps
+
+A private App can only be installed on the account that owns it. To install one App on your
+account and on organizations you belong to, pass `--public`, which sets the manifest's
+`public: true`. Public means any GitHub account can install it, not only yours. Someone else's
+install gives them nothing of yours, but it does mean an installation of your App can belong to
+an account you don't know: anything that mints installation tokens with the App's private key
+should check each installation's owner (`account.login` in `GET /app/installations`) before
+using it.
+
+After the first install the script prints
+`https://github.com/apps/<slug>/installations/new`. Open it once per further account or
+organization. An organization that requires approval for Apps sends its owners a request instead
+of installing.
+
+### User access tokens (`--user-token`)
+
+Some consumers want a token that acts as you, limited to the App's permissions: a GitHub App
+user access token (`ghu_...`). It reaches every repository that both you and an installation of
+the App can reach, so one token covers your account and every organization the App is installed
+on, including installations added later, without authorizing again.
+
+```bash
+plugins/forge-release/scripts/github-app-create --user --name acme-readonly --public \
+  --permission metadata=read --permission contents=read --permission issues=read \
+  --permission pull_requests=read --permission actions=read \
+  --user-token --opt-out-expiry \
+  --to sops --sops-file ~/infra/homelab/platform/mcp/github-token.sops.yaml --replace
+```
+
+`--user-token` needs `--to sops` (the token is never printed). After the install it:
+
+1. Lists the local listener's `/callback` as the App's `callback_urls` in the manifest, so the
+   authorization can come back to the same port. Use a fixed `--port` on a remote host, as below.
+2. Sends you to `https://github.com/login/oauth/authorize` with the App's client ID, a fresh
+   `state` and a PKCE challenge. You hit Authorize.
+3. Checks the `state`, then trades the code at `https://github.com/login/oauth/access_token`
+   with the client ID and the client secret from the manifest conversion.
+4. Encrypts the token into the Secret file under `--sops-key` (default `token`).
+
+The manifest's `request_oauth_on_install` isn't used: GitHub doesn't document whether the
+`state` survives that redirect, and the separate authorization step checks it.
+
+The App's private key isn't stored in this mode; it's only used in memory to watch for the
+installation. Generate a new one in the App's settings if you ever want installation tokens. If
+the installation times out, the script still asks for the authorization and stores the token
+(it reaches installations made later), then exits 1.
+
+**Expiry.** User access tokens expire after 8 hours by default, with a refresh token good for
+6 months. The manifest has no field to turn that off; only the App's settings page does
+(Optional features, "User-to-server token expiration", Opt-out), and only tokens issued after the
+opt-out last. `--opt-out-expiry` pauses between the install and the authorization, prints the
+settings URL, and waits for Enter, so the token it then gets doesn't expire. Without it the
+script also stores `refresh_token`, `client_id` and `client_secret` in the same Secret, which is
+what a refresh job needs (`POST https://github.com/login/oauth/access_token` with
+`grant_type=refresh_token`; each refresh returns a new token and refresh token and voids the
+old ones). Those three key names are reserved, so `--sops-key` can't use them.
+
+An existing entry under any of those keys is refused unless you pass `--replace`. stdout gets
+the usual `--to sops` JSON plus `install_url`, `sops_keys` (what was written),
+`token_expires_in` and `refresh_token_expires_in` (both `null` for a token that doesn't
+expire).
+
 ### Requirements
 
 - `python3` 3.9 or newer; standard library only.
@@ -111,7 +182,8 @@ plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
 ```
 
 Open the printed `http://127.0.0.1:8765/` on the laptop. GitHub redirects the browser back to
-that same address, which the tunnel carries to the script. `--no-browser` also prints the install
+that same address, which the tunnel carries to the script, both after creating the App and,
+with `--user-token`, after authorizing it. `--no-browser` also prints the install
 page URL instead of opening it, and a hint with the `ssh -L` command for the port in use. If the
 port is taken, the script exits with a usage error naming it.
 

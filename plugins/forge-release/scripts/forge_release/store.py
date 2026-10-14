@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Callable, Optional
 
 from .manifest import FlowError
@@ -73,7 +73,11 @@ def write_key_file(path: str, pem: str) -> None:
 
 
 def _sops(
-    run: Callable[..., Any], argv: list[str], stdin: Optional[str], cwd: str, secret: str
+    run: Callable[..., Any],
+    argv: list[str],
+    stdin: Optional[str],
+    cwd: str,
+    secrets: Sequence[str],
 ) -> str:
     """Run sops with the path's directory as cwd; stdout comes back in memory, never in an error."""
     try:
@@ -81,7 +85,10 @@ def _sops(
     except FileNotFoundError:
         raise FlowError("sops isn't on PATH") from None
     if result.returncode != 0:
-        detail = (result.stderr or "").strip().replace(secret.strip(), "[redacted]")
+        detail = (result.stderr or "").strip()
+        for secret in secrets:
+            if secret.strip():
+                detail = detail.replace(secret.strip(), "[redacted]")
         raise FlowError(
             f"`{' '.join(argv[:3])} ...` failed (exit {result.returncode})"
             + (f": {detail}" if detail else "")
@@ -89,8 +96,8 @@ def _sops(
     return result.stdout or ""
 
 
-def _decrypt(run: Callable[..., Any], path: str, cwd: str, secret: str) -> Any:
-    out = _sops(run, ["sops", "--decrypt", "--output-type", "json", path], None, cwd, secret)
+def _decrypt(run: Callable[..., Any], path: str, cwd: str, secrets: Sequence[str]) -> Any:
+    out = _sops(run, ["sops", "--decrypt", "--output-type", "json", path], None, cwd, secrets)
     try:
         return json.loads(out)
     except ValueError:
@@ -118,52 +125,58 @@ def _atomic_write(path: str, text: str) -> None:
         raise
 
 
-def sops_store_key(
+def sops_store_values(
     path: str,
-    key: str,
-    pem: str,
+    values: Mapping[str, str],
     replace: bool = False,
     secret_name: Optional[str] = None,
     namespace: Optional[str] = None,
     run: Callable[..., Any] = subprocess.run,
 ) -> None:
-    """Put `pem` under `key` in a SOPS-encrypted Kubernetes Secret file, then check it reads back.
+    """Put each value under its key in a SOPS-encrypted Kubernetes Secret file, then check they
+    read back.
 
     The plaintext only travels on pipes: an existing file is edited with `sops set --value-stdin`
     on a copy of its (encrypted) bytes, and a new one is encrypted from stdin. The result replaces
     `path` by rename, so a failed run leaves the original alone."""
+    if not values:
+        raise FlowError("nothing to store")
+    secrets = list(values.values())
     # sops runs with the file's directory as cwd (so it finds the right .sops.yaml); a relative
     # path like sub/x.sops.yaml would then point at sub/sub/x.sops.yaml.
     path = os.path.abspath(path)
     cwd = os.path.dirname(path)
     if os.path.exists(path):
-        doc = _decrypt(run, path, cwd, pem)
+        doc = _decrypt(run, path, cwd, secrets)
         field = "data" if "data" in doc and "stringData" not in doc else "stringData"
-        if key in (doc.get(field) or {}) and not replace:
+        taken = [key for key in values if key in (doc.get(field) or {})]
+        if taken and not replace:
             raise FlowError(
-                f"{path} already has {key!r} under {field}; pass --replace to overwrite it"
+                f"{path} already has {', '.join(repr(k) for k in taken)} under {field}; "
+                "pass --replace to overwrite"
             )
         fd, tmp = tempfile.mkstemp(dir=cwd, prefix=".github-app-create-")
         try:
             with os.fdopen(fd, "wb") as handle, open(path, "rb") as source:
                 handle.write(source.read())
-            _sops(
-                run,
-                [
-                    "sops",
-                    "set",
-                    "--value-stdin",
-                    "--input-type",
-                    "yaml",
-                    "--output-type",
-                    "yaml",
-                    tmp,
-                    "".join(f"[{json.dumps(part)}]" for part in (field, key)),
-                ],
-                json.dumps(_encode(field, pem)),
-                cwd,
-                pem,
-            )
+            for key, value in values.items():
+                _sops(
+                    run,
+                    [
+                        "sops",
+                        "set",
+                        "--value-stdin",
+                        "--input-type",
+                        "yaml",
+                        "--output-type",
+                        "yaml",
+                        tmp,
+                        "".join(f"[{json.dumps(part)}]" for part in (field, key)),
+                    ],
+                    json.dumps(_encode(field, value)),
+                    cwd,
+                    secrets,
+                )
             with open(tmp) as handle:
                 encrypted = handle.read()
         finally:
@@ -180,7 +193,7 @@ def sops_store_key(
             "kind": "Secret",
             "metadata": {"name": secret_name, "namespace": namespace},
             "type": "Opaque",
-            field: {key: pem},
+            field: dict(values),
         }
         encrypted = _sops(
             run,
@@ -197,13 +210,30 @@ def sops_store_key(
             ],
             json.dumps(secret),
             cwd,
-            pem,
+            secrets,
         )
         if not encrypted.strip():
             raise FlowError("sops produced no output")
     _atomic_write(path, encrypted)
-    stored = (_decrypt(run, path, cwd, pem).get(field) or {}).get(key)
-    if stored != _encode(field, pem):
+    stored = _decrypt(run, path, cwd, secrets).get(field) or {}
+    wrong = [key for key, value in values.items() if stored.get(key) != _encode(field, value)]
+    if wrong:
         raise FlowError(
-            f"{path} doesn't read back with the new {key!r} entry; check it before relying on it"
+            f"{path} doesn't read back with the new {', '.join(repr(k) for k in wrong)} "
+            "entry; check it before relying on it"
         )
+
+
+def sops_store_key(
+    path: str,
+    key: str,
+    pem: str,
+    replace: bool = False,
+    secret_name: Optional[str] = None,
+    namespace: Optional[str] = None,
+    run: Callable[..., Any] = subprocess.run,
+) -> None:
+    """Put `pem` under `key` in a SOPS-encrypted Kubernetes Secret file (see sops_store_values)."""
+    sops_store_values(
+        path, {key: pem}, replace=replace, secret_name=secret_name, namespace=namespace, run=run
+    )

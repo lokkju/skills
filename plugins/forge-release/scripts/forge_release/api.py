@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ from typing import Any, Callable, Optional
 from .manifest import FlowError
 
 API = "https://api.github.com"
+OAUTH_TOKEN_URL = "https://github.com/login/oauth/access_token"
 USER_AGENT = "forge-release-github-app-create"
 
 # (method, url, headers, body) -> (status, parsed JSON body)
@@ -64,6 +66,7 @@ class AppCredentials:
     client_id: Optional[str]
     html_url: str
     pem: str = field(repr=False)
+    client_secret: Optional[str] = field(default=None, repr=False)
 
     @property
     def jwt_issuer(self) -> str:
@@ -82,6 +85,66 @@ def convert_manifest(code: str, http: Http) -> AppCredentials:
         client_id=body.get("client_id"),
         html_url=str(body.get("html_url") or f"https://github.com/apps/{body['slug']}"),
         pem=str(body["pem"]),
+        client_secret=body.get("client_secret"),
+    )
+
+
+@dataclass(frozen=True)
+class UserToken:
+    """A user access token (ghu_...). A GitHub App's user tokens expire after 8 hours, with a
+    6-month refresh token, unless the App has opted out of expiration; then the expiry fields and
+    the refresh token are None."""
+
+    access_token: str = field(repr=False)
+    expires_in: Optional[int] = None
+    refresh_token: Optional[str] = field(default=None, repr=False)
+    refresh_token_expires_in: Optional[int] = None
+
+
+def exchange_user_code(
+    client_id: str,
+    client_secret: str,
+    code: str,
+    redirect_uri: str,
+    code_verifier: str,
+    http: Http,
+) -> UserToken:
+    """Trade a web-flow authorization code for a user access token."""
+    body = urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": code_verifier,
+        }
+    ).encode()
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": USER_AGENT,
+    }
+    status, reply = http("POST", OAUTH_TOKEN_URL, headers, body)
+    # This endpoint answers 200 with an "error" field when the exchange fails.
+    if isinstance(reply, dict) and reply.get("error"):
+        detail = reply.get("error_description")
+        raise FlowError(
+            f"exchanging the authorization code failed: {reply['error']}"
+            + (f" ({detail})" if detail else "")
+        )
+    _check(status, reply, "exchanging the authorization code")
+    if not isinstance(reply, dict) or not reply.get("access_token"):
+        raise FlowError("the token exchange returned an unexpected response")
+
+    def _int(name: str) -> Optional[int]:
+        value = reply.get(name)
+        return int(value) if value not in (None, "") else None
+
+    return UserToken(
+        access_token=str(reply["access_token"]),
+        expires_in=_int("expires_in"),
+        refresh_token=reply.get("refresh_token") or None,
+        refresh_token_expires_in=_int("refresh_token_expires_in"),
     )
 
 

@@ -21,6 +21,8 @@ from .manifest import FlowError
 DEFAULT_PERMISSIONS = {"contents": "write", "pull_requests": "write"}
 ACCESS = ("read", "write", "admin")
 POLL_INTERVAL = 5.0
+# Secret keys for what an expiring user token needs to be refreshed.
+REFRESH_KEYS = ("refresh_token", "client_id", "client_secret")
 
 
 @dataclass
@@ -33,6 +35,8 @@ class Deps:
     clock: Callable[[], float] = time.monotonic
     sleep: Callable[[float], None] = time.sleep
     new_state: Callable[[], str] = manifest.new_state
+    pkce_pair: Callable[[], tuple[str, str]] = manifest.pkce_pair
+    read_line: Callable[[], str] = field(default_factory=lambda: sys.stdin.readline)
     stdout: IO[str] = field(default_factory=lambda: sys.stdout)
     stderr: IO[str] = field(default_factory=lambda: sys.stderr)
 
@@ -52,9 +56,10 @@ def _port(text: str) -> int:
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="github-app-create",
-        description="Create a private GitHub App through GitHub's App manifest flow (two clicks in "
-        "the browser: create, then install) and store its client ID, private key and "
-        "installation ID. The private key is never printed.",
+        description="Create a GitHub App (private unless --public) through GitHub's App manifest "
+        "flow (two clicks in the browser: create, then install) and store its client ID, private "
+        "key and installation ID, or with --user-token a user access token. The App has no "
+        "webhook. Keys and tokens are never printed.",
     )
     owner = p.add_mutually_exclusive_group(required=True)
     owner.add_argument("--org", help="organization that will own the App")
@@ -71,6 +76,26 @@ def _parser() -> argparse.ArgumentParser:
         metavar="NAME=ACCESS",
         help="repository or organization permission, repeatable "
         "(default: contents=write pull_requests=write)",
+    )
+    p.add_argument(
+        "--public",
+        action="store_true",
+        help="let any account install the App (a private App installs only on its owner); "
+        "anything that uses its installation tokens should check each installation's owner",
+    )
+    p.add_argument(
+        "--user-token",
+        action="store_true",
+        help="after the install, authorize the App as you and store the user access token "
+        "(ghu_...) instead of the private key; needs --to sops. The token reaches every "
+        "installation you can access",
+    )
+    p.add_argument(
+        "--opt-out-expiry",
+        action="store_true",
+        help="with --user-token, pause before authorizing so you can turn off user token "
+        "expiration in the App's settings (the manifest can't); otherwise the token expires in "
+        "8 hours and the refresh token, client ID and client secret are stored too",
     )
     p.add_argument(
         "--repo",
@@ -124,7 +149,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--sops-key",
         metavar="NAME",
-        help="key name inside the Secret's stringData (or data) (default: <slug>.pem)",
+        help="key name inside the Secret's stringData (or data) (default: <slug>.pem, or "
+        "token with --user-token)",
     )
     p.add_argument(
         "--secret-name", help="metadata.name of a new Secret file (needed if --sops-file is new)"
@@ -135,7 +161,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--replace",
         action="store_true",
-        help="with --to sops, overwrite an existing entry under the same key",
+        help="with --to sops, overwrite existing entries under the same keys",
     )
     p.add_argument(
         "--timeout",
@@ -192,6 +218,16 @@ def _args(argv: Sequence[str]) -> argparse.Namespace:
                 f"--sops-file {args.sops_file} doesn't exist; creating it needs "
                 "--secret-name and --namespace"
             )
+    if args.user_token:
+        if args.to != "sops":
+            parser.error("--user-token needs --to sops (the token is never printed)")
+        if args.sops_key in REFRESH_KEYS:
+            parser.error(
+                f"--sops-key {args.sops_key}: that name is kept for the refresh credentials"
+            )
+        args.sops_key = args.sops_key or "token"
+    elif args.opt_out_expiry:
+        parser.error("--opt-out-expiry only applies with --user-token")
     if args.to == "stdout" and args.key_file and os.path.exists(args.key_file):
         parser.error(f"--key-file {args.key_file} already exists; not overwriting it")
     if not args.homepage:
@@ -213,35 +249,108 @@ def _port_of(server: Any) -> int:
     return int(server.start_url.rsplit(":", 1)[1].rstrip("/"))
 
 
-def _create(args: argparse.Namespace, deps: Deps) -> api.AppCredentials:
+def _create(args: argparse.Namespace, deps: Deps, server: Any) -> api.AppCredentials:
     state = deps.new_state()
-    server = deps.server_factory(args.port)
-    try:
-        app_manifest = manifest.build_manifest(
-            args.name, args.homepage, args.permissions, server.redirect_url
+    app_manifest = manifest.build_manifest(
+        args.name,
+        args.homepage,
+        args.permissions,
+        server.redirect_url,
+        public=args.public,
+        # The user authorization comes back to this same listener, so the App must list it.
+        callback_urls=[server.redirect_url] if args.user_token else None,
+    )
+    server.set_page(manifest.form_page(manifest.form_action(args.org, state), app_manifest))
+    if args.no_browser:
+        _say(deps, f"Open {server.start_url} in your browser.")
+        _say(
+            deps,
+            f"On another machine? Forward the port first: "
+            f"ssh -L {_port_of(server)}:127.0.0.1:{_port_of(server)} {socket.gethostname()}",
         )
-        server.set_page(manifest.form_page(manifest.form_action(args.org, state), app_manifest))
-        if args.no_browser:
-            _say(deps, f"Open {server.start_url} in your browser.")
-            _say(
-                deps,
-                f"On another machine? Forward the port first: "
-                f"ssh -L {_port_of(server)}:127.0.0.1:{_port_of(server)} {socket.gethostname()}",
-            )
-        else:
-            _say(
-                deps,
-                f"Opening {server.start_url} in your browser; open it yourself if nothing appears.",
-            )
-        _say(deps, "On GitHub, check the name and hit Create GitHub App.")
-        if not args.no_browser:
-            deps.open_browser(server.start_url)
-        code = manifest.check_callback(server.wait(args.timeout), state)
-    finally:
-        server.close()
+    else:
+        _say(
+            deps,
+            f"Opening {server.start_url} in your browser; open it yourself if nothing appears.",
+        )
+    _say(deps, "On GitHub, check the name and hit Create GitHub App.")
+    if not args.no_browser:
+        deps.open_browser(server.start_url)
+    code = manifest.check_callback(server.wait(args.timeout), state)
     app = api.convert_manifest(code, deps.http)
     _say(deps, f"Created {app.html_url} (App ID {app.app_id}, client ID {app.client_id}).")
+    if args.public:
+        _say(
+            deps,
+            "The App is public: any account can install it. Anything that uses its "
+            "installation tokens should check which account each installation belongs to.",
+        )
     return app
+
+
+def _settings_url(args: argparse.Namespace, app: api.AppCredentials) -> str:
+    if args.org:
+        return f"https://github.com/organizations/{args.org}/settings/apps/{app.slug}"
+    return f"https://github.com/settings/apps/{app.slug}"
+
+
+def _authorize(
+    args: argparse.Namespace, deps: Deps, server: Any, app: api.AppCredentials
+) -> api.UserToken:
+    """GitHub's web application flow, back to the listener the manifest named as callback URL."""
+    if not app.client_id or not app.client_secret:
+        raise FlowError("the manifest conversion returned no client ID or client secret")
+    if args.opt_out_expiry:
+        _say(
+            deps,
+            f"Turn off token expiration now: open {_settings_url(args, app)}, go to Optional "
+            'features, and next to "User-to-server token expiration" click Opt-out. '
+            "Then press Enter here.",
+        )
+        deps.read_line()
+    state = deps.new_state()
+    verifier, challenge = deps.pkce_pair()
+    url = manifest.authorize_url(app.client_id, server.redirect_url, state, challenge)
+    if args.no_browser:
+        _say(deps, f"Open {url} and hit Authorize.")
+    else:
+        _say(deps, f"Opening {url}; hit Authorize.")
+        deps.open_browser(url)
+    code = manifest.check_callback(server.wait(args.timeout), state)
+    return api.exchange_user_code(
+        app.client_id, app.client_secret, code, server.redirect_url, verifier, deps.http
+    )
+
+
+def _store_user_token(
+    args: argparse.Namespace, deps: Deps, app: api.AppCredentials, token: api.UserToken
+) -> list[str]:
+    values = {args.sops_key: token.access_token}
+    if token.refresh_token:
+        values.update(
+            refresh_token=token.refresh_token,
+            client_id=app.client_id or "",
+            client_secret=app.client_secret or "",
+        )
+    store.sops_store_values(
+        args.sops_file,
+        values,
+        replace=args.replace,
+        secret_name=args.secret_name,
+        namespace=args.namespace,
+        run=deps.run,
+    )
+    _say(deps, f"Encrypted {', '.join(values)} into {args.sops_file}.")
+    if token.refresh_token:
+        hours = (token.expires_in or 0) / 3600
+        _say(
+            deps,
+            f"The token expires in {hours:g} hours. Refresh it before then with the stored "
+            "refresh token, client ID and client secret (the refresh token lasts about 6 months, "
+            "and each refresh returns a new pair). Only a token issued after opting out of "
+            "expiration lasts; --opt-out-expiry pauses for that before authorizing.",
+        )
+    return list(values)
 
 
 def _store_credentials(args: argparse.Namespace, deps: Deps, app: api.AppCredentials) -> None:
@@ -348,33 +457,58 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
     deps = deps or Deps()
     args = _args(argv)
     try:
-        app = _create(args, deps)
+        server = deps.server_factory(args.port)
     except manifest.PortInUseError as error:
         _parser().error(str(error))
+    try:
+        return _run(args, deps, server)
+    finally:
+        server.close()
+
+
+def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
+    try:
+        app = _create(args, deps, server)
     except FlowError as error:
         _say(deps, f"error: {error}")
         return 1
     if args.to == "sops" and not args.sops_key:
         args.sops_key = f"{app.slug}.pem"
-    try:
-        _store_credentials(args, deps, app)
-    except (FlowError, OSError) as error:
-        _say(deps, f"error: storing the credentials failed: {error}")
-        _rescue_key(deps, app)
-        return 1
+    if args.user_token:
+        _say(
+            deps,
+            "The private key isn't stored with --user-token; generate one in the App's settings "
+            "if you ever need installation tokens.",
+        )
+    else:
+        try:
+            _store_credentials(args, deps, app)
+        except (FlowError, OSError) as error:
+            _say(deps, f"error: storing the credentials failed: {error}")
+            _rescue_key(deps, app)
+            return 1
 
+    install_url = f"https://github.com/apps/{app.slug}/installations/new"
     installation_id: Optional[int] = None
     status = 0
     try:
         installation_id = _install(args, deps, app)
         _say(deps, f"Installed: installation ID {installation_id}.")
     except FlowError as error:
+        stored = "" if args.user_token else " The credentials are stored;"
+        _say(deps, f"error: {error}.{stored} install the App at {install_url}.")
+        status = 1
+    if args.public:
         _say(
             deps,
-            f"error: {error}. The credentials are stored; install the App at "
-            f"https://github.com/apps/{app.slug}/installations/new.",
+            f"To install it on another account or organization, open {install_url} and pick "
+            "it; an organization that requires approval sends its owners a request instead."
+            + (
+                " The user token reaches each new installation without authorizing again."
+                if args.user_token
+                else ""
+            ),
         )
-        status = 1
     if installation_id is not None and args.to == "pulumi":
         key = store.pulumi_key(args.installation_id_var)
         try:
@@ -384,6 +518,20 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
             _say(deps, f"Set Pulumi secret {key} on stack {args.stack}.")
         except FlowError as error:
             _say(deps, f"error: storing installation ID {installation_id} failed: {error}")
+            status = 1
+
+    stored_keys: list[str] = []
+    token: Optional[api.UserToken] = None
+    if args.user_token:
+        try:
+            token = _authorize(args, deps, server, app)
+            stored_keys = _store_user_token(args, deps, app, token)
+        except (FlowError, OSError) as error:
+            _say(
+                deps,
+                f"error: getting or storing the user token failed: {error}. The App exists at "
+                f"{_settings_url(args, app)}; nothing secret was kept.",
+            )
             status = 1
 
     if args.to == "stdout":
@@ -402,21 +550,23 @@ def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
             file=deps.stdout,
         )
     elif args.to == "sops":
-        print(
-            json.dumps(
-                {
-                    "app_id": app.app_id,
-                    "slug": app.slug,
-                    "client_id": app.client_id,
-                    "installation_id": installation_id,
-                    "html_url": app.html_url,
-                    "sops_file": args.sops_file,
-                    "sops_key": args.sops_key,
-                },
-                indent=2,
-            ),
-            file=deps.stdout,
-        )
+        result: dict[str, Any] = {
+            "app_id": app.app_id,
+            "slug": app.slug,
+            "client_id": app.client_id,
+            "installation_id": installation_id,
+            "html_url": app.html_url,
+            "sops_file": args.sops_file,
+            "sops_key": args.sops_key,
+        }
+        if args.user_token:
+            result.update(
+                install_url=install_url,
+                sops_keys=stored_keys,
+                token_expires_in=token.expires_in if token else None,
+                refresh_token_expires_in=token.refresh_token_expires_in if token else None,
+            )
+        print(json.dumps(result, indent=2), file=deps.stdout)
     elif installation_id is not None:
         print(
             f"{app.slug}: App ID {app.app_id}, client ID {app.client_id}, "

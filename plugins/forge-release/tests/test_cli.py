@@ -634,3 +634,190 @@ def test_sops_usage_errors(args, msg, capsys):
     with pytest.raises(SystemExit):
         World().main(["--org", "acme", "--name", "n", *args])
     assert msg in capsys.readouterr().err
+
+
+CLIENT_SECRET = "csSECRETcs"
+EXPIRING = {
+    "access_token": "ghu_SECRETtoken",
+    "expires_in": 28800,
+    "refresh_token": "ghr_SECRETrefresh",
+    "refresh_token_expires_in": 15897600,
+    "token_type": "bearer",
+}
+NON_EXPIRING = {"access_token": "ghu_SECRETtoken", "token_type": "bearer"}
+
+
+def token_world(reply=EXPIRING, installations=((200, [{"id": 777}]),)):
+    w = sops_world(FakeSops())
+    w.http_responses = [
+        (201, dict(CONVERSION, client_secret=CLIENT_SECRET)),
+        *installations,
+        (200, reply),
+    ]
+    w.lines_read = 0
+
+    def read_line():
+        w.lines_read += 1
+        return "\n"
+
+    deps = w.deps
+
+    def token_deps():
+        d = deps()
+        d.pkce_pair = lambda: ("verifier", "challenge")
+        d.read_line = read_line
+        return d
+
+    w.deps = token_deps
+    return w
+
+
+def no_secret_leak(w):
+    w.no_pem_leak()
+    out = w.out.getvalue() + w.err.getvalue()
+    assert "SECRET" not in out
+    assert all("SECRET" not in " ".join(argv) for argv, _, _ in w.run.calls)
+
+
+TOKEN_ARGS = [
+    "--user",
+    "--name",
+    "lodenheim-mcp-readonly",
+    "--public",
+    "--user-token",
+    "--permission",
+    "metadata=read",
+    "--permission",
+    "contents=read",
+    "--to",
+    "sops",
+]
+
+
+def test_user_token_expiring_stores_token_and_refresh_material(tmp_path):
+    f = tmp_path / "github-token.sops.yaml"
+    w = token_world()
+    args = [*TOKEN_ARGS, "--sops-file", str(f), "--secret-name", "gh", "--namespace", "mcp"]
+    assert w.main(args) == 0, w.err.getvalue()
+    m = manifest_of(w.server.page)
+    assert m["public"] is True
+    assert m["callback_urls"] == [w.server.redirect_url]
+    assert m["default_permissions"] == {"metadata": "read", "contents": "read"}
+    assert "hook_attributes" not in m
+    assert sops_doc(f)["stringData"] == {
+        "token": "ghu_SECRETtoken",
+        "refresh_token": "ghr_SECRETrefresh",
+        "client_id": "Iv23abc",
+        "client_secret": CLIENT_SECRET,
+    }
+    # No private key anywhere: not in the Secret, not in a rescue file.
+    assert [p.name for p in tmp_path.iterdir()] == ["github-token.sops.yaml"]
+    authorize = w.opened[2]
+    assert authorize.startswith("https://github.com/login/oauth/authorize?")
+    assert "client_id=Iv23abc" in authorize and "code_challenge=challenge" in authorize
+    method, url = w.http_calls[2]
+    assert (method, url) == ("POST", "https://github.com/login/oauth/access_token")
+    result = json.loads(w.out.getvalue())
+    assert result["sops_key"] == "token"
+    assert result["sops_keys"] == ["token", "refresh_token", "client_id", "client_secret"]
+    assert result["token_expires_in"] == 28800
+    assert result["install_url"] == ("https://github.com/apps/acme-release/installations/new")
+    err = w.err.getvalue()
+    assert "any account can install it" in err and "expires in 8 hours" in err
+    assert "without authorizing again" in err
+    assert w.lines_read == 0 and w.server.closed
+    no_secret_leak(w)
+
+
+def test_user_token_opt_out_pauses_and_stores_only_the_token(tmp_path):
+    f = tmp_path / "t.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"stringData": {"other": "x"}}))
+    w = token_world(reply=NON_EXPIRING)
+    assert w.main([*TOKEN_ARGS, "--opt-out-expiry", "--sops-file", str(f)]) == 0
+    assert sops_doc(f)["stringData"] == {"other": "x", "token": "ghu_SECRETtoken"}
+    assert w.lines_read == 1
+    err = w.err.getvalue()
+    assert "https://github.com/settings/apps/acme-release" in err and "Opt-out" in err
+    assert "expires in" not in err
+    assert json.loads(w.out.getvalue())["token_expires_in"] is None
+    no_secret_leak(w)
+
+
+def test_user_token_custom_key_and_existing_entry_needs_replace(tmp_path):
+    f = tmp_path / "t.sops.yaml"
+    before = "ENC:" + json.dumps({"stringData": {"gh": "old"}})
+    f.write_text(before)
+    w = token_world(reply=NON_EXPIRING)
+    assert w.main([*TOKEN_ARGS, "--sops-file", str(f), "--sops-key", "gh"]) == 1
+    assert f.read_text() == before and "--replace" in w.err.getvalue()
+    no_secret_leak(w)
+    w = token_world(reply=NON_EXPIRING)
+    assert w.main([*TOKEN_ARGS, "--sops-file", str(f), "--sops-key", "gh", "--replace"]) == 0
+    assert sops_doc(f)["stringData"] == {"gh": "ghu_SECRETtoken"}
+
+
+def test_user_token_denied_authorization_fails_without_storing(tmp_path):
+    f = tmp_path / "t.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"stringData": {}}))
+    w = token_world()
+    calls = iter(
+        [
+            {"code": ["c0de"], "state": ["st"]},
+            {"error": ["access_denied"], "state": ["st"]},
+        ]
+    )
+    w.server.wait = lambda timeout: next(calls)
+    assert w.main([*TOKEN_ARGS, "--sops-file", str(f)]) == 1
+    assert sops_doc(f) == {"stringData": {}}
+    assert "access_denied" in w.err.getvalue()
+    assert len(w.http_calls) == 2  # conversion and installations; no token exchange
+    no_secret_leak(w)
+
+
+def test_user_token_still_authorizes_when_install_times_out(tmp_path):
+    f = tmp_path / "t.sops.yaml"
+    f.write_text("ENC:" + json.dumps({"stringData": {}}))
+    w = token_world(reply=NON_EXPIRING, installations=[(200, [])] * 4)
+    assert w.main([*TOKEN_ARGS, "--sops-file", str(f), "--timeout", "15"]) == 1
+    assert sops_doc(f)["stringData"] == {"token": "ghu_SECRETtoken"}
+    assert "installations/new" in w.err.getvalue()
+    assert json.loads(w.out.getvalue())["installation_id"] is None
+
+
+def test_private_app_without_user_token_has_no_callback_urls():
+    w = World()
+    assert w.main(["--org", "acme", "--name", "n", "--repo", "acme/site"]) == 0
+    m = manifest_of(w.server.page)
+    assert m["public"] is False and "callback_urls" not in m
+    assert "any account" not in w.err.getvalue()
+
+
+@pytest.mark.parametrize(
+    "args,msg",
+    [
+        (["--user-token", "--repo", "a/b"], "--user-token needs --to sops"),
+        (["--opt-out-expiry", "--repo", "a/b"], "--opt-out-expiry only applies"),
+        (
+            [
+                "--user-token",
+                "--to",
+                "sops",
+                "--sops-file",
+                "x",
+                "--secret-name",
+                "s",
+                "--namespace",
+                "ns",
+                "--sops-key",
+                "refresh_token",
+            ],
+            "kept for the refresh",
+        ),
+    ],
+)
+def test_user_token_usage_errors(args, msg, capsys):
+    w = World()
+    with pytest.raises(SystemExit) as e:
+        w.main(["--org", "acme", "--name", "n", *args])
+    assert e.value.code == 2 and msg in capsys.readouterr().err
+    assert w.opened == []
