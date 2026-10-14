@@ -51,7 +51,9 @@ write a recommendation isn't ready to ask yet, which is the point.
 - **Cards:** a `DECIDE` or `ACTION` chip, the label, a `recommends <choice>` tag, the question
   with any qualifier under it, the link, and the item's age, which turns red after a day. An item
   the assistant revised after asking (its description has a `Revised (<date>): ...` line) shows
-  `revised <date>`, so a changed recommendation doesn't slip past you.
+  `revised <date>`, so a changed recommendation doesn't slip past you. The assistant revises with
+  TaskUpdate, or with the plugin's `decision_update` tool for an item it added without the task
+  tools.
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
@@ -95,7 +97,7 @@ ordinary session, set it in `~/.claude/settings.json`:
 { "env": { "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1" } }
 ```
 
-Without them, the assistant uses the plugin's `decision_add`, `decision_update` and `decision_close` tools instead. The items show the
+Without them, the assistant uses the plugin's `decision_add` and `decision_close` tools instead. The items show the
 same way in the cards, the sidebar, the footer and `/decisions`, with a `ledger` tag on each card,
 but they don't appear in ctrl+t.
 
