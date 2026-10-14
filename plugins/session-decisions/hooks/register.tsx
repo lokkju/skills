@@ -15,17 +15,19 @@ import {
   ordered,
   reminder,
   retitle,
+  revise,
   settle,
   subjectOf,
   upsert,
 } from './queue'
-import { LETTER, formatSubject, parseDraft, problems, recommendation, rulingIn, shortRecommendation, splitBody } from './subject'
+import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
 
 const PANE = 'session-decisions'
 const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
+const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
 const KEEP_SESSIONS = 100
 
@@ -229,6 +231,20 @@ export const register: Register = on => {
       },
     }))
     await quietly($.tool.register({
+      name: 'decision_update',
+      description:
+        "Revises an open fallback-ledger item from decision_add when its question, options, recommendation or context change, keeping its label. Task-list items are revised with TaskUpdate instead.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'The item label, such as D3.' },
+          text: { type: 'string', description: 'The new subject after the colon, in the form decision_add takes; omit to keep it.' },
+          description: { type: 'string', description: 'What changed and why, recorded as a dated Revised line.' },
+        },
+        required: ['label'],
+      },
+    }))
+    await quietly($.tool.register({
       name: 'decision_close',
       description:
         "Settles a fallback-ledger item from decision_add with the user's ruling. Task-list items are settled with TaskUpdate instead, unless TaskUpdate is not available in this session.",
@@ -351,6 +367,34 @@ export const register: Register = on => {
     return { result: subjectOf(item) }
   })
 
+  on('tool.call', { tool: UPDATE_TOOL }, async ($, e) => {
+    const label = String(e.label ?? '').trim().toUpperCase()
+    const text = e.text === undefined ? undefined : String(e.text).trim()
+    const note = e.description === undefined ? undefined : String(e.description).trim()
+    if (!text && !note) return { deny: 'session-decisions: give the new text, a description of what changed, or both.' }
+    const list = await read($, items)
+    const matches = list.filter(item => item.label === label)
+    const target = matches.find(item => item.source === 'ledger') ?? matches.find(isOpen) ?? matches[0]
+    if (!target) return { deny: `session-decisions: ${label} isn't in this session's decision queue.` }
+    if (target.source === 'tasks') {
+      return {
+        deny: (await taskUpdateOffered($))
+          ? `session-decisions: ${label} is a task-list item; revise it with TaskUpdate, keeping its label, and add a Revised line to its description.`
+          : `session-decisions: ${label} is a task-list item and TaskUpdate isn't available; close it with decision_close as superseded and add the revised item with decision_add.`,
+      }
+    }
+    if (!isOpen(target)) return { deny: `session-decisions: ${label} is settled; add a new item with decision_add instead.` }
+    if (text) {
+      const found = problems({ kind: target.kind, body: text })
+      if (found.length) return { deny: `session-decisions: ${found.join('; ')}` }
+    }
+    const date = new Date(await $.clock.now()).toISOString().slice(0, 10)
+    const done = revise(target, { body: text || undefined, note }, date)
+    await change($, now => now.map(item => (item.source === 'ledger' && item.id === target.id ? done : item)))
+    await persist($)
+    return { result: subjectOf(done) }
+  })
+
   on('tool.call', { tool: CLOSE_TOOL }, async ($, e) => {
     const label = String(e.label ?? '').trim().toUpperCase()
     const ruling = String(e.ruling ?? '').trim()
@@ -431,7 +475,7 @@ export const register: Register = on => {
     )
   })
 
-  // In the transcript, a finished TaskCreate or decision_add row draws as its item's card.
+  // In the transcript, a finished TaskCreate, decision_add or decision_update row draws as its item's card.
   on('ui.render', { component: 'ToolUse', props: { tool: 'TaskCreate' } }, async ($, e, next) => {
     if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
     const id = String((e.props.output as { task?: { id?: unknown } } | undefined)?.task?.id ?? '')
@@ -439,13 +483,15 @@ export const register: Register = on => {
     if (!item) return next(e)
     return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
   })
-  on('ui.render', { component: 'ToolUse', props: { tool: ADD_TOOL } }, async ($, e, next) => {
-    if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
-    const label = String(e.props.output ?? '').split(' ')[0]
-    const item = (await read($, items)).find(one => one.source === 'ledger' && one.label === label)
-    if (!item) return next(e)
-    return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
-  })
+  for (const tool of [ADD_TOOL, UPDATE_TOOL]) {
+    on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
+      if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
+      const label = String(e.props.output ?? '').split(' ')[0]
+      const item = (await read($, items)).find(one => one.source === 'ledger' && one.label === label)
+      if (!item) return next(e)
+      return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
+    })
+  }
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
@@ -554,6 +600,7 @@ async function drawCard(
 
   const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
   const stale = item.created !== undefined && now - item.created > DAY
+  const revised = revisedIn(item.description)
   const frame = opts.bordered
     ? { borderStyle: 'round', borderColor: opts.isNext ? ACCENT : 'inactive', hover: { borderColor: ACCENT }, paddingX: 1 }
     : {}
@@ -566,6 +613,7 @@ async function drawCard(
         </Text>
         {rec && chip(Text, plain, `recommends ${rec.choice}`, 'success')}
         {item.source === 'ledger' && <Text dimColor>ledger</Text>}
+        {revised && <Text dimColor>{`revised ${revised}`}</Text>}
         <Box flexGrow={1} />
         {item.created !== undefined && (
           <Text color={stale ? 'error' : undefined} dimColor={!stale}>

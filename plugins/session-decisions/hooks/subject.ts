@@ -71,6 +71,13 @@ export function rulingIn(description: string): string | null {
   return lines.find(line => line.startsWith('Ruling (')) ?? null
 }
 
+/** The date of the last "Revised (<date>): ..." line of a description; null when there's none. */
+export function revisedIn(description: string): string | null {
+  const lines = description.split('\n').reverse()
+  const line = lines.find(one => one.startsWith('Revised ('))
+  return line ? (/^Revised \(([^)]*)\)/.exec(line)?.[1] ?? null) : null
+}
+
 export type BodyParts = { question: string; recommendation: string | null; link: string | null }
 
 /** A body split for display: the question alone, the recommended choice, and the link token. */

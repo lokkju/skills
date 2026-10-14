@@ -180,6 +180,63 @@ describe('queue', () => {
     expect(missing.deny).toBe("session-decisions: D9 isn't in this session's decision queue.")
   })
 
+  test('decision_update revises a ledger item in place and keeps its label', async ($, on) => {
+    const { offered } = engine(on)
+    await start($)
+    offered.tools = []
+    const call = (tool: string, args: Record<string, unknown>) =>
+      $.tool.call({ tool: `mcp__session-decisions__${tool}`, tool_use_id: `l-${Math.random()}`, ...args })
+    await call('decision_add', { kind: 'DECIDE', text: 'serve it as protobuf? (recommend yes) [no link]', description: 'so Cloudflare compresses it' })
+    const revised = await call('decision_update', { label: 'd1', text: 'serve it pre-gzipped? (recommend yes) [no link]', description: 'the user asked for an honest content type' })
+    expect(revised.result).toBe('D1 DECIDE: serve it pre-gzipped? (recommend yes) [no link]')
+    const listed = await $.command.run({ command: 'decisions', args: '', ...RUN })
+    expect(listed.text).toBe('D1 DECIDE: serve it pre-gzipped? (recommend yes) [no link]  (ledger, waiting 0m, revised 2026-10-03)')
+    // The card marks it revised.
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: 'revised 2026-10-03' })).toBeDefined()
+    await ui.unmount()
+    // Its transcript row draws as the revised card.
+    const props = { tool_use_id: 'r1', tool: 'mcp__session-decisions__decision_update', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: revised.result } as never
+    const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 'r1', props })
+    expect(await row.find({ type: 'Text', text: 'serve it pre-gzipped?' })).toBeDefined()
+    await row.unmount()
+    // Validated like decision_add, and refused with nothing to change.
+    expect((await call('decision_update', { label: 'D1', text: 'serve it pre-gzipped? [no link]' })).deny).toContain('needs a recommendation')
+    expect((await call('decision_update', { label: 'D1' })).deny).toContain('give the new text')
+    expect((await call('decision_update', { label: 'D9', description: 'x' })).deny).toBe("session-decisions: D9 isn't in this session's decision queue.")
+    // A description alone adds a Revised line; a settled item can't be revised.
+    expect((await call('decision_update', { label: 'D1', description: 'cached for a day' })).result).toBe('D1 DECIDE: serve it pre-gzipped? (recommend yes) [no link]')
+    await call('decision_close', { label: 'D1', ruling: 'superseded by D2' })
+    expect((await call('decision_update', { label: 'D1', description: 'x' })).deny).toContain('is settled')
+  })
+
+  test('decision_update points task-list items at TaskUpdate', async ($, on) => {
+    const { offered } = engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const update = () =>
+      $.tool.call({ tool: 'mcp__session-decisions__decision_update', tool_use_id: `u-${Math.random()}`, label: 'D1', description: 'x' })
+    expect((await update()).deny).toContain('revise it with TaskUpdate')
+    offered.tools = []
+    expect((await update()).deny).toContain('close it with decision_close as superseded')
+  })
+
+  test('a TaskUpdate that adds a Revised line marks the card', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await $.tool.call({
+      tool: 'TaskUpdate',
+      tool_use_id: 'u1',
+      taskId: '1',
+      subject: 'DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]',
+      description: 'context\nRevised (2026-10-04): analytics workload, so DuckDB',
+    })
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: 'revised 2026-10-04' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'recommends DuckDB' })).toBeDefined()
+  })
+
   test('decision_close settles a task-list item once TaskUpdate is gone', async ($, on) => {
     const { tasks, offered } = engine(on)
     on('classic.SessionStart', () => ({}))
