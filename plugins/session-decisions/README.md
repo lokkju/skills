@@ -127,7 +127,8 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   document. If that changes, items created before a resume or compaction stop showing until
   they're updated; labelling is unaffected.
 - Two sessions sharing a task list (`CLAUDE_CODE_TASK_LIST_ID`) don't see each other's changes
-  until their next session start.
+  until their next session start. Each keeps its own label counters, so items the two create in
+  that time can get the same label.
 - A task-list item settled with `decision_close` stays open in its task file, so ctrl+t still
   lists it as pending until something marks it completed with TaskUpdate. The cards, the sidebar,
   `/decisions` and the reminder after compaction all show it settled.
