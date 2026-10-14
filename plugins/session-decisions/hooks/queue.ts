@@ -2,7 +2,7 @@
 // Nothing here touches `$`, so it's tested directly.
 
 import type { Counters, Item, Kind, Status } from '../types'
-import { LETTER, formatSubject, parseDraft, parseLabel, problems, rulingIn } from './subject'
+import { LETTER, formatSubject, parseDraft, parseLabel, problems, revisedIn, rulingIn } from './subject'
 import type { Draft } from './subject'
 
 const OPEN: ReadonlySet<string> = new Set(['pending', 'in_progress'])
@@ -100,6 +100,22 @@ export function settle(item: Item, ruling: string, date: string): Item {
     ...item,
     status: 'completed',
     description: [item.description, `Ruling (${date}): ${ruling}`].filter(Boolean).join('\n'),
+  }
+}
+
+/**
+ * An open item revised in place: a new body if given, and a dated "Revised" line appended to the
+ * description, which says what changed. A changed body is recorded on that line too, so the
+ * description keeps what the user was shown before.
+ */
+export function revise(item: Item, change: { body?: string; note?: string }, date: string): Item {
+  const body = change.body ?? item.body
+  const note = change.note?.trim() || 'revised'
+  const was = body !== item.body ? ` (was: ${item.body})` : ''
+  return {
+    ...item,
+    body,
+    description: [item.description, `Revised (${date}): ${note}${was}`].filter(Boolean).join('\n'),
   }
 }
 
@@ -205,6 +221,8 @@ export function listing(items: readonly Item[], now: number, all = false): strin
     const tags = item.source === 'ledger' ? ['ledger'] : []
     const tag = isOpen(item) ? age(item.created, now) : item.status
     if (tag) tags.push(tag)
+    const revised = isOpen(item) ? revisedIn(item.description) : null
+    if (revised) tags.push(`revised ${revised}`)
     lines.push(subjectOf(item) + (tags.length ? `  (${tags.join(', ')})` : ''))
     const ruling = rulingIn(item.description)
     if (ruling) lines.push(`    ${ruling}`)

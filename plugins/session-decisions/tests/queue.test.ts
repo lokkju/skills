@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, settle } from '../hooks/queue'
-import { parseDraft, parseLabel, problems, recommendation, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, revise, settle } from '../hooks/queue'
+import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
 import { codeSpans, linkHref, plainText } from '../hooks/markdown'
 import type { Item } from '../types'
 
@@ -37,6 +37,26 @@ describe('subject', () => {
     expect(splitBody('Which plan? (recommend B (cheaper)) [no link]').question).toBe('Which plan?')
     expect(rulingIn('context\nRuling (2026-10-01): no\nRuling (2026-10-03): yes')).toBe('Ruling (2026-10-03): yes')
 
+  })
+
+  test('a recommendation may have a colon and nested parentheses at any depth', () => {
+    const body =
+      'what to work on next in lokkju/skills? (recommend: ship release #16 now, then a session-decisions hardening release (#14 rest, #4 skill wording, #20, triage #15 and #13), then settle #10 and write the forge-release skill #11, then forge-tracker) [https://github.com/lokkju/skills/issues]'
+    const choice =
+      'ship release #16 now, then a session-decisions hardening release (#14 rest, #4 skill wording, #20, triage #15 and #13), then settle #10 and write the forge-release skill #11, then forge-tracker'
+    expect(problems({ kind: 'DECIDE', body })).toEqual([])
+    expect(problems({ kind: 'DECIDE', body: body.replace('(recommend: ', '(recommend ') })).toEqual([])
+    expect(recommendation(body)).toBe(choice)
+    expect(splitBody(body)).toEqual({ question: 'what to work on next in lokkju/skills?', recommendation: choice, link: 'https://github.com/lokkju/skills/issues' })
+    expect(shortRecommendation(choice)).toEqual({ choice: 'ship release #16 now', qualifier: choice.slice('ship release #16 now, '.length) })
+    expect(recommendation('Which? (recommend B (cheaper, (mostly))) [no link]')).toBe('B (cheaper, (mostly))')
+    expect(splitBody('Which? (recommend B (x (y))) and when [no link]').question).toBe('Which? and when')
+    expect(shortRecommendation('B (cheaper, faster); later')).toEqual({ choice: 'B (cheaper, faster)', qualifier: 'later' })
+    // Not a recommendation: an empty one, "recommendation", or one never closed (still accepted, with no Accept choice).
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommend ) [no link]' })).toHaveLength(1)
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommendation yes) [no link]' })).toHaveLength(1)
+    expect(problems({ kind: 'DECIDE', body: 'ship? (recommend yes [no link]' })).toEqual([])
+    expect(recommendation('ship? (recommend yes [no link]')).toBeNull()
   })
 
   test('a recommendation shortens to a tag and a qualifier', () => {
@@ -128,6 +148,19 @@ describe('queue', () => {
     expect(age(undefined, 5)).toBe('')
   })
 
+  test('a revision appends a dated Revised line and keeps what was shown', () => {
+    const before = item({ description: 'context' })
+    const changed = revise(before, { body: 'ship it? (recommend no) [no link]', note: 'the canary failed' }, '2026-10-14')
+    expect(changed).toMatchObject({ label: 'D1', status: 'pending', body: 'ship it? (recommend no) [no link]' })
+    expect(changed.description).toBe('context\nRevised (2026-10-14): the canary failed (was: ship it? (recommend yes) [no link])')
+    expect(revise(item({}), { note: 'more context' }, '2026-10-14').description).toBe('Revised (2026-10-14): more context')
+    expect(revisedIn(changed.description)).toBe('2026-10-14')
+    expect(revisedIn('Revised (2026-10-01): a\nRevised (2026-10-02): b')).toBe('2026-10-02')
+    expect(revisedIn('context')).toBeNull()
+    // /decisions tags a revised open item with the date.
+    expect(listing([{ ...changed, created: 1 }], 1)).toBe('D1 DECIDE: ship it? (recommend no) [no link]  (waiting 0m, revised 2026-10-14)')
+  })
+
   test('answers merge into the draft one line per label', () => {
     expect(mergeAnswers('', ['D1: go with yes'])).toBe('D1: go with yes')
     expect(mergeAnswers('D1: go with yes', ['A2: done'])).toBe('D1: go with yes\nA2: done')
@@ -161,5 +194,46 @@ describe('markdown', () => {
     for (const token of [null, '#12', 'owner/repo#3', '!45', 'http://example.com', 'https://me@example.com', 'ftp://x']) {
       expect(linkHref(token)).toBeNull()
     }
+  })
+})
+
+describe('link and label forms', () => {
+  test('only the listed link forms count as the link', () => {
+    for (const link of ['#12', '!45', 'lokkju/skills#13', 'group/sub/repo!7', 'https://example.com/a?b=1', 'http://x.test', 'no link', 'No Link', ' #3 ']) {
+      expect(problems({ kind: 'ACTION', body: `log in [${link}]` })).toEqual([])
+    }
+    for (const body of ['press [Enter]', 'log in [see above]', 'log in [12]', 'log in [ftp://x.test]', 'log in [#12] now', 'log in []']) {
+      expect(problems({ kind: 'ACTION', body })).toEqual([
+        'end the subject with one link token: [#123], [!45], [owner/repo#123], [<url>] or [no link]',
+      ])
+    }
+  })
+
+  test('the link token splits off a body', () => {
+    expect(splitBody('press [Enter] to confirm [#4]')).toEqual({ question: 'press [Enter] to confirm', recommendation: null, link: '#4' })
+    expect(splitBody('rotate the key [ lokkju/skills#13 ]').link).toBe('lokkju/skills#13')
+    expect(splitBody('rotate the key [No Link]')).toEqual({ question: 'rotate the key', recommendation: null, link: null })
+    expect(splitBody('press [Enter]')).toEqual({ question: 'press [Enter]', recommendation: null, link: null })
+  })
+
+  test('self-numbered forms parse as drafts with the label dropped', () => {
+    const body = 'ship it? (recommend yes) [#1]'
+    for (const prefix of ['D7 ', 'D7: ', 'D7. ', '[D7] ', '(D7) ', 'D7 - ', 'D7 — ', '[D7]: ']) {
+      expect(parseDraft(`${prefix}DECIDE: ${body}`)).toEqual({ kind: 'DECIDE', body })
+    }
+    expect(parseDraft('[A3] ACTION: log in [no link]')).toEqual({ kind: 'ACTION', body: 'log in [no link]' })
+    // Only the canonical "D7 DECIDE: ..." is a label the hook checks; the other forms aren't.
+    expect(parseLabel('D7: DECIDE: x')).toBeNull()
+    expect(parseLabel('[D7] DECIDE: x')).toBeNull()
+    expect(parseDraft('Task D7: DECIDE: x')).toBeNull()
+    expect(parseDraft('X7 DECIDE: x')).toBeNull()
+  })
+
+  test('a retitle with a self-numbered prefix keeps the item label, or assigns a fresh one', () => {
+    const list = [item({})]
+    expect(retitle(list, '1', '[D7] DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    expect(retitle(list, '1', 'D1: DECIDE: ship it today? (recommend yes) [#4]')).toEqual({ kind: 'subject', subject: 'D1 DECIDE: ship it today? (recommend yes) [#4]' })
+    expect(retitle(list, '9', 'A5 - ACTION: rotate the key [no link]')).toEqual({ kind: 'assign', draft: { kind: 'ACTION', body: 'rotate the key [no link]' } })
+    expect(retitle(list, '1', 'DECIDE: ship it? (recommend yes) [Enter]')).toMatchObject({ kind: 'deny' })
   })
 })
