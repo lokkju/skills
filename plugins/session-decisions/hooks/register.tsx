@@ -109,7 +109,11 @@ async function readTaskFiles($: $, dir: string): Promise<Item[] | null> {
   return found
 }
 
-/** Whether the model can call TaskUpdate now; false when the host can't say. */
+// $.tool.list() names a deferred tool before the model loads it (Claude Code 2.1.286), so a
+// refusal that points at TaskUpdate says how to reach it.
+const LOAD = ' If TaskUpdate is deferred, load it with ToolSearch first.'
+
+/** Whether TaskUpdate exists in this session, loaded or deferred; false when the host can't say. */
 async function taskUpdateOffered($: $): Promise<boolean> {
   try {
     return (await $.tool.list()).some(tool => tool.name === 'TaskUpdate')
@@ -461,7 +465,7 @@ export const register: Register = on => {
     if (target.source === 'tasks') {
       return {
         deny: (await taskUpdateOffered($))
-          ? `session-decisions: ${label} is a task-list item; revise it with TaskUpdate, keeping its label, and add a Revised line to its description.`
+          ? `session-decisions: ${label} is a task-list item; revise it with TaskUpdate, keeping its label, and add a Revised line to its description.${LOAD}`
           : `session-decisions: ${label} is a task-list item and TaskUpdate isn't available; close it with decision_close as superseded and add the revised item with decision_add.`,
       }
     }
@@ -488,7 +492,7 @@ export const register: Register = on => {
     if (!target) return { deny: `session-decisions: ${label} isn't in this session's decision queue.` }
     if (target.source === 'tasks' && (await taskUpdateOffered($))) {
       return {
-        deny: `session-decisions: ${label} is a task-list item; mark it completed with TaskUpdate and add the ruling to its description.`,
+        deny: `session-decisions: ${label} is a task-list item; mark it completed with TaskUpdate and add the ruling to its description.${LOAD}`,
       }
     }
     const date = new Date(await $.clock.now()).toISOString().slice(0, 10)

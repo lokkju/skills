@@ -151,6 +151,11 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   until their next session start. They share one stored record, but each numbers from what it
   holds, so items the two create in that time can get the same label. Rulings `decision_close`
   keeps for task-list items are written as the last session to write holds them.
+- `decision_close` and `decision_update` decide whether TaskUpdate exists from `$.tool.list()`.
+  On Claude Code 2.1.286 that list names a deferred tool before the model loads it through
+  ToolSearch, so a task-list item is sent to TaskUpdate whenever the session has it; the engine's
+  declarations don't promise that. If a later build lists only loaded tools, `decision_close`
+  would settle a task-list item in the queue while its task file stays open.
 - A forked session is matched to its parent by the task files Claude Code copies into it, which
   it doesn't document either. A fork whose task files hold no decision items (a session that
   only used the fallback ledger, say) has nothing to match and starts a fresh queue. The parent's

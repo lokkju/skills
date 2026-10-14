@@ -28,9 +28,12 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
   const session = { id: SID }
   const own = () => listOf(env.CLAUDE_CODE_TASK_LIST_ID ?? session.id)
   const tasks = own()
-  // The tools the model is offered; a test empties it to take the task tools away.
-  const offered = { tools: ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] }
+  // The tools the model is offered; a test empties it to take the task tools away. `deferred`
+  // names the ones behind ToolSearch that the model hasn't loaded: $.tool.list() still lists them
+  // (Claude Code 2.1.286, lokkju/skills#25), but a call fails until they're loaded.
+  const offered = { tools: ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'], deferred: [] as string[] }
   on('tool.list', () => ({ value: offered.tools.map(name => ({ name, description: '', mcp: false })) }))
+  on('tool.describe', (_$, e) => ({ description: e.description, isDeferred: offered.deferred.includes(e.tool) }))
   const filled: string[] = []
   let draft = ''
   const submitted: string[] = []
@@ -100,6 +103,7 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     return { result: { task: { id, subject: String(e.subject) } } }
   })
   on('tool.call', { tool: 'TaskUpdate' }, (_$, e) => {
+    if (offered.deferred.includes('TaskUpdate')) return { deny: 'TaskUpdate is deferred; load it with ToolSearch' }
     const task = own().get(String(e.taskId))
     if (!task) return { deny: `Task ${e.taskId} not found` }
     if (e.subject !== undefined) task.subject = String(e.subject)
@@ -326,6 +330,29 @@ describe('queue', () => {
     // Unknown labels are still refused.
     const missing = await close('A7', 'x')
     expect(missing.deny).toBe("session-decisions: A7 isn't in this session's decision queue.")
+  })
+
+  test('a deferred TaskUpdate the model has not loaded still counts as available', async ($, on) => {
+    const { tasks, offered } = engine(on)
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    offered.deferred = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate']
+    // decision_close and decision_update point at TaskUpdate, and say how to load it.
+    const refused = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'c1', label: 'A1', ruling: 'done' })
+    expect(refused.deny).toContain('mark it completed with TaskUpdate')
+    expect(refused.deny).toContain('load it with ToolSearch first')
+    const revise = await $.tool.call({ tool: 'mcp__session-decisions__decision_update', tool_use_id: 'u1', label: 'A1', description: 'x' })
+    expect(revise.deny).toContain('revise it with TaskUpdate')
+    expect(revise.deny).toContain('load it with ToolSearch first')
+    // Nothing was settled in the queue alone, so the task file and the queue still agree.
+    expect(tasks.get('1')?.status).toBe('pending')
+    expect((await $.command.run({ command: 'decisions', args: '', ...RUN })).text).toContain('A1 ACTION')
+    // Once loaded, TaskUpdate closes it in both.
+    offered.deferred = []
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u2', taskId: '1', status: 'completed', description: 'context\nRuling (2026-10-03): done' })
+    expect(tasks.get('1')?.status).toBe('completed')
+    const all = await $.command.run({ command: 'decisions', args: 'all', ...RUN })
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
   })
 
   test('ledger items and stored rulings survive a re-read, and stay closable when the tools return', async ($, on) => {
