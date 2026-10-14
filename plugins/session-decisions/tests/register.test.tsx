@@ -422,3 +422,24 @@ describe('drawing', () => {
     expect(JSON.stringify(await pane.drawn())).not.toContain('borderStyle')
   })
 })
+
+describe('link and label forms', () => {
+  test('self-numbered subjects get the hook label, and a bracket that is not a link is refused', async ($, on) => {
+    const { tasks } = engine(on)
+    await start($)
+    await create($, 'D7: DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, '[A4] ACTION: run gh auth login [no link]')
+    await create($, 'D9 - DECIDE: retire kapp? (recommend yes) [https://example.com/kapp]')
+    expect([...tasks.values()].map(t => t.subject)).toEqual([
+      'D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]',
+      'A1 ACTION: run gh auth login [no link]',
+      'D2 DECIDE: retire kapp? (recommend yes) [https://example.com/kapp]',
+    ])
+    const refused = await create($, 'ACTION: press [Enter] in the installer')
+    expect(refused.deny).toContain('end the subject with one link token')
+    expect(tasks.size).toBe(3)
+    // A retitle written with a typed prefix keeps the item's own label.
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u-prefix', taskId: '1', subject: '[D7] DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]' })
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+  })
+})
