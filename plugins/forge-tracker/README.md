@@ -69,10 +69,11 @@ only; it never claims, assigns, comments or branches.
 It works in two layers. The **facts** are read by the CLI: open issues with tier, due date,
 labels, owners and blocking links; open PRs with their conflict and CI state; branches with no
 PR; and the closing references (`Closes #N`) that tie a PR to an issue. They're cached with a
-fingerprint of cheap reads (the default branch head, open issue and PR counts, the newest issue,
-PR and Actions run update times, the milestones, every branch head, a hash of the config file and
-a hash of forge-tracker's own code). While the fingerprint holds, a rerun reuses the facts and
-reads only the fingerprint. A run with a failed read is written for inspection but never reused.
+fingerprint of cheap reads (the default branch head, open issue and PR counts, the newest issue
+and PR update times, the milestones, every branch head, each open PR's head commit and its
+combined check state, a hash of the config file and a hash of forge-tracker's own code). A CI run
+in progress leaves the fingerprint alone; a new push or a changed check result moves it. While the
+fingerprint holds, a rerun reuses the facts and reads only the fingerprint. A run with a failed read is written for inspection but never reused.
 
 The CLI classifies every open issue, deterministically:
 
