@@ -13,6 +13,7 @@ from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
 from . import catchup, config, detect, state
+from . import next as next_
 from .forges import github
 from .model import ConfigError, ForgeError, attempt, iso
 from .transport import Http, ReadTransport, RecordingHttp, gh_token, urllib_http
@@ -133,6 +134,73 @@ def cmd_catchup(
     return EXIT_OK if report["ok"] else EXIT_FAILED
 
 
+def cmd_next(
+    args: argparse.Namespace,
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    out: TextIO,
+    tz: Optional[tzinfo],
+) -> int:
+    """`next` (the report) and `next facts` (the facts and classification, with issue bodies in
+    --json, for ranking). Both read the fingerprint and reuse cached facts while it holds."""
+    directory = next_.cache_dir(ctx.remote, environ)
+    facts, origin = next_.load_facts(
+        ctx.adapter, ctx.remote, ctx.forge, ctx.repo_dir, directory, now, refresh=args.refresh
+    )
+    facts_only = args.action == "facts"
+    slate = None if facts_only else state.read_json(os.path.join(directory, "slate.json"))
+    report = next_.build(
+        facts,
+        origin,
+        ctx.config,
+        slate,
+        rerank=args.rerank,
+        pickups=next_.recorded_pickups(ctx.remote, environ),
+        bodies=facts_only and args.json,
+        facts_only=facts_only,
+    )
+    if args.json:
+        out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
+    else:
+        out.write(next_.render(report, now, tz))
+    out.flush()
+    return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def cmd_save_slate(
+    repo_dir: str,
+    run: Callable[..., Any],
+    now: datetime,
+    environ: Mapping[str, str],
+    stdin: TextIO,
+    out: TextIO,
+) -> int:
+    """Store Claude's slate beside the cached facts. Reads no forge, so it needs no token."""
+    try:
+        remote = detect.parse_remote(detect.origin_url(repo_dir, run))
+        cfg = config.load(repo_dir)
+    except ConfigError as error:
+        print(f"forge-tracker: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        payload = json.loads(stdin.read())
+    except ValueError as error:
+        print(f"forge-tracker: the slate on stdin isn't JSON: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        slate = next_.save_slate(payload, next_.cache_dir(remote, environ), cfg, repo_dir, now)
+    except next_.SlateError as error:
+        print(f"forge-tracker: slate refused: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    lanes = len(slate["lanes"])
+    out.write(
+        f"slate saved: {len(slate['queue'])} in your queue, {lanes} lane{'s' if lanes != 1 else ''}"
+        f" (facts {slate['fingerprint'][:12]})\n"
+    )
+    return EXIT_OK
+
+
 def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
     """Every read once against the live forge, printing counts and any FAILED part."""
     a = ctx.adapter
@@ -167,6 +235,11 @@ def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
         ),
         ("merged in 7 days", attempt(lambda: a.merged_since(since)).map(len)),
         ("blocking links", attempt(a.blocking_links).map(len)),
+        ("closing references", attempt(a.closing_refs).map(len)),
+        (
+            "next fingerprint",
+            attempt(a.fingerprint_inputs).map(lambda f: f"{len(f['branch_heads'])} branch heads"),
+        ),
     ]
     if branch:
         checks += [
@@ -233,6 +306,30 @@ def parser() -> argparse.ArgumentParser:
     )
     c.add_argument("--json", action="store_true", help="print the report as JSON")
 
+    n = sub.add_parser(
+        "next",
+        help="what to work on: your queue, agent lanes, and what's blocked",
+        description=(
+            "What to work on: person-only items (your queue), agent-ready items and the lanes "
+            "Claude grouped them into (the slate), and what's blocked. Read-only; it recommends "
+            "and never claims, assigns, comments or branches. Exits 1 when any read failed."
+        ),
+    )
+    n.add_argument(
+        "action",
+        nargs="?",
+        choices=("facts", "save-slate"),
+        help=(
+            "facts: the facts and classification only (--json adds issue bodies, for ranking); "
+            "save-slate: store a slate (JSON on stdin) against the cached facts"
+        ),
+    )
+    n.add_argument("--rerank", action="store_true", help="ask for a new slate even if one holds")
+    n.add_argument(
+        "--refresh", action="store_true", help="re-read the facts even if the fingerprint holds"
+    )
+    n.add_argument("--json", action="store_true", help="print the report as JSON")
+
     sub.add_parser("smoke", help="run every read once and print counts (a live check)")
     return p
 
@@ -246,11 +343,16 @@ def main(
     environ: Optional[Mapping[str, str]] = None,
     out: Optional[TextIO] = None,
     tz: Optional[tzinfo] = None,
+    stdin: Optional[TextIO] = None,
 ) -> int:
     args = parser().parse_args(argv)
     out = out or sys.stdout
     environ = os.environ if environ is None else environ
     now = now or datetime.now(timezone.utc)
+    if args.command == "next" and args.action == "save-slate":
+        return cmd_save_slate(
+            os.path.abspath(args.repo), run, now, environ, stdin or sys.stdin, out
+        )
     try:
         ctx = open_forge(os.path.abspath(args.repo), http, run, record=bool(args.record))
     except (ConfigError, ForgeError) as error:
@@ -259,6 +361,8 @@ def main(
     try:
         if args.command == "catchup":
             return cmd_catchup(args, ctx, now, environ, run, out, tz)
+        if args.command == "next":
+            return cmd_next(args, ctx, now, environ, out, tz)
         return cmd_smoke(ctx, now, out)
     except BrokenPipeError:
         return EXIT_FAILED

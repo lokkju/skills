@@ -1,0 +1,1949 @@
+{
+ "argv": [
+  "next"
+ ],
+ "exchanges": [
+  {
+   "body": {
+    "query": "\nquery BlockingLinks($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    issues(states: OPEN, first: 50, after: $cursor) {\n      pageInfo { hasNextPage endCursor }\n      nodes {\n        number\n        blockedBy(first: 50) {\n          nodes { number state repository { nameWithOwner } }\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "issues": {
+       "nodes": [
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 1
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 10
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 11
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 12
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 19
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 21
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 22
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 23
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 24
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 36
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 37
+        },
+        {
+         "blockedBy": {
+          "nodes": []
+         },
+         "number": 45
+        }
+       ],
+       "pageInfo": {
+        "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0xNVQyMToyNjowNFrPAAAAAV4hNLA=",
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery BranchHeads($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    refs(refPrefix: \"refs/heads/\", first: 100, after: $cursor) {\n      pageInfo { hasNextPage endCursor }\n      nodes { name target { oid } }\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "refs": {
+       "nodes": [
+        {
+         "name": "feat/term-recorder",
+         "target": {
+          "oid": "894ed3d11ffef05ec585c087beb76038b55cb315"
+         }
+        },
+        {
+         "name": "fix/catchup-report",
+         "target": {
+          "oid": "d5c6ff1834c60a8e0da54f8c275488dcea1806ab"
+         }
+        },
+        {
+         "name": "fix/sd-nested-paren",
+         "target": {
+          "oid": "dc5145cb6821e6a5be682c449762b80f8837afc8"
+         }
+        },
+        {
+         "name": "fix/sd-tools-gap",
+         "target": {
+          "oid": "0a0d902506c4ac961318d74937bdd318e811b204"
+         }
+        },
+        {
+         "name": "main",
+         "target": {
+          "oid": "b61712ca347840d0646bfa94b9c7330d4e486e15"
+         }
+        },
+        {
+         "name": "yeet/release-main",
+         "target": {
+          "oid": "b79f2fb3427182b97e061414257b4c6786948e03"
+         }
+        }
+       ],
+       "pageInfo": {
+        "endCursor": "Ng",
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery ClosingRefs($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    issues(states: OPEN, first: 50, after: $cursor) {\n      pageInfo { hasNextPage endCursor }\n      nodes {\n        number\n        closedByPullRequestsReferences(first: 25, includeClosedPrs: true) {\n          totalCount\n          nodes {\n            number state mergedAt headRefName baseRefName\n            repository { nameWithOwner }\n          }\n        }\n      }\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "issues": {
+       "nodes": [
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 1
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 10
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 11
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 12
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 19
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 21
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 22
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 23
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 24
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 36
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 37
+        },
+        {
+         "closedByPullRequestsReferences": {
+          "nodes": [],
+          "totalCount": 0
+         },
+         "number": 45
+        }
+       ],
+       "pageInfo": {
+        "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0xNVQyMToyNjowNFrPAAAAAV4hNLA=",
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery Milestones($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    milestones(first: 100, after: $cursor, states: [OPEN, CLOSED]) {\n      pageInfo { hasNextPage endCursor }\n      nodes { id title dueOn state }\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "milestones": {
+       "nodes": [],
+       "pageInfo": {
+        "endCursor": null,
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery NextFingerprint($owner: String!, $name: String!) {\n  repository(owner: $owner, name: $name) {\n    defaultBranchRef { name target { oid } }\n    openIssues: issues(states: OPEN) { totalCount }\n    openChanges: pullRequests(states: OPEN) { totalCount }\n    newestIssue: issues(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {\n      nodes { updatedAt }\n    }\n    newestChange: pullRequests(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {\n      nodes { updatedAt }\n    }\n  }\n}\n",
+    "variables": {
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "defaultBranchRef": {
+       "name": "main",
+       "target": {
+        "oid": "b61712ca347840d0646bfa94b9c7330d4e486e15"
+       }
+      },
+      "newestChange": {
+       "nodes": [
+        {
+         "updatedAt": "2026-10-15T22:17:32Z"
+        }
+       ]
+      },
+      "newestIssue": {
+       "nodes": [
+        {
+         "updatedAt": "2026-10-15T22:16:14Z"
+        }
+       ]
+      },
+      "openChanges": {
+       "totalCount": 0
+      },
+      "openIssues": {
+       "totalCount": 12
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery OpenChanges($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    pullRequests(states: OPEN, first: 50, after: $cursor,\n                 orderBy: {field: UPDATED_AT, direction: DESC}) {\n      pageInfo { hasNextPage endCursor }\n      nodes {\n  number title url headRefName isDraft mergeable createdAt updatedAt mergedAt\n  author { __typename login }\n  mergeCommit { oid }\n  assignees(first: 50) { nodes { login } }\n  reviewRequests(first: 50) {\n    nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login }\n                                ... on Team { slug } } }\n  }\n  commits(last: 1) { nodes { commit { oid statusCheckRollup { state } } } }\n}\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "pullRequests": {
+       "nodes": [],
+       "pageInfo": {
+        "endCursor": null,
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": null,
+   "headers": {
+    "link": "<https://api.github.com/repositories/1411484392/actions/runs?per_page=1&page=2>; rel=\"next\", <https://api.github.com/repositories/1411484392/actions/runs?per_page=1&page=216>; rel=\"last\""
+   },
+   "method": "GET",
+   "response": {
+    "total_count": 216,
+    "workflow_runs": [
+     {
+      "actor": {
+       "gravatar_id": "",
+       "html_url": "https://github.com/apps/lokkju-release",
+       "id": 337987743,
+       "login": "lokkju-release[bot]",
+       "node_id": "BOT_kgDOFCVInw",
+       "site_admin": false,
+       "type": "Bot",
+       "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
+       "user_view_type": "public"
+      },
+      "check_suite_id": 105195017655,
+      "check_suite_node_id": "CS_kwDOVCGK6M8AAAAYfhyVtw",
+      "conclusion": "success",
+      "created_at": "2026-10-15T22:17:34Z",
+      "display_title": "chore: release wave",
+      "event": "pull_request",
+      "head_branch": "yeet/release-main",
+      "head_sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+      "html_url": "https://github.com/lokkju/skills/actions/runs/38816093867",
+      "id": 38816093867,
+      "name": "release-check",
+      "node_id": "WFR_kwLOVCGK6M8AAAAJCZ6Wqw",
+      "path": ".github/workflows/release-check.yml",
+      "pull_requests": [],
+      "referenced_workflows": [],
+      "run_attempt": 1,
+      "run_number": 66,
+      "run_started_at": "2026-10-15T22:17:34Z",
+      "status": "completed",
+      "triggering_actor": {
+       "gravatar_id": "",
+       "html_url": "https://github.com/apps/lokkju-release",
+       "id": 337987743,
+       "login": "lokkju-release[bot]",
+       "node_id": "BOT_kgDOFCVInw",
+       "site_admin": false,
+       "type": "Bot",
+       "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
+       "user_view_type": "public"
+      },
+      "updated_at": "2026-10-15T22:17:44Z",
+      "url": "https://api.github.com/repos/lokkju/skills/actions/runs/38816093867",
+      "workflow_id": 379423978
+     }
+    ]
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/actions/runs?per_page=1"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": [
+    {
+     "commit": {
+      "sha": "894ed3d11ffef05ec585c087beb76038b55cb315",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/894ed3d11ffef05ec585c087beb76038b55cb315"
+     },
+     "name": "feat/term-recorder",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "d5c6ff1834c60a8e0da54f8c275488dcea1806ab",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/d5c6ff1834c60a8e0da54f8c275488dcea1806ab"
+     },
+     "name": "fix/catchup-report",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "dc5145cb6821e6a5be682c449762b80f8837afc8",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/dc5145cb6821e6a5be682c449762b80f8837afc8"
+     },
+     "name": "fix/sd-nested-paren",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "0a0d902506c4ac961318d74937bdd318e811b204",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/0a0d902506c4ac961318d74937bdd318e811b204"
+     },
+     "name": "fix/sd-tools-gap",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     },
+     "name": "main",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+     },
+     "name": "yeet/release-main",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    }
+   ],
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/branches?per_page=100"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:17:16Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      }
+     ],
+     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+    },
+    "behind_by": 7,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...feat/term-recorder",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:08:43Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:08:43Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "feat(term-recorder): resize the terminal mid-run",
+      "tree": {
+       "sha": "084e7fc075967636c18b90282762cdd7f085b718",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/084e7fc075967636c18b90282762cdd7f085b718"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/894ed3d11ffef05ec585c087beb76038b55cb315",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/894ed3d11ffef05ec585c087beb76038b55cb315",
+     "node_id": "C_kwDOVCGK6NoAKDg5NGVkM2QxMWZmZWYwNWVjNTg1YzA4N2JlYjc2MDM4YjU1Y2IzMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/a18c3d9559c1a8304de34cb9696a992cc6083616",
+       "sha": "a18c3d9559c1a8304de34cb9696a992cc6083616",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/a18c3d9559c1a8304de34cb9696a992cc6083616"
+      }
+     ],
+     "sha": "894ed3d11ffef05ec585c087beb76038b55cb315",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/894ed3d11ffef05ec585c087beb76038b55cb315"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...feat/term-recorder"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...feat/term-recorder"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:17:16Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      }
+     ],
+     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+    },
+    "behind_by": 8,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...fix/catchup-report",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:09:46Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:09:46Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "fix(forge-tracker): always print the standing-backlog line in /catchup\n\nAn empty backlog printed no standing line, so a reader couldn't tell none\nfrom a dropped line. It now prints \"standing: none (not updated in the\nwindow)\", except under --all, which lists the backlog above, and when a\nread the count needs failed. The report's waiting section records --all.",
+      "tree": {
+       "sha": "78288bbc6b471c344fd98be166e4ed9aedece853",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/78288bbc6b471c344fd98be166e4ed9aedece853"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/d5c6ff1834c60a8e0da54f8c275488dcea1806ab",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/d5c6ff1834c60a8e0da54f8c275488dcea1806ab",
+     "node_id": "C_kwDOVCGK6NoAKGQ1YzZmZjE4MzRjNjBhOGUwZGE1NGY4YzI3NTQ4OGRjZWExODA2YWI",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/4d6a10088e384408d1af4b8d98409b803e672ab8",
+       "sha": "4d6a10088e384408d1af4b8d98409b803e672ab8",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/4d6a10088e384408d1af4b8d98409b803e672ab8"
+      }
+     ],
+     "sha": "d5c6ff1834c60a8e0da54f8c275488dcea1806ab",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/d5c6ff1834c60a8e0da54f8c275488dcea1806ab"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/catchup-report"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/catchup-report"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:17:16Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      }
+     ],
+     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+    },
+    "behind_by": 50,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...fix/sd-nested-paren",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-14T21:04:42Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-14T21:04:42Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "fix(session-decisions): accept (recommend: ...) and nested parentheses at any depth\n\nThe TaskCreate hook required whitespace straight after \"recommend\", so a\nsubject written as \"(recommend: <choice>)\" was refused as having no\nrecommendation. Accept the colon form too.\n\nThe choice is now found by matching the closing parenthesis by depth\ninstead of a regex that allowed one nested level, so a choice with deeper\nnesting keeps its Accept button and recommends tag. The card's short tag\ncuts at the first comma or semicolon outside parentheses.\n\nFixes #27",
+      "tree": {
+       "sha": "c7d4065fba08d409dee7b583c3ca53064272e69b",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/c7d4065fba08d409dee7b583c3ca53064272e69b"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/dc5145cb6821e6a5be682c449762b80f8837afc8",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/dc5145cb6821e6a5be682c449762b80f8837afc8",
+     "node_id": "C_kwDOVCGK6NoAKGRjNTE0NWNiNjgyMWU2YTViZTY4MmM0NDk3NjJiODBmODgzN2FmYzg",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/1a535aa395ffbcb34e30ec5625e6c75ccceb00b2",
+       "sha": "1a535aa395ffbcb34e30ec5625e6c75ccceb00b2",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/1a535aa395ffbcb34e30ec5625e6c75ccceb00b2"
+      }
+     ],
+     "sha": "dc5145cb6821e6a5be682c449762b80f8837afc8",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/dc5145cb6821e6a5be682c449762b80f8837afc8"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/sd-nested-paren"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/sd-nested-paren"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:17:16Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      }
+     ],
+     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+    },
+    "behind_by": 64,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...fix/sd-tools-gap",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-13T02:21:25Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-13T02:21:25Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "docs(session-decisions): describe what happens when the task tools come and go",
+      "tree": {
+       "sha": "e9f8b245b632ed8c24ebe7a51f83aaf4b3eb9cd8",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/e9f8b245b632ed8c24ebe7a51f83aaf4b3eb9cd8"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/0a0d902506c4ac961318d74937bdd318e811b204",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/0a0d902506c4ac961318d74937bdd318e811b204",
+     "node_id": "C_kwDOVCGK6NoAKDBhMGQ5MDI1MDZjNGFjOTYxMzE4ZDc0OTM3YmRkMzE4ZTgxMWIyMDQ",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/bf5fee3fbf5fe002e4df8c1e13dc20d7917166e0",
+       "sha": "bf5fee3fbf5fe002e4df8c1e13dc20d7917166e0",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bf5fee3fbf5fe002e4df8c1e13dc20d7917166e0"
+      }
+     ],
+     "sha": "0a0d902506c4ac961318d74937bdd318e811b204",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/0a0d902506c4ac961318d74937bdd318e811b204"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/sd-tools-gap"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/sd-tools-gap"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:17:16Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:17:16Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      }
+     ],
+     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+    },
+    "behind_by": 1,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...yeet/release-main",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/apps/lokkju-release",
+      "id": 337987743,
+      "login": "lokkju-release[bot]",
+      "node_id": "BOT_kgDOFCVInw",
+      "site_admin": false,
+      "type": "Bot",
+      "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:16:31Z",
+       "email": "337987743+lokkju-release[bot]@users.noreply.github.com",
+       "name": "lokkju-release[bot]"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:16:31Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "chore: release wave",
+      "tree": {
+       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b79f2fb3427182b97e061414257b4c6786948e03",
+      "verification": {
+       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nauthor lokkju-release[bot] <337987743+lokkju-release[bot]@users.noreply.github.com> 1792102591 +0000\ncommitter GitHub <noreply@github.com> 1792102591 +0000\n\nchore: release wave",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VC/CRC1aQ7uu5UhlAAABUUQAA8DZHtmuL6rvJ2gdedQt8mt\nQzgmxNubHyNdXIae+rcqID+4UAwZwDmiiid2Voqg8yVnhaXgMS4OhZcXTM1gTBbX\nayvnI4e2o7uUK2YWCexOnK9EW9nXf57oyJjvJkIpJ6JEhqh6k4RgxhsS3SfNt4fK\n97zGWIrLpFx+9ySjN4buX+6mCg21AGGUH/bX+XkHjN9E6QIP/rzHpYyFC+XQoiqY\nbi9afbgrg5gSfiQUa/xUBHLtqVEm+fQO07359/y0FKhHjS7M24nuKYZUlgA8eBrQ\nvnDXniV2dqfVbPvtK3qO0D36A6nX/Ljxi9PSjeIYzf7XETRMN/9h1pw2hSPGO0V/\n0nTcQDsMNTP0KDv0ip02FN+TNXfmA2NunVzGS2+tRBVncqybDAY30WdwRMzK+OL0\nih+f96EnbxZ5vT4LIRHbsUx0+bqGphI/8LWiftQPE95Y2LP0W1zChpGxyiqIXGG9\n0Sk7TKpOeRVQkzuEbspwtHKtchah8p+sCeH4W4iiZE+9s5hvE0x1q0Q+O9wmidQd\nQ8/cs9/VxXf/6ZaoLcGSMIdY5sIBro6iTGUxkxGe7bw9dAlbQkWU7iQAkwUapRXH\nx311Uh338bYU9/Vj+k2tnpDRZqOkYMcaqwQkaivdrBk1oE98oA25/hSvTDQer/jV\nVmypIgAKP2anTGTbkb5C\n=UL7O\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:16:32Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
+     "node_id": "C_kwDOVCGK6NoAKGI3OWYyZmIzNDI3MTgyYjk3ZTA2MTQxNDI1N2I0YzY3ODY5NDhlMDM",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+      }
+     ],
+     "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...yeet/release-main"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...yeet/release-main"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": [
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "On lokkju/infra (forge-tracker 2026.10.15.1, `catchup`, window 2026-10-08 to 2026-10-15), \"Merged since\" filed PRs under issues the branch names never meant:\n\n```\n#0  1 PR: #279 chore(homelab): GARM runner image 2.338.0\n#1  6 PRs: #155 chore(cilium): 1.19.8 ..., #156 chore(cilium): 1.20.2, ...\n#2  2 PRs: #156 chore(cilium): 1.20.2, #279 chore(homelab): GARM runner image 2.338.0\n#8  2 PRs: ...\n#19 2 PRs: ...\n#20 1 PR: #156 chore(cilium): 1.20.2\n#338 1 PR: #279 chore(homelab): GARM runner image 2.338.0\n```\n\nThe cause is `issue_numbers()` in `scripts/forge_tracker/catchup.py`. `_DATEISH` only strips runs that start with a four-digit year (`\\d{4}[-._]\\d{1,2}[-._]\\d{1,2}`). A semver run such as `1.20.2` or `2.338.0` in a branch (`garm-runner-2.338.0-38790455020`, `cilium-1.20.2`) survives. The split on `.` then turns it into the segments `2`, `338` and `0`, and each one becomes an issue number. `#0` can never be an issue.\n\nExpected:\n- treat any dotted all-digit run (`\\d+(?:\\.\\d+)+`) in a branch as a version, not as issue numbers;\n- never emit `0`.\n\nA single all-digit branch segment (`fix-42`) should still count. Add a fixture with the branch shapes above to `tests/test_catchup.py`.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-15T21:26:04Z",
+     "html_url": "https://github.com/lokkju/skills/issues/45",
+     "id": 5874201776,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXiE0sA",
+     "number": 45,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: /catchup reads version numbers in branch names as issue numbers",
+     "updated_at": "2026-10-15T21:26:04Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/45",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Found while settling the last question on [lokkju/skills#13](https://github.com/lokkju/skills/issues/13), on Claude Code 2.1.286 in headless `claude -p` runs with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` and `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, session-decisions 2026.10.15.1 installed.\n\n**What happens.** The parent creates D1 with TaskCreate. A background subagent (`Agent` with `run_in_background: true`) is told the user answered D1 and to settle it. The subagent has no TaskUpdate: it isn't in its tool list and `ToolSearch` `select:TaskUpdate` answers \"No matching deferred tools found\". So it calls `decision_close`, which refuses:\n\n> session-decisions: D1 is a task-list item; mark it completed with TaskUpdate and add the ruling to its description. If TaskUpdate is deferred, load it with ToolSearch first.\n\nThe ruling is recorded nowhere and the task file stays pending. `decision_update` goes through the same `TaskUpdate` check, so I'd expect it to dead-end the same way (not run).\n\n**Why.** `taskUpdateOffered()` in `hooks/register.tsx` asks `$.tool.list()`. A probe hook logged that list inside the subagent's `decision_close` call (the `tool.call` event carried the subagent's `agentId`), and it named TaskCreate, TaskGet, TaskList, TaskStop and TaskUpdate: the main loop's tools, not the subagent's. The declaration says \"the tools the model can call now\", which isn't what it returned for a subagent's loop.\n\n**Related, documentation only.** A background subagent gets no TaskCreate either, so its items go through `decision_add` and are ledger items: they share the parent's queue and counter (the subagent's item came back as D2 after the parent's D1) but never appear in ctrl+t, even though the parent's do. The README's \"Without them\" paragraph and the ctrl+t limit describe a session with no task tools; they don't cover a session whose background subagents lack them. A foreground subagent does get TaskCreate, and its items land in the parent's task list with the parent's labels.\n\nThe fix is the maintainer's call; options I can see are deciding from the loop (`e.agentId` is set on a subagent's `tool.call`, and `$.agent.list()` lists the loop by that id, though it has no background flag), or letting `decision_close` settle a task-list item when the call comes from a subagent.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-15T00:20:12Z",
+     "html_url": "https://github.com/lokkju/skills/issues/37",
+     "id": 5857816860,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXScxHA",
+     "number": 37,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "session-decisions: decision_close dead-ends in a background subagent ($.tool.list() reports the parent's TaskUpdate)",
+     "updated_at": "2026-10-15T00:20:19Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/37",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Installing the claude-explorer plugin failed on ml-01 on 2026-10-15, right after the other plugins updated cleanly. The exact error wasn't captured; add it here on the next try (`claude plugin install <name>@<marketplace> --debug`, or what `/plugin` shows).\n\n## What's there now\n\n- **No plugin to install.** [lokkju/claude-explorer](https://github.com/lokkju/claude-explorer) is public but has no `.claude-plugin/plugin.json` or `marketplace.json` anywhere in its tree, and no skills or `.mcp.json`. It ships as a Python app (`uvx claude-explorer ...`), a Claude Desktop one-click MCP bundle, and an `mcp_server/` that its README says serves Claude Code too.\n- **No marketplace lists it.** None of the marketplaces registered on ml-01 has an entry for it, and the `lokkju` marketplace here lists only session-decisions, forge-release and claude-session-index.\n- **Issues are disabled** on that repo, which is why this ticket is here.\n\nThe likeliest explanation is that there's no plugin for `/plugin` to install, so the attempt failed at lookup or tried something that isn't a plugin. Confirm that with the actual error before changing anything.\n\n## Options once the error is known\n\n1. **Make it a plugin.** Add `.claude-plugin/plugin.json` and an `.mcp.json` to claude-explorer that start its MCP server (`uvx claude-explorer mcp` or whatever the server's entry point is), so the plugin installs the MCP server and nothing else. Then list it in the `lokkju` marketplace with a `github` source, as claude-session-index is.\n2. **Document the MCP route.** No plugin; the README's Claude Code section gives the `claude mcp add` line, and the marketplace doesn't list it.\n\nOption 1 is the one that matches \"install the claude-explorer plugin\". The web UI and the image-cache watcher stay `uvx` installs either way, since a plugin can't run those.",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-15T00:08:03Z",
+     "html_url": "https://github.com/lokkju/skills/issues/36",
+     "id": 5857704377,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "d73a4a",
+       "default": true,
+       "description": "Something isn't working",
+       "id": 12609194039,
+       "name": "bug",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EINw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/bug"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXSV5uQ",
+     "number": 36,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "claude-explorer: installing it as a Claude Code plugin fails; investigate",
+     "updated_at": "2026-10-15T00:08:03Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/36",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Part of #12 (forge-tracker). Builds on the forge read layer (#21). Like `/catchup`, it can ship for one forge first.\n\n**`/next`** recommends what to work on: the user's own queue, work agents can start now, and what is blocked. It is read-only. It recommends, and never claims, assigns, comments or branches.\n\n**Two layers, both cached outside the repo** under `${XDG_CACHE_HOME:-~/.cache}/<plugin>/next/<host>_<project>/`:\n1. **Facts (a script).**\n   - **What it reads:** open issues with tier, due date, labels, owners and links; open PRs/MRs with head pipeline and conflict state; branches with no PR/MR.\n   - **How it caches:** under a fingerprint of cheap inputs. These are the default-branch head, the newest issue, PR and pipeline `updated_at`, open issue and PR counts, a digest of the milestones (id, title, due date), the remote branch heads, and a schema tag that hashes the code itself. When the fingerprint is unchanged, the cached facts are reused, so a rerun takes seconds. A run with a failed read is written but never reused.\n2. **The slate (Claude's ranking).** It is stored with the facts' fingerprint and shown again unchanged until the fingerprint moves.\n   - **The user's queue:** person-only items, ordered by how many agent-ready items each one unblocks, counted transitively through blocking links and cycle-safe.\n   - **Agent lanes:** unblocked agent-ready items by tier and due date, grouped into lanes that shouldn't touch the same files. The grouping is a stated judgement, not a measurement. A lane that already has an open PR or a pushed branch is marked in flight.\n   - **Blocked:** each blocked item and what it waits on.\n\n**Classification rules learned the hard way:**\n- **What person-only means:** the configured decision or needs-human labels, plus configurable keyword markers (e.g. hardware, legal).\n- **Not person-only:** an assignee is never a reason, because agents share the user's account. Show the assignee as an owner. Some markers are only hints Claude may overrule; design work an agent can build is one example.\n- **Merged-but-open issues inflate the ready list badly.** Flag issues that a merged PR/MR references but that are still open. That check, and fixing it, belongs to `/groom` (#22).\n\n**Future enhancement, not now:** a status pane that shows the slate's top items, its age and a \"stale\" flag when the fingerprint moves. It reads only the cache, and shares a display mechanism with the session-decisions pane.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 1,
+     "created_at": "2026-10-14T20:32:02Z",
+     "html_url": "https://github.com/lokkju/skills/issues/24",
+     "id": 5855183438,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXP8CTg",
+     "number": 24,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: /next, your queue, agent lanes that can start now, and what is blocked",
+     "updated_at": "2026-10-14T20:35:15Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/24",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Part of #12 (forge-tracker). Builds on the forge read layer (#21). Each command can ship for one forge first, but the layer is what makes it work on GitHub, GitLab and Forgejo alike.\n\n**`/catchup`** is for coming back to a project after time away: what changed, and what is waiting on you. It is read-only: no claims, comments or merges.\n\n**The window:**\n- It starts where the user's previous successful `/catchup` ended, kept in a local marker. **Not** at \"your last forge activity\": agents act under the user's account, and in practice that gives a four-minute window opening at an agent's last push.\n- The marker lives under `${XDG_CACHE_HOME:-~/.cache}/<plugin>/catchup/<host>_<project>_<user>.json`. The directory is 0700 and files 0600, writes are atomic, and a relative XDG value is ignored.\n- The next window starts a few minutes before the marker, so a fast local clock can't skip events. Seeing an event twice is harmless.\n- The marker moves only when every read succeeded, and only after the report has printed. A failed print restores the old marker.\n- With no marker, the first run covers 7 days. `--since` is an ad-hoc look back that neither reads nor moves the marker. `--no-mark` gives a dry look, and agents must use it whenever they run the command for their own purposes.\n\n**Sections, in order:**\n1. **Waiting on you.**\n   - Mentions of you in the window, and open PRs/MRs where you are reviewer or assignee.\n   - Issues assigned to you and issues carrying the configured needs-a-human and decision labels. Only items created or updated in the window are listed in full; the standing backlog is one count line per list.\n   - An issue on several lists is listed once and counted in each. `--all` lists everything.\n2. **Merged since:** PRs/MRs merged in the window, grouped by the issue numbers in their titles or branches (ignore date-shaped branch segments). It also covers changelog entries added, where the repo has a configured changelog or records file.\n3. **Decisions made:** comments in the window matching a configured ruling pattern, e.g. `Ruling (YYYY-MM-DD):`.\n4. **Board movement:** issues opened and closed, counted by the configured priority tiers (labels first, milestone as fallback).\n5. **Health:** the default branch's newest push pipeline/run and its failed jobs, a failed scheduled run on its own line, flaky jobs (passed only on retry more than once), and the configured release/registry tags.\n\n**Output:** text by default, `--json` for the same data. Exit 0 only when every read succeeded. The slash command tells Claude to summarize with Waiting on you first, to state every FAILED part plainly, and to act on nothing unless asked.\n\n**Config** (in forge-tracker's per-repo file): tier labels or milestone prefixes, the needs-human, decision and blocked label names, the ruling pattern, the changelog path, and the tags to report.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-14T20:32:01Z",
+     "html_url": "https://github.com/lokkju/skills/issues/23",
+     "id": 5855183100,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXP8A_A",
+     "number": 23,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: /catchup, what changed and what waits on you since your last catchup",
+     "updated_at": "2026-10-14T20:32:01Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/23",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Part of #12 (forge-tracker). Builds on the forge read layer (#21), plus a small set of writes.\n\n**`/groom`** keeps the tracker telling the truth, so that `/catchup` and `/next` rank real work. In practice the board drifts in predictable ways, and a ranking built on a drifted board ranks finished work as ready.\n\n**The checks:**\n- **Merged but still open:** an issue that a merged PR/MR references (`Closes #N`, `#N` in the title or branch) but that is still open. This is verified against the default branch, not taken on trust.\n- **Labels disagreeing with milestones:** a tier label with no matching milestone, or a milestone whose tier label is missing.\n- **A blocked label with nothing linked**, or links whose blocker is closed.\n- **Decided but still waiting:** an issue labelled needs-a-human or decision that has a ruling comment after the label was added.\n- **Stale branches:** remote branches with no open PR/MR whose commits are all on the default branch, so they are candidates to delete.\n- **Stale or conflicted PRs/MRs:** open ones with merge conflicts, or no activity for N days.\n- **Likely duplicates:** title and term similarity among open issues and those closed recently.\n- **Placeholder due dates** shared by many issues, which skew any ordering by due date.\n\n**Behaviour:**\n- **Report first, read-only by default.** Every proposed change is listed with its evidence. Nothing is written until the user approves, item by item or as a batch.\n- **Approved writes:** close with a resolution comment naming the PR/MR, fix labels or milestones, remove a blocked label, delete a merged branch. Each goes through forge-tracker's optional write-wrapper (#12), so a repo can enforce its own scrubbing or comment format.\n- **Never acts on an inference it couldn't verify:** an \"unclear\" bucket is left for the user.\n- **Output:** text and `--json`, with FAILED reads stated plainly, never as an empty section.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-14T20:31:59Z",
+     "html_url": "https://github.com/lokkju/skills/issues/22",
+     "id": 5855182804,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXP7_1A",
+     "number": 22,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: /groom finds tracker drift (merged-but-open issues, label and milestone mismatches, stale branches) and fixes it on approval",
+     "updated_at": "2026-10-14T20:31:59Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/22",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Part of #12 (forge-tracker). A read-only forge layer that the briefing and grooming commands use. It is filed as its own piece, because the three commands built on it each need the same reads on all three forges.\n\n**The forges.** GitHub (`gh`, REST plus GraphQL where REST is thin), GitLab (`glab api`, including self-hosted with a subpath and a pinned CA) and Forgejo/Gitea (`tea` where it covers the read, otherwise the REST API with the user's token). Each forge is detected from the repo's remote, the same way #12 already plans.\n\n**What every adapter answers, in one normalized shape:**\n- **Identity:** the authenticated user, and whether an account is a bot.\n- **Issues:** open issues, and issues updated since a time. Each carries labels, milestone (title, due date), assignees, created/updated/closed timestamps and comments since a time.\n- **Links between issues:** native blocking where the forge has it (GitHub \"blocked by\" issue dependencies and sub-issues, Forgejo dependencies, GitLab `blocks` on tiers that have it). Where it doesn't (GitLab CE has only `relates_to`), a configurable convention such as `relates_to` plus a `blocked` label.\n- **PRs/MRs:** open, and merged since a time. Each carries title, source branch, merge commit sha, reviewers/assignees, draft and conflict state, and head pipeline status.\n- **CI:** the newest pipeline/workflow run on the default branch by trigger (push vs schedule), its failed jobs, and jobs that passed only on retry.\n- **Branches:** remote branch heads, and which have no open PR/MR.\n- **Tags/releases:** the newest tags and releases. Container registry tags are optional, and only where configured.\n\n**Rules learned building this once:**\n- **GET only, enforced at the boundary.** The adapter's transport refuses any method but GET, so a read-only command can't write even by mistake.\n- **Paginate to the end, or fail loudly.** A page cap that is hit is a FAILED read, never a silently short list that renders as \"none\".\n- **Every read can fail on its own.** It returns data or a named error, and callers print `<part>: FAILED (<reason>)`, never an empty section.\n- **The shared account.** Agents usually authenticate as the user, so nothing may treat \"the user's account did X\" as \"the user did X\", and no assignee is a signal that a human must act.\n- **No secrets in errors.** Error text includes the CLI's stderr truncated, never tokens.\n- **Injectable fetch.** Tests feed canned payloads per forge, with no network.\n\n**Done when:** each forge's adapter passes the same contract test suite over recorded fixtures, plus one live read-only smoke run per forge.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-14T20:31:58Z",
+     "html_url": "https://github.com/lokkju/skills/issues/21",
+     "id": 5855182489,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXP7-mQ",
+     "number": 21,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: a read-only forge layer for GitHub, GitLab and Forgejo",
+     "updated_at": "2026-10-14T20:31:58Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/21",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "Long Claude Code sessions are hard to navigate: there is no scrollbar or jump-to-position in the terminal UI, and no search over the conversation itself. Research, then build if feasible:\n\n- What exists today: transcript view (ctrl+o), the session JSONL under `~/.claude/projects/`, `/resume`, terminal scrollback and tmux copy-mode search, any statusline or hook APIs that could help.\n- Options for search: a skill or slash command that greps the current session's JSONL and prints matching turns with their position; an MCP tool doing the same; a small TUI (fzf over the transcript) launched with `!`.\n- Options for a scrollbar or jump: whether the terminal UI exposes anything (likely not); a separate pager view of the transcript (e.g. rendered markdown in `less` or a browser artifact) with anchors per turn.\n- File upstream feature requests for whatever needs Claude Code itself.\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 1,
+     "created_at": "2026-10-14T06:57:17Z",
+     "html_url": "https://github.com/lokkju/skills/issues/19",
+     "id": 5843392809,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABXEsZKQ",
+     "number": 19,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "Conversation history: search and jump-to in long Claude Code sessions",
+     "updated_at": "2026-10-14T07:12:17Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/19",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "_Moved from my private repo, where it was skills-marketplace#9._\n\nThe third plugin from my 2026-10-01 design spec, which lives in my private repo; the constraints below are its forge-tracker section. session-decisions has shipped, so this is next after the forge-release skill (#11). It stays independent: no reference to session-decisions or git-commit.\n\nThe constraints are fixed in the spec: forge detection from `origin` (`gh` or `glab`, `#N` and `!N` to match), work routed to the tracker of the repo it's about with cross-project work going to the tracker in `userConfig` (ask if unset, nothing hard-coded), per-repo config in `.claude/forge-tracker.local.md` (label names and an optional write-wrapper command), discovered work filed when found, rulings recorded with one verb and a date, a fetch and re-read at pickup, before merge and before handoff, `Closes #N` in every PR or MR, and a SessionStart list of open needs-human issues assigned to the user, for context only.\n\nNext: brainstorm the detailed design against the spec, then a spec section or file and a plan.\n\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 1,
+     "created_at": "2026-10-13T02:16:57Z",
+     "html_url": "https://github.com/lokkju/skills/issues/12",
+     "id": 5823366288,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABWxmEkA",
+     "number": 12,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-tracker: build the plugin from the spec's constraints",
+     "updated_at": "2026-10-14T20:32:03Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/12",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "_Moved from my private repo, where it was skills-marketplace#8._\n\nThe forge-release plugin has the `github-app-create` script (0.3.0: `--port`, `--no-browser`, `--to sops`) and no skill yet. Brainstorming got this far, and the next step is presenting the design in sections, then the spec in `docs/specs/`, then the plan.\n\n## Decided (2026-10-04)\n\n- **Scope:** setting a repo up, migrating a repo from another release flow, troubleshooting, and the deploy workflow a release triggers, with its guards. Channel promotion is tracked separately.\n- **Structure:** one `SKILL.md` with the decision tree and flow, `references/` per topic (yeet, release-please, release-plz, deploy workflow, migration, troubleshooting), and `templates/` made generic from a working migration's files (`yeet.yml`, `.yeet.yaml`, the deploy guards). Shareable: no personal repos, paths or names.\n- **Decision tree:** yeet for CalVer and for anything on GitLab or Azure DevOps, release-please for SemVer packages on GitHub, release-plz for Rust crates, pending #10 (standardize on yeet).\n\n## Lessons to carry in\n\n- yeet's `--dry-run` needs local HEAD to equal the release branch's remote head; a scratch `--config` copy with `branch:` changed works around it.\n- A bare first-of-day tag (`vYYYY.MM.DD`) is invisible to yeet; retag it `.1`.\n- yeet needs a GitHub App token for its release to start other workflows; `github-app-create` must not send `hook_attributes` without a URL, and adding repos to an installation needs a classic token (a gh OAuth token gets 403), so repo access is set in the App's settings.\n- Telemetry is on by default: `telemetry.enabled: false` and `DO_NOT_TRACK=1`.\n- Self-hosted runners:\n  - Without a Docker daemon, run yeet from its release tarball checked against a pinned SHA-256 instead of `docker://`.\n  - Runners that export `GITHUB_URL` (GARM does) make yeet call `/api/v3/...` as if on GitHub Enterprise; set `GITHUB_URL: \"\"` in the yeet step.\n  - Cache paths follow `XDG_CACHE_HOME`, which may not be `~/.cache`.\n- Private repos fetching fresh tags in a deploy need `git -c credential.helper='!gh auth git-credential'`.\n- Deploy guards: deploy only from main, only the newest release tag, and create nothing (no tags, no releases) in the deploy workflow. Filter \"newest tag\" to the release shape so a stray `v*` tag can't block deploys.\n- A shared deploy concurrency group can cancel a queued run.\n\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-13T02:16:56Z",
+     "html_url": "https://github.com/lokkju/skills/issues/11",
+     "id": 5823366072,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABWxmDuA",
+     "number": 11,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-release: write the skill (setup, migration, troubleshooting, release-triggered deploys)",
+     "updated_at": "2026-10-13T02:17:48Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/11",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "_Moved from my private repo, where it was skills-marketplace#6._\n\nThe forge-release skill's decision tree currently routes CalVer (and anything on GitLab or Azure DevOps) to yeet, SemVer packages on GitHub to release-please, and Rust crates to release-plz. The question is whether the middle branch should go to yeet too, so one tool covers every non-crate repo. The python-project skill's release-please default would follow whatever this decides.\n\n## The case for keeping release-please, checked\n\n- **Native version files.** Weaker than it sounds. Neither tool updates `uv.lock`: release-please has googleapis/release-please#2561 open for it. yeet updates `pyproject.toml` through a marker comment (`version = \"1.2.3\" # x-yeet-version`) and `package.json` through `json_pointer: /version`, which covers the files these repos publish from.\n- **Tokens.** No difference. Both run on `GITHUB_TOKEN` when the publish step lives in the release workflow, and both need a GitHub App token only when the release has to start another workflow (one of my sites' deploy does).\n- **Maturity.** The real one. yeet (monkescience/yeet, MIT) was created in February 2026 and has 4 contributors and 7 stars; release-please is Google's and widely used.\n- **Language plugins.** release-please has strategies and plugins for Java, Ruby, PHP, Helm and node or cargo workspaces. None of these repos use them.\n\n## Why the maturity risk is small here\n\n- yeet runs as a container pinned by digest, so an abandoned yeet keeps working at the pinned version.\n- Its only state is git tags and `CHANGELOG.md`, both tool-agnostic, so leaving it is a config swap. yeet's docs carry a migrate-from-release-please guide, and the reverse is the same shape.\n- Telemetry is on by default; the skill already sets `telemetry.enabled: false` and `DO_NOT_TRACK=1`.\n\n## What standardizing gets\n\nOne tool, one `.yeet.yaml` shape and one App pattern across GitHub, GitLab and Azure DevOps, for CalVer and SemVer. The skill's decision tree drops a branch, and its references drop the release-please setup and troubleshooting.\n\n## Proposal\n\n- New repos: yeet, SemVer or CalVer.\n- Rust crates: release-plz stays. It publishes to crates.io and runs cargo-semver-checks, which yeet doesn't.\n- Repos on release-please today move only when someone is in them anyway: lokkju/dbxdebug, lokkju/git-spreader and two private repos. release-plz today: lokkju/neovision and two private repos.\n- python-project switches its release default to yeet.\n\n## Not yet checked\n\n- How yeet handles a Python package whose `uv.lock` records the project's own version (a release PR that bumps `pyproject.toml` but not `uv.lock` would fail `uv sync --locked`). release-please has the same gap; the usual fixes are a dynamic version (hatch-vcs) or a follow-up `uv lock` commit on the release branch.\n- yeet's monorepo targets against release-please's linked versions, if a multi-package repo ever needs them.\n\n",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 2,
+     "created_at": "2026-10-13T02:16:54Z",
+     "html_url": "https://github.com/lokkju/skills/issues/10",
+     "id": 5823365820,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABWxmCvA",
+     "number": 10,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "forge-release: standardize on yeet for new repos instead of release-please for SemVer on GitHub?",
+     "updated_at": "2026-10-15T00:24:04Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/10",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    },
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "OWNER",
+     "body": "The skill says that every question or step only the user can do goes in the queue in the same turn. Nothing enforces it. An assistant can end a reply with a \"left for you\" list (merge these PRs, run this on each host) and queue none of it. Wording alone relies on the model applying the rule at the moment it writes the closing list, and that is where it slips. The usual rationalization is that a step the assistant could do on request (merging a PR) isn't \"only the user's\".\n\n## Proposal\n\n- **A `classic.Stop` handler in `hooks/register.tsx`.** It reads `last_assistant_message` and skips when `stop_hook_active` is set. It finds hand-off lines that carry no `D<n>`/`A<n>` label: phrases such as \"left for you\", \"you'll need to\", \"your call\" and \"next steps\", plus the bullets or numbered items that follow them. When it finds any, it returns `block` with a reason that quotes those lines and says to queue them and rewrite the reply. The reason also says to ignore a match that isn't a hand-off.\n- **The detector in `hooks/queue.ts` or `hooks/subject.ts`,** as plain data, with tests for:\n  - hand-offs with labels\n  - hand-offs without labels\n  - prose that only resembles one\n- **One line in SKILL.md:** anything handed back to the user counts, including merges and per-host steps the assistant could do if asked.\n- **Release:** a minor version, 2.1.0.\n\n## Costs and open questions\n\n- It adds one model pass to each reply where it fires.\n- Phrase matching misfires both ways. The phrase list and the threshold need tuning against real transcripts before it blocks by default. One option is to start it as an `additionalContext` nudge rather than a block.\n- It's unclear whether the fallback-ledger mode (no TaskCreate) needs the same check, since its replies already end with a list of open items.",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-09T08:02:22Z",
+     "html_url": "https://github.com/lokkju/skills/issues/1",
+     "id": 5774920536,
+     "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "blocking": 0,
+      "total_blocked_by": 0,
+      "total_blocking": 0
+     },
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "a2eeef",
+       "default": true,
+       "description": "New feature or request",
+       "id": 12609194123,
+       "name": "enhancement",
+       "node_id": "LA_kwDOVCGK6M8AAAAC75EIiw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/enhancement"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "I_kwDOVCGK6M8AAAABWDZLWA",
+     "number": 1,
+     "performed_via_github_app": null,
+     "pinned_comment": null,
+     "state": "open",
+     "state_reason": null,
+     "sub_issues_summary": {
+      "completed": 0,
+      "percent_completed": 0,
+      "total": 0
+     },
+     "title": "session-decisions: block a reply that hands work to the user without queuing it",
+     "updated_at": "2026-10-09T08:02:22Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/1",
+     "user": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     }
+    }
+   ],
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/issues?per_page=100&state=open"
+  }
+ ],
+ "recorded_at": "2026-10-15T22:18:02Z"
+}

@@ -423,3 +423,104 @@ def test_a_page_cap_is_a_failed_read(transport_for):
 def test_project_must_be_owner_repo(transport_for):
     with pytest.raises(ForgeError):
         github.GitHub(transport_for(World()), "group/sub/project")
+
+
+def test_fingerprint_inputs_read_heads_counts_and_milestones(transport_for):
+    world = (
+        World()
+        .op(
+            "NextFingerprint",
+            {
+                "repository": {
+                    "defaultBranchRef": {"name": "main", "target": {"oid": "abc"}},
+                    "openIssues": {"totalCount": 7},
+                    "openChanges": {"totalCount": 2},
+                    "newestIssue": {"nodes": [{"updatedAt": "2026-10-14T00:00:00Z"}]},
+                    "newestChange": {"nodes": []},
+                }
+            },
+        )
+        .op(
+            "Milestones",
+            connection(
+                [{"id": "M2", "title": "Nov", "dueOn": None, "state": "OPEN"}], key="milestones"
+            ),
+        )
+        .op("BranchHeads", connection([{"name": "main", "target": {"oid": "abc"}}], key="refs"))
+        .route(
+            "/repos/acme/widgets/actions/runs",
+            {"workflow_runs": [{"id": 9, "updated_at": "2026-10-14T01:00:00Z"}]},
+        )
+    )
+    assert adapter(world, transport_for).fingerprint_inputs() == {
+        "default_branch": "main",
+        "default_head": "abc",
+        "open_issues": 7,
+        "open_changes": 2,
+        "newest_issue": "2026-10-14T00:00:00Z",
+        "newest_change": None,
+        "newest_pipeline": "2026-10-14T01:00:00Z",
+        "milestones": [["M2", "Nov", "", "OPEN"]],
+        "branch_heads": {"main": "abc"},
+    }
+
+
+def _closing(number, total, *changes):
+    return {
+        "number": number,
+        "closedByPullRequestsReferences": {
+            "totalCount": total,
+            "nodes": [
+                {
+                    "number": n,
+                    "state": state,
+                    "mergedAt": merged,
+                    "headRefName": f"fix/{number}",
+                    "baseRefName": "main",
+                    "repository": {"nameWithOwner": project},
+                }
+                for n, state, merged, project in changes
+            ],
+        },
+    }
+
+
+def test_closing_refs_keep_state_and_mark_other_projects(transport_for):
+    world = World().op(
+        "ClosingRefs",
+        connection(
+            [
+                _closing(
+                    14,
+                    2,
+                    (31, "MERGED", "2026-10-10T00:00:00Z", "acme/widgets"),
+                    (5, "OPEN", None, "acme/fork"),
+                ),
+                _closing(15, 0),
+            ],
+            key="issues",
+        ),
+    )
+    refs = adapter(world, transport_for).closing_refs()
+    assert [(r.issue, r.change, r.state, r.change_project) for r in refs] == [
+        (14, 31, "merged", None),
+        (14, 5, "open", "acme/fork"),
+    ]
+    assert refs[0].merged_at == datetime(2026, 10, 10, tzinfo=timezone.utc)
+
+
+def test_closing_refs_past_the_first_page_fail_the_read(transport_for):
+    world = World().op(
+        "ClosingRefs",
+        connection(
+            [_closing(14, 30, (31, "MERGED", "2026-10-10T00:00:00Z", "acme/widgets"))],
+            key="issues",
+        ),
+    )
+    read = attempt(adapter(world, transport_for).closing_refs)
+    assert not read.ok and "#14 has more than 1 closing references" in read.error
+
+
+def test_open_issues_keep_their_body(transport_for):
+    world = World().route("/repos/acme/widgets/issues", [issue(3, body="the details")])
+    assert adapter(world, transport_for).open_issues()[0].body == "the details"

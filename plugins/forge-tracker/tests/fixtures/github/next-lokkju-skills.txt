@@ -1,0 +1,23 @@
+lokkju/skills on github.com, facts from 2026-10-15 22:18 (read now)
+
+Your queue (no slate: most agent-ready items unblocked first)
+  nothing person-only
+Agent-ready (no slate: by tier, agent label first, then due date)
+  #1 session-decisions: block a reply that hands work to the user without queuing it
+  #10 forge-release: standardize on yeet for new repos instead of release-please for SemVer on GitHub?
+  #11 forge-release: write the skill (setup, migration, troubleshooting, release-triggered deploys)
+  #12 forge-tracker: build the plugin from the spec's constraints
+  #19 Conversation history: search and jump-to in long Claude Code sessions
+  #21 forge-tracker: a read-only forge layer for GitHub, GitLab and Forgejo
+  #22 forge-tracker: /groom finds tracker drift (merged-but-open issues, label and milestone mismatches, stale branches) and fixes it on approval
+  #23 forge-tracker: /catchup, what changed and what waits on you since your last catchup
+  #24 forge-tracker: /next, your queue, agent lanes that can start now, and what is blocked
+  #36 claude-explorer: installing it as a Claude Code plugin fails; investigate
+  #37 session-decisions: decision_close dead-ends in a background subagent ($.tool.list() reports the parent's TaskUpdate)
+  #45 forge-tracker: /catchup reads version numbers in branch names as issue numbers
+Blocked
+  nothing blocked
+(labels.needs_human isn't set, so no label marks needs-human items)
+(labels.decision isn't set, so no label marks decision items)
+
+slate: needed (no slate is saved for this repo). Rank from `forge-tracker next facts --json` and save with `forge-tracker next save-slate`.

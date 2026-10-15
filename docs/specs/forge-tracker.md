@@ -119,6 +119,7 @@ error, never an empty list standing in for a failure.
 | Blocking links | blocked, blocker, kind (native or convention) | GraphQL `blockedBy`, `subIssues` | `GET /issues/:iid/links` (`blocks` on tiers that have it) | `GET /issues/{i}/dependencies` |
 | Open changes | number, title, source branch, draft, reviewers, assignees, conflicts, head pipeline | GraphQL `pullRequests` (`mergeable` is missing from the REST list) | `GET /merge_requests?state=opened`, then one GET per MR for `head_pipeline` | `GET /pulls?state=open` |
 | Merged since T | number, title, branch, merge sha, merged at, closing issues | GraphQL `closingIssuesReferences` | `GET /merge_requests?state=merged&updated_after=`, `closes_issues` | `GET /pulls?state=closed` filtered on `merged` |
+| Closing references to open issues | issue, change, change state, base branch | GraphQL `closedByPullRequestsReferences(includeClosedPrs: true)` | `GET /issues/:iid/closed_by` (verify) | closing keywords in open and merged PR bodies (verify) |
 | CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs with `include_retried=true` | Actions runs where the instance has the API, else commit status |
 | Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare` | `GET /branches`, `GET /compare` |
 | Tags and releases | name, sha, date | `GET /tags`, `GET /releases` | `GET /repository/tags`, `GET /releases` | `GET /tags`, `GET /releases` |
@@ -310,21 +311,31 @@ Recommends what to work on: your queue, lanes agents can start now, and what's b
 recommends only; it never claims, assigns, comments or branches.
 
 **Facts** (the CLI, `forge-tracker next facts`): open issues with tier, due date, labels,
-owners and links; open changes with head pipeline and conflict state; branches with no change.
-Cached under `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/next/<host>_<project>/facts.json` with
+owners, body and links; open changes with head pipeline and conflict state; branches with no
+change; and the closing references from changes to open issues. Cached under
+`${XDG_CACHE_HOME:-~/.cache}/forge-tracker/next/<host>_<project>/facts.json` with
 a fingerprint of cheap inputs: default-branch head, the newest issue, change and pipeline
 `updated_at`, open issue and change counts, a digest of the milestones (id, title, due), the
-remote branch heads, and a schema tag that hashes the package's own source. An unchanged
-fingerprint reuses the facts. A run with a failed read is written for inspection but never
-reused.
+remote branch heads, a hash of `.claude/forge-tracker.local.md` (classification and the slate
+depend on its labels, tiers and markers), and a schema tag that hashes the package's own source.
+An unchanged fingerprint reuses the facts; `--refresh` re-reads them anyway. A run with a failed
+read is written for inspection but never reused.
+
+The CLI has three entry points: `forge-tracker next` (the report: the saved slate while the
+fingerprint holds, otherwise the classified facts and a `slate: needed` line), `forge-tracker
+next facts` (the facts and classification without the slate; `--json` adds issue bodies for
+ranking) and `forge-tracker next save-slate` (JSON on stdin; reads no forge).
 
 **Classification** (the CLI, deterministic):
 
 - **Person-only:** the needs-human or decision label, or a `person_only_markers` word in the
   title or labels. Markers are hints Claude may overrule with a stated reason (design work an
   agent can build, say). An assignee is never a reason; it's shown as owner.
-- **Blocked:** an open blocker by native link or the configured convention. A link whose blocker
-  is closed isn't blocking, and `/groom` reports it.
+- **Blocked:** an open blocker by native link or the configured convention, or the blocked
+  label. A link whose blocker is closed isn't blocking, and `/groom` reports it; so does a
+  blocked label with nothing linked, which `/next` still treats as blocked. A person-only item
+  that's blocked is listed under Blocked, not in your queue. When the links read fails, an item
+  that's neither person-only nor labelled blocked is "not classified", never agent-ready.
 - **Agent-ready:** open, not person-only, not blocked. The agent label isn't required; when it's
   configured, it only sorts labelled items first within their tier.
 - **Merged but open:** flagged on the item when a merged change has a real closing reference to
@@ -332,12 +343,27 @@ reused.
 
 **Unblock count:** for each person-only item, how many agent-ready items it unblocks, counted
 transitively through blocking links with a visited set: a cycle counts each item once and is
-reported as a cycle.
+reported as a cycle. The walk passes through every open blocked item and counts those that
+aren't person-only; a blocker in another project blocks but isn't walked.
+
+**In flight:** an item is in flight when an open change has a closing reference to it or names it
+(`#N` in its title, or `N` as a segment of its branch), or a pushed branch with no change and at
+least one commit past the default branch has `N` as a segment. Phase 2's pickup record (branch
+to issue) is the other source; until phase 2 ships, `next.recorded_pickups` returns none and is
+the one place to read it.
 
 **The slate** (Claude's ranking): the command gives Claude the facts and asks for three lists.
 Claude saves its answer with `forge-tracker next save-slate` (JSON on stdin), stored beside the
 facts with their fingerprint. While the fingerprint holds, `/next` shows the saved slate with its
 age and doesn't re-rank; `/next --rerank` forces a new one.
+
+The slate is `{"queue": [refs], "lanes": [{"area", "items": [refs], "why"}], "overrules":
+{ref: reason}, "note"}`. Blocked items come from the facts, not the slate. `save-slate` refuses
+(exit 2, every problem named) a ref that isn't an open issue, an item listed twice, a queue item
+that isn't person-only, a lane item that isn't agent-ready, and an overrule of anything but a
+marker hint; it saves only over complete facts whose fingerprint still matches the current config
+and code. Person-only items the slate leaves out are appended to the queue as not ranked, and
+agent-ready items it leaves out are listed as not in a lane.
 
 - **Your queue:** person-only items, most agent-ready items unblocked first.
 - **Agent lanes:** agent-ready items by tier and due date, grouped into lanes that shouldn't touch
@@ -538,6 +564,9 @@ Each phase is a releasable PR or two.
 2. **Working rules and hooks.** The skill, `write file` and `write rule` with the write-wrapper,
    the SessionStart list, `issue --pickup` and the closing-reference hook. Still GitHub only.
 3. **`/next` on GitHub.** Facts, fingerprint cache, classification, unblock counts, the slate.
+   Built before phase 2 by the owner's ruling, so it reads only what the forge shows (labels,
+   assignees, blocking links, open PRs, closing references, branch names); the pickup record is
+   a marked seam (`next.recorded_pickups`) until phase 2 writes it.
 4. **`/groom` on GitHub.** The checks, the unclear bucket, the remaining writes.
 5. **GitLab adapter.** The docker-compose stack and its seed script, the contract suite with
    GitLab fixtures recorded from it, self-hosted subpath and CA, the `relates_to` convention.
