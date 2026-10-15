@@ -1,5 +1,11 @@
 # Changelog
 
+## [term-recorder--v2026.10.15.2](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.15.1...term-recorder--v2026.10.15.2) (2026-10-15)
+
+### Fixes
+
+- **term-recorder:** wait on the dialog, not the echoed prompt ([e0cd35d](https://github.com/lokkju/skills/commit/e0cd35d864126656c9b44395ebcd0c2e83009bae))
+
 ## term-recorder--v2026.10.15.1 (2026-10-15)
 
 ### Features

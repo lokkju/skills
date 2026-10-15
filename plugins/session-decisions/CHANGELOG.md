@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.15.3](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.2...session-decisions--v2026.10.15.3) (2026-10-15)
+
+### Fixes
+
+- **session-decisions:** show the whole item in the More dialog ([893ae8a](https://github.com/lokkju/skills/commit/893ae8aef2273e00c2ca4db69b7165e90a89abe9))
+
 ## [session-decisions--v2026.10.15.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.1...session-decisions--v2026.10.15.2) (2026-10-15)
 
 ### Features
