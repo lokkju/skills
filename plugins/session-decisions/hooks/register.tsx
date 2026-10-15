@@ -20,7 +20,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { codeSpans, excerpt, githubShort, isShortLink, linkHref, plainText } from './markdown'
+import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -44,6 +44,12 @@ const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as co
 // Whether this surface docks panes beside the transcript: fixed per session on the terminal and
 // learnt from the footer's drawing. A module variable, since a drawing may not write state.
 let docks = false
+// The screen's size as the last drawing saw it, so More can fit the dialog to it; null until
+// something has drawn on a surface that measures.
+let screen: { rows: number; columns: number } | null = null
+function measure(site: { viewport?: { rows: number; columns: number } }) {
+  if (site.viewport && site.viewport.rows > 0 && site.viewport.columns > 0) screen = { rows: site.viewport.rows, columns: site.viewport.columns }
+}
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
 
 const DAY = 24 * 60 * 60 * 1000
@@ -537,6 +543,7 @@ export const register: Register = on => {
   // this surface docks panes, which decides whether the sidebar may open unasked.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     docks = e.viewport?.isFullscreen === true
+    measure(e)
     const open = (await read($, items)).filter(isOpen).length
     if (open === 0) return next(e)
 
@@ -561,6 +568,7 @@ export const register: Register = on => {
 
   // In the transcript, a finished TaskCreate, decision_add or decision_update row draws as its item's card.
   on('ui.render', { component: 'ToolUse', props: { tool: 'TaskCreate' } }, async ($, e, next) => {
+    measure(e)
     if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
     const id = String((e.props.output as { task?: { id?: unknown } } | undefined)?.task?.id ?? '')
     const item = (await read($, items)).find(one => one.source === 'tasks' && one.id === id)
@@ -569,6 +577,7 @@ export const register: Register = on => {
   })
   for (const tool of [ADD_TOOL, UPDATE_TOOL]) {
     on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
+      measure(e)
       if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
       const label = String(e.props.output ?? '').split(' ')[0]
       const item = (await read($, items)).find(one => one.source === 'ledger' && one.label === label)
@@ -578,6 +587,7 @@ export const register: Register = on => {
   }
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    measure(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     const list = ordered(await read($, items))
     const settledOpen = await read($, showSettled)
@@ -761,19 +771,6 @@ function linkLine(Link: Elements['Link'], Text: Elements['Text'], token: string)
 
 type Surface = Parameters<$['ui']['copy']>[0]['surface']
 
-/** What the popup asks: the question, the full recommendation when the tag shortens it, and the context. */
-function popupQuestion(item: Item): string {
-  const parts = splitBody(item.body)
-  const lines = [plainText(parts.question)]
-  if (parts.recommendation) {
-    const full = plainText(parts.recommendation)
-    if (shortRecommendation(full).choice !== full) lines.push(`Recommended: ${full}`)
-  }
-  const about = excerpt(item.description)
-  if (about) lines.push('', about)
-  return lines.join('\n')
-}
-
 /**
  * More, or the card's label: the item in Claude Code's question dialog. Accept and Done fill the
  * prompt as the card's buttons do, the copy options copy, and text typed under Other becomes the
@@ -797,7 +794,8 @@ async function popup($: $, item: Item, surface: Surface): Promise<void> {
   choices.push({ label: 'Close', run: () => undefined })
   let picked: string
   try {
-    picked = (await $.ui.ask(popupQuestion(item), { header: item.label, options: choices.map(one => one.label) })).trim()
+    const question = dialogQuestion({ ...parts, description: item.description }, choices.length, screen)
+    picked = (await $.ui.ask(question, { header: item.label, options: choices.map(one => one.label) })).trim()
   } catch {
     return
   }

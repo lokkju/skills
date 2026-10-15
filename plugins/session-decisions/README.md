@@ -61,8 +61,12 @@ write a recommendation isn't ready to ask yet, which is the point.
   is shown whole and wraps instead of being cut off. A plain `http:` URL other than localhost
   can't be a clickable link in Claude Code, so it's shown as dim text.
 - **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
-  dialog, headed by the label. The dialog shows the question, the full recommendation when the
-  tag shortens it, and the start of the item's description (up to six lines). Its options are
+  dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
+  hands it plain text: the question, `Recommended: <the full recommendation>`, and the item's
+  description with its paragraphs and list items kept and its links written as `text (url)`. A
+  description too long for the screen is cut so the options stay in view, and ends with
+  `… N more lines not shown`; the plugin measures the screen when it draws the card, so a dialog
+  opened right after a change of height alone may be cut for the old one. Its options are
   **Accept: <choice>** for a decision or **Done** for an action, **Copy link** when the link is a
   URL, **Copy <command>** for the first command in backticks, and **Close**. Copying works on the
   terminal; Claude Code has no clipboard path for the other surfaces yet. Whatever you type under

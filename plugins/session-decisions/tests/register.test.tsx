@@ -692,7 +692,7 @@ describe('markdown', () => {
     replies.push('Accept: core')
     await ui.press({ key: 'more-D1' })
     expect(asked.at(-1)).toEqual({
-      question: 'run mise run core or read the guide first?\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
+      question: 'run mise run core or read the guide (https://example.com/guide) first?\n\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
       header: 'D1',
       options: ['Accept: core', 'Copy link', 'Copy mise run flux-up core', 'Close'],
     })
@@ -726,18 +726,31 @@ describe('markdown', () => {
     expect(filled).toHaveLength(2)
   })
 
-  test('a long description is cut to fit the dialog', async ($, on) => {
+  test('a long description is cut to fit the screen the card was drawn on', async ($, on) => {
     const { asked, replies } = engine(on)
     await start($)
-    const long = Array.from({ length: 12 }, (_, i) => `Line ${i + 1} of the context, with **some** detail.`).join('\n')
+    const long = ['Why it matters:', '', ...Array.from({ length: 30 }, (_, i) => `- Point ${i + 1}, with **some** detail.`)].join('\n')
     await create($, 'ACTION: log in [no link]', long)
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    const mount = (columns: number, rows: number) =>
+      $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never, viewport: { columns, rows } })
+    // 30 rows with Done and Close leaves 16 for the question: "log in", a blank line, and 14.
+    let ui = await mount(100, 30)
     replies.push(null)
     await ui.press({ key: 'more-A1' })
-    const question = asked.at(-1)!.question
-    expect(question.startsWith('log in\n\nLine 1 of the context, with some detail.')).toBe(true)
-    expect(question).not.toContain('Line 7')
-    expect(question.endsWith('…')).toBe(true)
+    let lines = asked.at(-1)!.question.split('\n')
+    expect(lines.slice(0, 4)).toEqual(['log in', '', 'Why it matters:', ''])
+    expect(lines).toHaveLength(16)
+    expect(lines.at(-2)).toBe('- Point 11, with some detail.')
+    expect(lines.at(-1)).toBe('… 19 more lines not shown')
+    await ui.unmount()
+    // At 20 columns each point wraps to two rows, and the row left over takes part of the next.
+    ui = await mount(20, 30)
+    replies.push(null)
+    await ui.press({ key: 'more-A1' })
+    lines = asked.at(-1)!.question.split('\n')
+    expect(lines.at(-2)).toBe('- Point 6, with…')
+    expect(lines.at(-1)).toBe('… 25 more lines not shown')
+    await ui.unmount()
   })
 
   test('a settled row and the toast use plain text', async ($, on) => {
