@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, revise, settle } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
-import { codeSpans, linkHref, plainText } from '../hooks/markdown'
+import { codeSpans, excerpt, githubShort, isShortLink, linkHref, plainText } from '../hooks/markdown'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -194,6 +194,26 @@ describe('markdown', () => {
     for (const token of [null, '#12', 'owner/repo#3', '!45', 'http://example.com', 'https://me@example.com', 'ftp://x']) {
       expect(linkHref(token)).toBeNull()
     }
+  })
+
+  test('isShortLink and githubShort pick what a card shows for a link', () => {
+    for (const token of ['#12', '!45', 'owner/repo#3', 'lokkju/skills.v2#20']) expect(isShortLink(token)).toBe(true)
+    for (const token of ['https://x.dev', 'owner/repo', '#x', 'a/b/c#1']) expect(isShortLink(token)).toBe(false)
+    expect(githubShort('https://github.com/lokkju/skills/issues/20')).toBe('lokkju/skills#20')
+    expect(githubShort('https://github.com/lokkju/skills/pull/33/files#diff-1')).toBe('lokkju/skills#33')
+    expect(githubShort('https://github.com/lokkju/skills/issues/20#issuecomment-1')).toBe('lokkju/skills#20')
+    expect(githubShort('https://github.com/lokkju/skills')).toBe('lokkju/skills')
+    expect(githubShort('https://github.com/lokkju/skills.git')).toBe('lokkju/skills')
+    for (const href of ['https://github.com/lokkju', 'https://github.com/orgs/lokkju/projects', 'https://github.com/lokkju/skills/blob/main/README.md', 'https://gitlab.com/a/b/-/issues/1', 'not a url']) {
+      expect(githubShort(href)).toBeNull()
+    }
+  })
+
+  test('excerpt cuts plain text by lines and characters', () => {
+    expect(excerpt('Needs **`sudo`**.\n\n\n\nThen run it.')).toBe('Needs sudo.\n\nThen run it.')
+    expect(excerpt('')).toBe('')
+    expect(excerpt('one two three four', 10)).toBe('one two…')
+    expect(excerpt('a\nb\nc\nd', 320, 2)).toBe('a\nb…')
   })
 })
 
