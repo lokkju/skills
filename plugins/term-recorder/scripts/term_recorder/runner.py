@@ -87,6 +87,8 @@ class Recorder:
             conf.write(
                 f'set -g default-terminal "{self.o.term}"\n'
                 "set -g status off\n"
+                # Claude Code warns on screen when focus events are off.
+                "set -g focus-events on\n"
                 "set -g mouse on\n"
                 "set -g remain-on-exit on\n"
                 "set -g history-limit 0\n"

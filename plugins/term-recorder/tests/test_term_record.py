@@ -146,6 +146,20 @@ def test_the_command_gets_a_minimal_environment(tmp_path: Path, monkeypatch):
 
 
 @needs_tmux
+def test_the_private_server_reports_focus_events(tmp_path: Path):
+    # Claude Code prints a warning into the frame when they're off.
+    done, out = record(
+        tmp_path,
+        "wait 'focus:' 10\nsnap focus\n",
+        "sh",
+        "-c",
+        'echo "focus:$(tmux show -gv focus-events)"; sleep 30',
+    )
+    assert done.returncode == 0, done.stderr
+    assert "focus:on" in (out / "focus.txt").read_text()
+
+
+@needs_tmux
 def test_click_sends_an_sgr_mouse_press(tmp_path: Path):
     # Reads the press in raw mode after turning on SGR mouse reporting, then prints it.
     target = (
