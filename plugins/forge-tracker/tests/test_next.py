@@ -113,6 +113,9 @@ class Repo:
 
     def __init__(self):
         self.newest_issue = "2026-10-14T12:00:00Z"
+        self.pipeline_updated = "2026-10-14T13:00:00Z"
+        self.head = "c1"
+        self.checks = "PENDING"
         self.broken: set[str] = set()
         self.issues = [
             issue(10, ["decision"], title="pick the storage format"),
@@ -165,10 +168,22 @@ class Repo:
             lambda v: self._maybe(
                 "changes",
                 conn(
-                    [pr(41, "feat/github-adapter", mergeable="UNKNOWN", title="feat: adapter")],
+                    [
+                        pr(
+                            41,
+                            "feat/github-adapter",
+                            mergeable="UNKNOWN",
+                            title="feat: adapter",
+                            commits=self._head(),
+                        )
+                    ],
                     "pullRequests",
                 ),
             ),
+        )
+        w.op(
+            "OpenChangeHeads",
+            lambda v: conn([{"number": 41, "commits": self._head()}], "pullRequests"),
         )
         w.op(
             "ClosingRefs",
@@ -186,7 +201,9 @@ class Repo:
         )
         w.route(
             "/repos/acme/widgets/actions/runs",
-            {"workflow_runs": [{"id": 1, "updated_at": "2026-10-14T13:00:00Z"}]},
+            lambda url: response(
+                {"workflow_runs": [{"id": 1, "updated_at": self.pipeline_updated}]}
+            ),
         )
         w.route("/repos/acme/widgets/issues", lambda url: self._rest("issues", self.issues))
         w.route(
@@ -217,6 +234,10 @@ class Repo:
                 "newestChange": {"nodes": [{"updatedAt": "2026-10-14T12:00:00Z"}]},
             }
         }
+
+    def _head(self):
+        rollup = {"state": self.checks} if self.checks else None
+        return {"nodes": [{"commit": {"oid": self.head, "statusCheckRollup": rollup}}]}
 
     def _maybe(self, name, data):
         if name in self.broken:
@@ -347,8 +368,9 @@ def test_facts_are_cached_0600_and_reused_while_the_fingerprint_holds(env):
     assert code == 0
     assert "(from cache, fingerprint unchanged)" in text
     ops = {json.loads(c[3])["query"].split("(")[0].split()[-1] for c in world.calls if c[3]}
-    assert ops == {"NextFingerprint", "Milestones", "BranchHeads"}
+    assert ops == {"NextFingerprint", "Milestones", "BranchHeads", "OpenChangeHeads"}
     assert not any("/issues" in c[1] for c in world.calls)
+    assert not any("/actions/runs" in c[1] for c in world.calls)
 
     repo.newest_issue = "2026-10-15T07:00:00Z"
     world = repo.world()
@@ -477,6 +499,38 @@ def test_a_moved_fingerprint_asks_for_a_new_slate(env):
     repo.newest_issue = "2026-10-15T07:59:00Z"
     code, text = run_next(env, http=repo.world())
     assert code == 0
+    assert "slate: needed (the facts moved since the slate from 2026-10-15T08:00:00Z)" in text
+
+
+def test_a_pipeline_update_alone_keeps_the_facts_and_the_slate(env):
+    repo = Repo()
+    run_next(env, http=repo.world())
+    save(env, SLATE)
+    repo.pipeline_updated = "2026-10-15T07:59:00Z"
+    code, text = run_next(env, http=repo.world(), now=NOW + timedelta(minutes=30))
+    assert code == 0
+    assert text.startswith(WITH_SLATE)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"checks": "SUCCESS"},
+        {"checks": "FAILURE"},
+        {"checks": None},
+        {"head": "c2"},
+    ],
+    ids=["checks-pass", "checks-fail", "checks-gone", "new-head"],
+)
+def test_a_check_state_or_head_change_moves_the_fingerprint(env, change):
+    repo = Repo()
+    run_next(env, http=repo.world())
+    save(env, SLATE)
+    for key, value in change.items():
+        setattr(repo, key, value)
+    code, text = run_next(env, http=repo.world())
+    assert code == 0
+    assert "(read now)" in text
     assert "slate: needed (the facts moved since the slate from 2026-10-15T08:00:00Z)" in text
 
 

@@ -120,6 +120,12 @@
       "refs": {
        "nodes": [
         {
+         "name": "feat/forge-tracker-next",
+         "target": {
+          "oid": "bbc68315b762be28e7051d015f5264242bb6c315"
+         }
+        },
+        {
          "name": "feat/term-recorder",
          "target": {
           "oid": "894ed3d11ffef05ec585c087beb76038b55cb315"
@@ -144,20 +150,26 @@
          }
         },
         {
+         "name": "fix/term-recorder-example",
+         "target": {
+          "oid": "e0cd35d864126656c9b44395ebcd0c2e83009bae"
+         }
+        },
+        {
          "name": "main",
          "target": {
-          "oid": "b61712ca347840d0646bfa94b9c7330d4e486e15"
+          "oid": "c263faebd2040c0018a9c5b4e0e4b33648d699bb"
          }
         },
         {
          "name": "yeet/release-main",
          "target": {
-          "oid": "b79f2fb3427182b97e061414257b4c6786948e03"
+          "oid": "affc9419c1722f22fab8a144c3701d4785e1711d"
          }
         }
        ],
        "pageInfo": {
-        "endCursor": "Ng",
+        "endCursor": "OA",
         "hasNextPage": false
        }
       }
@@ -322,13 +334,13 @@
       "defaultBranchRef": {
        "name": "main",
        "target": {
-        "oid": "b61712ca347840d0646bfa94b9c7330d4e486e15"
+        "oid": "c263faebd2040c0018a9c5b4e0e4b33648d699bb"
        }
       },
       "newestChange": {
        "nodes": [
         {
-         "updatedAt": "2026-10-15T22:17:32Z"
+         "updatedAt": "2026-10-15T22:29:20Z"
         }
        ]
       },
@@ -340,10 +352,53 @@
        ]
       },
       "openChanges": {
-       "totalCount": 0
+       "totalCount": 1
       },
       "openIssues": {
        "totalCount": 12
+      }
+     }
+    }
+   },
+   "status": 200,
+   "url": "https://api.github.com/graphql"
+  },
+  {
+   "body": {
+    "query": "\nquery OpenChangeHeads($owner: String!, $name: String!, $cursor: String) {\n  repository(owner: $owner, name: $name) {\n    pullRequests(states: OPEN, first: 100, after: $cursor) {\n      pageInfo { hasNextPage endCursor }\n      nodes { number commits(last: 1) { nodes { commit { oid statusCheckRollup { state } } } } }\n    }\n  }\n}\n",
+    "variables": {
+     "cursor": null,
+     "name": "skills",
+     "owner": "lokkju"
+    }
+   },
+   "headers": {},
+   "method": "POST",
+   "response": {
+    "data": {
+     "repository": {
+      "pullRequests": {
+       "nodes": [
+        {
+         "commits": {
+          "nodes": [
+           {
+            "commit": {
+             "oid": "affc9419c1722f22fab8a144c3701d4785e1711d",
+             "statusCheckRollup": {
+              "state": "SUCCESS"
+             }
+            }
+           }
+          ]
+         },
+         "number": 51
+        }
+       ],
+       "pageInfo": {
+        "endCursor": "Y3Vyc29yOnYyOpHPAAAAASLpQak=",
+        "hasNextPage": false
+       }
       }
      }
     }
@@ -366,9 +421,44 @@
     "data": {
      "repository": {
       "pullRequests": {
-       "nodes": [],
+       "nodes": [
+        {
+         "assignees": {
+          "nodes": []
+         },
+         "author": {
+          "__typename": "Bot",
+          "login": "lokkju-release"
+         },
+         "commits": {
+          "nodes": [
+           {
+            "commit": {
+             "oid": "affc9419c1722f22fab8a144c3701d4785e1711d",
+             "statusCheckRollup": {
+              "state": "SUCCESS"
+             }
+            }
+           }
+          ]
+         },
+         "createdAt": "2026-10-15T22:29:19Z",
+         "headRefName": "yeet/release-main",
+         "isDraft": false,
+         "mergeCommit": null,
+         "mergeable": "MERGEABLE",
+         "mergedAt": null,
+         "number": 51,
+         "reviewRequests": {
+          "nodes": []
+         },
+         "title": "chore: release wave",
+         "updatedAt": "2026-10-15T22:29:20Z",
+         "url": "https://github.com/lokkju/skills/pull/51"
+        }
+       ],
        "pageInfo": {
-        "endCursor": null,
+        "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMC0xNVQyMjoyOToyMFrPAAAAASLpQak=",
         "hasNextPage": false
        }
       }
@@ -380,69 +470,25 @@
   },
   {
    "body": null,
-   "headers": {
-    "link": "<https://api.github.com/repositories/1411484392/actions/runs?per_page=1&page=2>; rel=\"next\", <https://api.github.com/repositories/1411484392/actions/runs?per_page=1&page=216>; rel=\"last\""
-   },
-   "method": "GET",
-   "response": {
-    "total_count": 216,
-    "workflow_runs": [
-     {
-      "actor": {
-       "gravatar_id": "",
-       "html_url": "https://github.com/apps/lokkju-release",
-       "id": 337987743,
-       "login": "lokkju-release[bot]",
-       "node_id": "BOT_kgDOFCVInw",
-       "site_admin": false,
-       "type": "Bot",
-       "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
-       "user_view_type": "public"
-      },
-      "check_suite_id": 105195017655,
-      "check_suite_node_id": "CS_kwDOVCGK6M8AAAAYfhyVtw",
-      "conclusion": "success",
-      "created_at": "2026-10-15T22:17:34Z",
-      "display_title": "chore: release wave",
-      "event": "pull_request",
-      "head_branch": "yeet/release-main",
-      "head_sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-      "html_url": "https://github.com/lokkju/skills/actions/runs/38816093867",
-      "id": 38816093867,
-      "name": "release-check",
-      "node_id": "WFR_kwLOVCGK6M8AAAAJCZ6Wqw",
-      "path": ".github/workflows/release-check.yml",
-      "pull_requests": [],
-      "referenced_workflows": [],
-      "run_attempt": 1,
-      "run_number": 66,
-      "run_started_at": "2026-10-15T22:17:34Z",
-      "status": "completed",
-      "triggering_actor": {
-       "gravatar_id": "",
-       "html_url": "https://github.com/apps/lokkju-release",
-       "id": 337987743,
-       "login": "lokkju-release[bot]",
-       "node_id": "BOT_kgDOFCVInw",
-       "site_admin": false,
-       "type": "Bot",
-       "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
-       "user_view_type": "public"
-      },
-      "updated_at": "2026-10-15T22:17:44Z",
-      "url": "https://api.github.com/repos/lokkju/skills/actions/runs/38816093867",
-      "workflow_id": 379423978
-     }
-    ]
-   },
-   "status": 200,
-   "url": "https://api.github.com/repos/lokkju/skills/actions/runs?per_page=1"
-  },
-  {
-   "body": null,
    "headers": {},
    "method": "GET",
    "response": [
+    {
+     "commit": {
+      "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
+     },
+     "name": "feat/forge-tracker-next",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
     {
      "commit": {
       "sha": "894ed3d11ffef05ec585c087beb76038b55cb315",
@@ -509,8 +555,24 @@
     },
     {
      "commit": {
-      "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-      "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+      "sha": "e0cd35d864126656c9b44395ebcd0c2e83009bae",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/e0cd35d864126656c9b44395ebcd0c2e83009bae"
+     },
+     "name": "fix/term-recorder-example",
+     "protected": false,
+     "protection": {
+      "enabled": false,
+      "required_status_checks": {
+       "checks": [],
+       "contexts": [],
+       "enforcement_level": "off"
+      }
+     }
+    },
+    {
+     "commit": {
+      "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
      },
      "name": "main",
      "protected": false,
@@ -525,8 +587,8 @@
     },
     {
      "commit": {
-      "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-      "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+      "sha": "affc9419c1722f22fab8a144c3701d4785e1711d",
+      "url": "https://api.github.com/repos/lokkju/skills/commits/affc9419c1722f22fab8a144c3701d4785e1711d"
      },
      "name": "yeet/release-main",
      "protected": false,
@@ -563,28 +625,28 @@
      },
      "commit": {
       "author": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "lokkju@users.noreply.github.com",
        "name": "Loki Coyote"
       },
       "comment_count": 0,
       "committer": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "noreply@github.com",
        "name": "GitHub"
       },
-      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
       "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
       },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
       "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
        "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
        "verified": true,
-       "verified_at": "2026-10-15T22:17:16Z"
+       "verified_at": "2026-10-15T22:29:02Z"
       }
      },
      "committer": {
@@ -598,24 +660,168 @@
       "url": "https://api.github.com/users/web-flow",
       "user_view_type": "public"
      },
-     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
      "parents": [
       {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
       },
       {
-       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
       }
      ],
-     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
     },
-    "behind_by": 7,
+    "behind_by": 3,
+    "commits": [],
+    "files": [],
+    "html_url": "https://github.com/lokkju/skills/compare/main...feat/forge-tracker-next",
+    "merge_base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:21:47Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:22:06Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "docs(forge-tracker): describe /next, its classification and the phase-2 seam\n\nThe README covers the command, the facts and fingerprint, the classification\nrules, the slate and the config keys /next reads. The spec records the CLI\nentry points, the config hash in the fingerprint, the closing-references read,\nhow the blocked label and blocked person-only items are treated, the slate's\nshape and refusals, and that /next was built before phase 2 with the pickup\nrecord left as a seam.",
+      "tree": {
+       "sha": "ca940de6daf8debc297c14b9afd436f2776fbfbf",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ca940de6daf8debc297c14b9afd436f2776fbfbf"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/bbc68315b762be28e7051d015f5264242bb6c315",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+     "node_id": "C_kwDOVCGK6NoAKGJiYzY4MzE1Yjc2MmJlMjhlNzA1MWQwMTVmNTI2NDI0MmJiNmMzMTU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/191ba6cef1c1c3993ee1da6f3f6498ab564ea82c",
+       "sha": "191ba6cef1c1c3993ee1da6f3f6498ab564ea82c",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/191ba6cef1c1c3993ee1da6f3f6498ab564ea82c"
+      }
+     ],
+     "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...feat/forge-tracker-next"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...feat/forge-tracker-next"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": {
+    "ahead_by": 0,
+    "base_commit": {
+     "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:29:02Z",
+       "email": "lokkju@users.noreply.github.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:29:02Z",
+       "email": "noreply@github.com",
+       "name": "GitHub"
+      },
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
+      "tree": {
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+      "verification": {
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
+       "reason": "valid",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
+       "verified": true,
+       "verified_at": "2026-10-15T22:29:02Z"
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/web-flow",
+      "id": 19864447,
+      "login": "web-flow",
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/web-flow",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
+      },
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
+      }
+     ],
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
+    },
+    "behind_by": 14,
     "commits": [],
     "files": [],
     "html_url": "https://github.com/lokkju/skills/compare/main...feat/term-recorder",
@@ -707,28 +913,28 @@
      },
      "commit": {
       "author": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "lokkju@users.noreply.github.com",
        "name": "Loki Coyote"
       },
       "comment_count": 0,
       "committer": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "noreply@github.com",
        "name": "GitHub"
       },
-      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
       "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
       },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
       "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
        "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
        "verified": true,
-       "verified_at": "2026-10-15T22:17:16Z"
+       "verified_at": "2026-10-15T22:29:02Z"
       }
      },
      "committer": {
@@ -742,24 +948,24 @@
       "url": "https://api.github.com/users/web-flow",
       "user_view_type": "public"
      },
-     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
      "parents": [
       {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
       },
       {
-       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
       }
      ],
-     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
     },
-    "behind_by": 8,
+    "behind_by": 15,
     "commits": [],
     "files": [],
     "html_url": "https://github.com/lokkju/skills/compare/main...fix/catchup-report",
@@ -851,28 +1057,28 @@
      },
      "commit": {
       "author": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "lokkju@users.noreply.github.com",
        "name": "Loki Coyote"
       },
       "comment_count": 0,
       "committer": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "noreply@github.com",
        "name": "GitHub"
       },
-      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
       "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
       },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
       "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
        "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
        "verified": true,
-       "verified_at": "2026-10-15T22:17:16Z"
+       "verified_at": "2026-10-15T22:29:02Z"
       }
      },
      "committer": {
@@ -886,24 +1092,24 @@
       "url": "https://api.github.com/users/web-flow",
       "user_view_type": "public"
      },
-     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
      "parents": [
       {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
       },
       {
-       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
       }
      ],
-     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
     },
-    "behind_by": 50,
+    "behind_by": 57,
     "commits": [],
     "files": [],
     "html_url": "https://github.com/lokkju/skills/compare/main...fix/sd-nested-paren",
@@ -995,28 +1201,28 @@
      },
      "commit": {
       "author": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "lokkju@users.noreply.github.com",
        "name": "Loki Coyote"
       },
       "comment_count": 0,
       "committer": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "noreply@github.com",
        "name": "GitHub"
       },
-      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
       "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
       },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
       "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
        "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
        "verified": true,
-       "verified_at": "2026-10-15T22:17:16Z"
+       "verified_at": "2026-10-15T22:29:02Z"
       }
      },
      "committer": {
@@ -1030,24 +1236,24 @@
       "url": "https://api.github.com/users/web-flow",
       "user_view_type": "public"
      },
-     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
      "parents": [
       {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
       },
       {
-       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
       }
      ],
-     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
     },
-    "behind_by": 64,
+    "behind_by": 71,
     "commits": [],
     "files": [],
     "html_url": "https://github.com/lokkju/skills/compare/main...fix/sd-tools-gap",
@@ -1139,28 +1345,28 @@
      },
      "commit": {
       "author": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "lokkju@users.noreply.github.com",
        "name": "Loki Coyote"
       },
       "comment_count": 0,
       "committer": {
-       "date": "2026-10-15T22:17:16Z",
+       "date": "2026-10-15T22:29:02Z",
        "email": "noreply@github.com",
        "name": "GitHub"
       },
-      "message": "Merge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+      "message": "Merge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
       "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
+       "sha": "ad7527d80de7c364da0f1640f9ea09c88e82be62",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/ad7527d80de7c364da0f1640f9ea09c88e82be62"
       },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b61712ca347840d0646bfa94b9c7330d4e486e15",
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
       "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nparent b79f2fb3427182b97e061414257b4c6786948e03\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792102636 -0400\ncommitter GitHub <noreply@github.com> 1792102636 -0400\n\nMerge pull request #48 from lokkju/yeet/release-main\n\nchore: release wave",
+       "payload": "tree ad7527d80de7c364da0f1640f9ea09c88e82be62\nparent 0ba494fbc0f55b30df0c376f6b259bead41c7115\nparent bbc68315b762be28e7051d015f5264242bb6c315\nauthor Loki Coyote <lokkju@users.noreply.github.com> 1792103342 -0400\ncommitter GitHub <noreply@github.com> 1792103342 -0400\n\nMerge pull request #50 from lokkju/feat/forge-tracker-next\n\nfeat(forge-tracker): /next on GitHub: your queue, agent lanes and what is blocked",
        "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VDsCRC1aQ7uu5UhlAAAt3IQAB3NypDJz8bnYI2ApRBwCNZA\noGUb6FK6pEqpZKCNbkWafMKn324zrb2gJ2fvYrs0wMxeAKsn+qLjYjSv2hq45IqN\nGA3vEJ1mp4Yrub1faoXKQvr2lyk3Bphfr9YWmwMW08lYb3MlMJ3v108FcM7J2n0h\nPsjMyaM8I4aXoMphdBAW5lyNTMFLLq4EjViq8naRH6VMW2oHvGDAaqQ6R32D6fWH\ntBXnCWdRTSr/qhXTRntLZiMVS/g/EEZZ7GMfbHXR0b6mfucwJZC1W72sj15Ev8zt\nvLdGjPNw8SDvvGBdp7CL0r3tkVDGtEAz591Gj4bkovnCtS8gvciTTa46jMm2GqSN\ngbNKwxxb3o9UjJxvc1PjXw1yxKY5V/BGTz0MtOZ6/e7jAA+zyUnD2cOlaAR5EioB\nfH4+2MAVpULXa3DF6ZIvDIgmnfcWqxMXY95KTHkozUNMniDKnlF8wOKzopZBgOtO\nT8SJE/a4E/nwErv42bKctGJ3qe35yy+/+ySxAPrsvmgdg/K3C34yJVDdozISC6B1\n4D2rIRy9rLvAqT8Z9IIqJbTY2V+mt/9kCMxUdBGqOuKhP4nCLw4OY25kQvS29AY+\nvQQwiNv50dboYwsL2QFbMX+hIrkiSz0e//yM4NnLRdzGPXcLBv1B9Cx7HHN3a0Rn\ncQjJKWDEmkgpF2MpnWNX\n=hetU\n-----END PGP SIGNATURE-----\n",
+       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VOuCRC1aQ7uu5UhlAAAevAQAF5jeTEAKPSV+zJzlMNoO+aU\nMRnP1KVzUPkTrk2DweeGyNKFP9PCgM6Gm0T5Lu6UpP71TX1xuLFwqq2MulW7hrTs\nprRQrIgH9TR1xm4SirL7CoTdQyhiv5ivMQ+NYiLLxdfQdVSpcwuJHekQPJzH1VC9\njKNKXK9JEQ48vaoNvHOOPRpth33Vh1hcEw6VgTwNXXFSK51HOSKzT2TfulGnmBy1\n1FaEzUQIH0sewL/LR2Mgp+AoB/UuonNmw4gTPnPxwpwOgQjI6LfLHRvRzBLx8l1U\n27W8AdFyR/IbYBdMdiDgrfTWk3inqdob9bJIDOfTMNjrQOI+TRdf5iuwkvxeKSpl\nSr1wNBpy0DVp4YY+wb+Ru9b99509BYSWPekK62NAra3utjI5ec3vE2B3QiUqp/4k\nJUyIEV891oulii8CbRY3Hk4w53CygVs9wtHCncnH2OZ/9J+0LQAHLlomWD2VIn/7\ngWXcYC6B9fsrNeMub/C7iOfiwr0MQykek7mkHM8FosChWqaIWhQ5VB2B5sB+urk7\n9pb95V9XQsSl5VthBiyHprSNR0ZPY2TXpEiJf34HtV2FqSw5YoFlAhqRtyCyqK5f\ndNXYwr4Fi/xOdTOYZbqVxWCv595W/t3Q4zqwe04f7Y+cnei5lVXmsu/5Vfnq4db2\nPxBd6SH66Nly4svDrLXH\n=FS9N\n-----END PGP SIGNATURE-----\n",
        "verified": true,
-       "verified_at": "2026-10-15T22:17:16Z"
+       "verified_at": "2026-10-15T22:29:02Z"
       }
      },
      "committer": {
@@ -1174,29 +1380,153 @@
       "url": "https://api.github.com/users/web-flow",
       "user_view_type": "public"
      },
-     "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "node_id": "C_kwDOVCGK6NoAKGI2MTcxMmNhMzQ3ODQwZDA2NDZiZmE5NGI5YzczMzBkNGU0ODZlMTU",
+     "html_url": "https://github.com/lokkju/skills/commit/c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "node_id": "C_kwDOVCGK6NoAKGMyNjNmYWViZDIwNDBjMDAxOGE5YzViNGUwZTRiMzM2NDhkNjk5YmI",
      "parents": [
       {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
+       "html_url": "https://github.com/lokkju/skills/commit/0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "sha": "0ba494fbc0f55b30df0c376f6b259bead41c7115",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/0ba494fbc0f55b30df0c376f6b259bead41c7115"
       },
       {
-       "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-       "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+       "html_url": "https://github.com/lokkju/skills/commit/bbc68315b762be28e7051d015f5264242bb6c315",
+       "sha": "bbc68315b762be28e7051d015f5264242bb6c315",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/bbc68315b762be28e7051d015f5264242bb6c315"
       }
      ],
-     "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+     "sha": "c263faebd2040c0018a9c5b4e0e4b33648d699bb",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/c263faebd2040c0018a9c5b4e0e4b33648d699bb"
     },
-    "behind_by": 1,
+    "behind_by": 6,
     "commits": [],
     "files": [],
-    "html_url": "https://github.com/lokkju/skills/compare/main...yeet/release-main",
+    "html_url": "https://github.com/lokkju/skills/compare/main...fix/term-recorder-example",
     "merge_base_commit": {
      "author": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "commit": {
+      "author": {
+       "date": "2026-10-15T22:20:39Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "comment_count": 0,
+      "committer": {
+       "date": "2026-10-15T22:20:39Z",
+       "email": "lokkju@gmail.com",
+       "name": "Loki Coyote"
+      },
+      "message": "fix(term-recorder): wait on the dialog, not the echoed prompt\n\n- examples/ask-dialog.steps waited for \"Close\", which the pasted\n  prompt itself contains, so it snapped before the dialog opened;\n  it now waits for the dialog's numbered option\n- the private tmux server turns focus-events on, so Claude Code no\n  longer prints its focus-events warning into every frame\n- the skill says to wait on text only the result shows",
+      "tree": {
+       "sha": "acc82501c61ff592caa85442deb0aca0a2ef3927",
+       "url": "https://api.github.com/repos/lokkju/skills/git/trees/acc82501c61ff592caa85442deb0aca0a2ef3927"
+      },
+      "url": "https://api.github.com/repos/lokkju/skills/git/commits/e0cd35d864126656c9b44395ebcd0c2e83009bae",
+      "verification": {
+       "payload": null,
+       "reason": "unsigned",
+       "signature": null,
+       "verified": false,
+       "verified_at": null
+      }
+     },
+     "committer": {
+      "gravatar_id": "",
+      "html_url": "https://github.com/lokkju",
+      "id": 235371,
+      "login": "lokkju",
+      "node_id": "MDQ6VXNlcjIzNTM3MQ==",
+      "site_admin": false,
+      "type": "User",
+      "url": "https://api.github.com/users/lokkju",
+      "user_view_type": "public"
+     },
+     "html_url": "https://github.com/lokkju/skills/commit/e0cd35d864126656c9b44395ebcd0c2e83009bae",
+     "node_id": "C_kwDOVCGK6NoAKGUwY2QzNWQ4NjQxMjY2NTZjOWI0NDM5NWViY2QwYzJlODMwMDliYWU",
+     "parents": [
+      {
+       "html_url": "https://github.com/lokkju/skills/commit/b61712ca347840d0646bfa94b9c7330d4e486e15",
+       "sha": "b61712ca347840d0646bfa94b9c7330d4e486e15",
+       "url": "https://api.github.com/repos/lokkju/skills/commits/b61712ca347840d0646bfa94b9c7330d4e486e15"
+      }
+     ],
+     "sha": "e0cd35d864126656c9b44395ebcd0c2e83009bae",
+     "url": "https://api.github.com/repos/lokkju/skills/commits/e0cd35d864126656c9b44395ebcd0c2e83009bae"
+    },
+    "status": "behind",
+    "total_commits": 0,
+    "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/term-recorder-example"
+   },
+   "status": 200,
+   "url": "https://api.github.com/repos/lokkju/skills/compare/main...fix/term-recorder-example"
+  },
+  {
+   "body": null,
+   "headers": {},
+   "method": "GET",
+   "response": [
+    {
+     "active_lock_reason": null,
+     "assignee": null,
+     "assignees": [],
+     "author_association": "CONTRIBUTOR",
+     "body": "## \u0669(^\u1d17^)\u06f6 release created\n\n## Release wave\n\nBase branch: `main`\nTargets: `forge-tracker`, `term-recorder`\n\n## forge-tracker\n\nTag: `forge-tracker--v2026.10.15.2` -> `forge-tracker--v2026.10.15.3`\nBump: `minor`\nDate: `2026-10-15`\nCompare: [forge-tracker--v2026.10.15.2...c263faebd2040c0018a9c5b4e0e4b33648d699bb](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.2...c263faebd2040c0018a9c5b4e0e4b33648d699bb)\n\n### Features\n\n- **forge-tracker:** /next on GitHub: facts, fingerprint cache, classification and the slate ([a133dda](https://github.com/lokkju/skills/commit/a133ddae04cfbe195c9a4a2e2dd83c1f8baf6277))\n- **forge-tracker:** read the /next fingerprint and closing references on GitHub ([c8b8a0f](https://github.com/lokkju/skills/commit/c8b8a0f84a5c8a47277d3c204115c3b3eea11ab4))\n\n## term-recorder\n\nTag: `term-recorder--v2026.10.15.1` -> `term-recorder--v2026.10.15.2`\nBump: `patch`\nDate: `2026-10-15`\nCompare: [term-recorder--v2026.10.15.1...0ba494fbc0f55b30df0c376f6b259bead41c7115](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.15.1...0ba494fbc0f55b30df0c376f6b259bead41c7115)\n\n### Fixes\n\n- **term-recorder:** wait on the dialog, not the echoed prompt ([e0cd35d](https://github.com/lokkju/skills/commit/e0cd35d864126656c9b44395ebcd0c2e83009bae))\n\n<!-- yeet-release-manifest\n{\"base_branch\":\"main\",\"targets\":[{\"id\":\"forge-tracker\",\"type\":\"path\",\"tag\":\"forge-tracker--v2026.10.15.3\",\"changelog_file\":\"plugins/forge-tracker/CHANGELOG.md\"},{\"id\":\"term-recorder\",\"type\":\"path\",\"tag\":\"term-recorder--v2026.10.15.2\",\"changelog_file\":\"plugins/term-recorder/CHANGELOG.md\"}]}\n-->\n\n_Auto-generated preview, edit `CHANGELOG.md` to customize release notes._\n\n_Made with [yeet](https://github.com/monkescience/yeet) - yeet it._",
+     "closed_at": null,
+     "closed_by": null,
+     "comments": 0,
+     "created_at": "2026-10-15T22:29:19Z",
+     "draft": false,
+     "html_url": "https://github.com/lokkju/skills/pull/51",
+     "id": 5874923892,
+     "labels": [
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "FF6188",
+       "default": false,
+       "description": "release PR managed by yeet",
+       "id": 12658328363,
+       "name": "yeet",
+       "node_id": "LA_kwDOVCGK6M8AAAAC8n7DKw",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/yeet"
+      },
+      {
+       "archived_at": null,
+       "archived_by": null,
+       "color": "FFD866",
+       "default": false,
+       "description": "release PR is pending tagging",
+       "id": 12658328417,
+       "name": "autorelease: pending",
+       "node_id": "LA_kwDOVCGK6M8AAAAC8n7DYQ",
+       "url": "https://api.github.com/repos/lokkju/skills/labels/autorelease:%20pending"
+      }
+     ],
+     "locked": false,
+     "milestone": null,
+     "node_id": "PR_kwDOVCGK6M8AAAABIulBqQ",
+     "number": 51,
+     "performed_via_github_app": null,
+     "pull_request": {
+      "html_url": "https://github.com/lokkju/skills/pull/51",
+      "merged_at": null,
+      "url": "https://api.github.com/repos/lokkju/skills/pulls/51"
+     },
+     "state": "open",
+     "state_reason": null,
+     "title": "chore: release wave",
+     "updated_at": "2026-10-15T22:29:20Z",
+     "url": "https://api.github.com/repos/lokkju/skills/issues/51",
+     "user": {
       "gravatar_id": "",
       "html_url": "https://github.com/apps/lokkju-release",
       "id": 337987743,
@@ -1206,68 +1536,8 @@
       "type": "Bot",
       "url": "https://api.github.com/users/lokkju-release%5Bbot%5D",
       "user_view_type": "public"
-     },
-     "commit": {
-      "author": {
-       "date": "2026-10-15T22:16:31Z",
-       "email": "337987743+lokkju-release[bot]@users.noreply.github.com",
-       "name": "lokkju-release[bot]"
-      },
-      "comment_count": 0,
-      "committer": {
-       "date": "2026-10-15T22:16:31Z",
-       "email": "noreply@github.com",
-       "name": "GitHub"
-      },
-      "message": "chore: release wave",
-      "tree": {
-       "sha": "4eb728459bddb0640cda687cf471348be927bffe",
-       "url": "https://api.github.com/repos/lokkju/skills/git/trees/4eb728459bddb0640cda687cf471348be927bffe"
-      },
-      "url": "https://api.github.com/repos/lokkju/skills/git/commits/b79f2fb3427182b97e061414257b4c6786948e03",
-      "verification": {
-       "payload": "tree 4eb728459bddb0640cda687cf471348be927bffe\nparent 7372e2cf15addf82680b5ca9915ca6297802c43f\nauthor lokkju-release[bot] <337987743+lokkju-release[bot]@users.noreply.github.com> 1792102591 +0000\ncommitter GitHub <noreply@github.com> 1792102591 +0000\n\nchore: release wave",
-       "reason": "valid",
-       "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq0VC/CRC1aQ7uu5UhlAAABUUQAA8DZHtmuL6rvJ2gdedQt8mt\nQzgmxNubHyNdXIae+rcqID+4UAwZwDmiiid2Voqg8yVnhaXgMS4OhZcXTM1gTBbX\nayvnI4e2o7uUK2YWCexOnK9EW9nXf57oyJjvJkIpJ6JEhqh6k4RgxhsS3SfNt4fK\n97zGWIrLpFx+9ySjN4buX+6mCg21AGGUH/bX+XkHjN9E6QIP/rzHpYyFC+XQoiqY\nbi9afbgrg5gSfiQUa/xUBHLtqVEm+fQO07359/y0FKhHjS7M24nuKYZUlgA8eBrQ\nvnDXniV2dqfVbPvtK3qO0D36A6nX/Ljxi9PSjeIYzf7XETRMN/9h1pw2hSPGO0V/\n0nTcQDsMNTP0KDv0ip02FN+TNXfmA2NunVzGS2+tRBVncqybDAY30WdwRMzK+OL0\nih+f96EnbxZ5vT4LIRHbsUx0+bqGphI/8LWiftQPE95Y2LP0W1zChpGxyiqIXGG9\n0Sk7TKpOeRVQkzuEbspwtHKtchah8p+sCeH4W4iiZE+9s5hvE0x1q0Q+O9wmidQd\nQ8/cs9/VxXf/6ZaoLcGSMIdY5sIBro6iTGUxkxGe7bw9dAlbQkWU7iQAkwUapRXH\nx311Uh338bYU9/Vj+k2tnpDRZqOkYMcaqwQkaivdrBk1oE98oA25/hSvTDQer/jV\nVmypIgAKP2anTGTbkb5C\n=UL7O\n-----END PGP SIGNATURE-----\n",
-       "verified": true,
-       "verified_at": "2026-10-15T22:16:32Z"
-      }
-     },
-     "committer": {
-      "gravatar_id": "",
-      "html_url": "https://github.com/web-flow",
-      "id": 19864447,
-      "login": "web-flow",
-      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
-      "site_admin": false,
-      "type": "User",
-      "url": "https://api.github.com/users/web-flow",
-      "user_view_type": "public"
-     },
-     "html_url": "https://github.com/lokkju/skills/commit/b79f2fb3427182b97e061414257b4c6786948e03",
-     "node_id": "C_kwDOVCGK6NoAKGI3OWYyZmIzNDI3MTgyYjk3ZTA2MTQxNDI1N2I0YzY3ODY5NDhlMDM",
-     "parents": [
-      {
-       "html_url": "https://github.com/lokkju/skills/commit/7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "sha": "7372e2cf15addf82680b5ca9915ca6297802c43f",
-       "url": "https://api.github.com/repos/lokkju/skills/commits/7372e2cf15addf82680b5ca9915ca6297802c43f"
-      }
-     ],
-     "sha": "b79f2fb3427182b97e061414257b4c6786948e03",
-     "url": "https://api.github.com/repos/lokkju/skills/commits/b79f2fb3427182b97e061414257b4c6786948e03"
+     }
     },
-    "status": "behind",
-    "total_commits": 0,
-    "url": "https://api.github.com/repos/lokkju/skills/compare/main...yeet/release-main"
-   },
-   "status": 200,
-   "url": "https://api.github.com/repos/lokkju/skills/compare/main...yeet/release-main"
-  },
-  {
-   "body": null,
-   "headers": {},
-   "method": "GET",
-   "response": [
     {
      "active_lock_reason": null,
      "assignee": null,
@@ -1945,5 +2215,5 @@
    "url": "https://api.github.com/repos/lokkju/skills/issues?per_page=100&state=open"
   }
  ],
- "recorded_at": "2026-10-15T22:18:02Z"
+ "recorded_at": "2026-10-15T22:30:57Z"
 }
