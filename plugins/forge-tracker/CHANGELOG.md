@@ -1,5 +1,16 @@
 # Changelog
 
+## [forge-tracker--v2026.10.15.3](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.2...forge-tracker--v2026.10.15.3) (2026-10-15)
+
+### Features
+
+- **forge-tracker:** /next on GitHub: facts, fingerprint cache, classification and the slate ([a133dda](https://github.com/lokkju/skills/commit/a133ddae04cfbe195c9a4a2e2dd83c1f8baf6277))
+- **forge-tracker:** read the /next fingerprint and closing references on GitHub ([c8b8a0f](https://github.com/lokkju/skills/commit/c8b8a0f84a5c8a47277d3c204115c3b3eea11ab4))
+
+### Fixes
+
+- **forge-tracker:** fingerprint /next on open PR heads and check state, not pipeline time ([a0a6c64](https://github.com/lokkju/skills/commit/a0a6c647e46f392d8c04fd6b65e1f1ab7d6cfb41))
+
 ## [forge-tracker--v2026.10.15.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.1...forge-tracker--v2026.10.15.2) (2026-10-15)
 
 ### Fixes

@@ -1,7 +1,7 @@
 {
   "name": "forge-tracker",
   "description": "Keeps durable work on the forge's issue tracker and the tracker honest enough to plan from. This release has the read-only GitHub layer, /catchup (what changed and what's waiting on you since your last catchup) and /next (your queue, the lanes agents can start now, and what's blocked), with every failed read stated plainly.",
-  "version": "2026.10.15.2",
+  "version": "2026.10.15.3",
   "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
   "homepage": "https://github.com/lokkju/skills/tree/main/plugins/forge-tracker",
   "repository": "https://github.com/lokkju/skills",
