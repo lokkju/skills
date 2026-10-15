@@ -21,8 +21,8 @@ export type Item = {
 export type Counters = { D: number; A: number }
 
 /**
- * What `$.store` keeps per session, so a resumed session continues its numbering and ledger.
- * `closed` holds the task-list items `decision_close` settled while TaskUpdate wasn't available,
+ * What `$.store` keeps per session, so a resumed session continues its numbering and ledger: under
+ * `list:<CLAUDE_CODE_TASK_LIST_ID>` when that is set, `session:<session id>` otherwise. `closed` holds the task-list items `decision_close` settled while TaskUpdate wasn't available,
  * by task id, since their task files still show them open.
  */
 export type SessionRecord = {
