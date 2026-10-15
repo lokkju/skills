@@ -8,6 +8,8 @@ These are the Claude Code plugins and agent skills I run on my own machines ever
 
 **[forge-release](plugins/forge-release/README.md)** sets up release PRs across forges. Right now it's one script, `github-app-create`, which registers a private GitHub App for release tooling (yeet, release-plz, release-please) in two browser clicks and stores its credentials with `gh`, `pulumi` or `sops`. With `--public --user-token` it makes an App you can install across your organizations and stores a user access token for it instead. The skill that walks a repo through the whole setup comes next.
 
+**[forge-tracker](plugins/forge-tracker/README.md)** keeps durable work on the forge's issue tracker, and the tracker honest enough to plan from. Right now it's `/catchup`: when you come back to a project, it tells you what's waiting on you (mentions, review requests, needs-human issues), what merged, which rulings were made, how the board moved and whether CI is healthy, all since your last catchup. Every read fails on its own and says so; nothing that failed is shown as empty. GitHub only for now; GitLab and Forgejo, `/next` and `/groom` come next.
+
 **[claude-session-index](https://github.com/lokkju/claude-session-index)** indexes, searches and reports on your Claude Code sessions. It lives in its own repo; the marketplace just lists it.
 
 ## Install
