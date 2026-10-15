@@ -34,11 +34,13 @@ jobs:
       - name: Test session-decisions
         run: claude plugin test plugins/session-decisions
 
-  forge-release:
+  python:
+    name: ${{ matrix.plugin }} (${{ matrix.python }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        plugin: [forge-release, forge-tracker]
         python: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,10 +52,14 @@ jobs:
           enable-cache: false
       - name: Ruff
         run: |
-          uvx ruff check plugins/forge-release
-          uvx ruff format --check plugins/forge-release
+          uvx ruff check "plugins/$PLUGIN"
+          uvx ruff format --check "plugins/$PLUGIN"
+        env:
+          PLUGIN: ${{ matrix.plugin }}
       - name: Tests
-        run: uv run --no-project --with pytest pytest plugins/forge-release/tests
+        run: uv run --no-project --with pytest pytest "plugins/$PLUGIN/tests"
+        env:
+          PLUGIN: ${{ matrix.plugin }}
 
   shell:
     runs-on: ubuntu-latest
