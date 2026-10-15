@@ -447,9 +447,16 @@ def test_fingerprint_inputs_read_heads_counts_and_milestones(transport_for):
             ),
         )
         .op("BranchHeads", connection([{"name": "main", "target": {"oid": "abc"}}], key="refs"))
-        .route(
-            "/repos/acme/widgets/actions/runs",
-            {"workflow_runs": [{"id": 9, "updated_at": "2026-10-14T01:00:00Z"}]},
+        .op(
+            "OpenChangeHeads",
+            connection(
+                [
+                    {"number": 4, "commits": _commit("d4", {"state": "PENDING"})},
+                    {"number": 5, "commits": _commit("d5", None)},
+                    {"number": 6, "commits": {"nodes": []}},
+                ],
+                key="pullRequests",
+            ),
         )
     )
     assert adapter(world, transport_for).fingerprint_inputs() == {
@@ -459,10 +466,15 @@ def test_fingerprint_inputs_read_heads_counts_and_milestones(transport_for):
         "open_changes": 2,
         "newest_issue": "2026-10-14T00:00:00Z",
         "newest_change": None,
-        "newest_pipeline": "2026-10-14T01:00:00Z",
         "milestones": [["M2", "Nov", "", "OPEN"]],
         "branch_heads": {"main": "abc"},
+        "change_heads": {"4": ["d4", "pending"], "5": ["d5", "none"], "6": [None, "none"]},
     }
+    assert not any("/actions/runs" in c[1] for c in world.calls)
+
+
+def _commit(oid, rollup):
+    return {"nodes": [{"commit": {"oid": oid, "statusCheckRollup": rollup}}]}
 
 
 def _closing(number, total, *changes):

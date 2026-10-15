@@ -426,8 +426,10 @@ class GitHub:
 
     def fingerprint_inputs(self) -> dict[str, Any]:
         """The cheap reads `/next` fingerprints its facts with: the default branch and its head,
-        open issue and change counts, the newest issue, change and Actions run update times, every
-        milestone (id, title, due, state) and every branch head. Four requests on a small repo."""
+        open issue and change counts, the newest issue and change update times, every milestone
+        (id, title, due, state), every branch head, and each open change's head commit with its
+        combined check state (D28). A check run in progress moves none of these; a new head or a
+        changed check result does. Four GraphQL requests on a small repo."""
         data = self.t.graphql(NEXT_FINGERPRINT, {"owner": self.owner, "name": self.name})
         repo = (data or {}).get("repository")
         if not isinstance(repo, dict):
@@ -446,10 +448,11 @@ class GitHub:
         heads = self.t.graphql_all(
             BRANCH_HEADS, {"owner": self.owner, "name": self.name}, ("repository", "refs")
         )
-        runs = self.t.get(f"{self.repo_path}/actions/runs", {"per_page": 1})
-        if not isinstance(runs, dict) or not isinstance(runs.get("workflow_runs"), list):
-            raise ForgeError("actions/runs returned no workflow_runs list")
-        newest_run = runs["workflow_runs"][0] if runs["workflow_runs"] else {}
+        changes = self.t.graphql_all(
+            OPEN_CHANGE_HEADS,
+            {"owner": self.owner, "name": self.name},
+            ("repository", "pullRequests"),
+        )
         return {
             "default_branch": default["name"],
             "default_head": (default.get("target") or {}).get("oid"),
@@ -457,7 +460,6 @@ class GitHub:
             "open_changes": (repo.get("openChanges") or {}).get("totalCount"),
             "newest_issue": newest("newestIssue"),
             "newest_change": newest("newestChange"),
-            "newest_pipeline": newest_run.get("updated_at"),
             "milestones": sorted(
                 [
                     m.get("id") or "",
@@ -470,6 +472,7 @@ class GitHub:
             "branch_heads": {
                 h["name"]: (h.get("target") or {}).get("oid") for h in heads if h.get("name")
             },
+            "change_heads": {str(c["number"]): _head_state(c) for c in changes},
         }
 
     def closing_refs(self) -> list[ClosingRef]:
@@ -514,6 +517,27 @@ query NextFingerprint($owner: String!, $name: String!) {
     }
     newestChange: pullRequests(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes { updatedAt }
+    }
+  }
+}
+"""
+
+
+def _head_state(change: dict[str, Any]) -> list[Optional[str]]:
+    """An open change's head commit and its combined check state, lowercased (`pending`,
+    `success`, `failure`, `error`, `expected`), or `none` when the head has no checks."""
+    commits = (change.get("commits") or {}).get("nodes") or []
+    commit = (commits[0].get("commit") or {}) if commits else {}
+    rollup = commit.get("statusCheckRollup") or {}
+    return [commit.get("oid"), (rollup.get("state") or "").lower() or "none"]
+
+
+OPEN_CHANGE_HEADS = """
+query OpenChangeHeads($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: OPEN, first: 100, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { number commits(last: 1) { nodes { commit { oid statusCheckRollup { state } } } } }
     }
   }
 }

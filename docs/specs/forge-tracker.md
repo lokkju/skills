@@ -314,12 +314,15 @@ recommends only; it never claims, assigns, comments or branches.
 owners, body and links; open changes with head pipeline and conflict state; branches with no
 change; and the closing references from changes to open issues. Cached under
 `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/next/<host>_<project>/facts.json` with
-a fingerprint of cheap inputs: default-branch head, the newest issue, change and pipeline
-`updated_at`, open issue and change counts, a digest of the milestones (id, title, due), the
-remote branch heads, a hash of `.claude/forge-tracker.local.md` (classification and the slate
-depend on its labels, tiers and markers), and a schema tag that hashes the package's own source.
-An unchanged fingerprint reuses the facts; `--refresh` re-reads them anyway. A run with a failed
-read is written for inspection but never reused.
+a fingerprint of cheap inputs: default-branch head, the newest issue and change `updated_at`,
+open issue and change counts, a digest of the milestones (id, title, due), the remote branch
+heads, each open change's head commit SHA with its combined check state (`pending`, `success`,
+`failure` and so on from the head commit's `statusCheckRollup`, or `none`), a hash of
+`.claude/forge-tracker.local.md` (classification and the slate depend on its labels, tiers and
+markers), and a schema tag that hashes the package's own source. A CI run in progress doesn't
+move the fingerprint; a new head or a changed check result does (D28). On GitHub that's four
+read-only GraphQL queries on a small repo. An unchanged fingerprint reuses the facts; `--refresh`
+re-reads them anyway. A run with a failed read is written for inspection but never reused.
 
 The CLI has three entry points: `forge-tracker next` (the report: the saved slate while the
 fingerprint holds, otherwise the classified facts and a `slate: needed` line), `forge-tracker
@@ -578,7 +581,8 @@ Each phase is a releasable PR or two.
 
 ## Decisions (2026-10-15)
 
-Ruled on [#38](https://github.com/lokkju/skills/pull/38). The body above already reflects each one.
+Items 1 to 9 were ruled on [#38](https://github.com/lokkju/skills/pull/38); item 10 is session
+ruling D28. The body above already reflects each one.
 
 1. **Architecture.** A standard-library Python CLI plus a thin hooks module. `$.http.fetch` can't
    pin a CA, `$.fs.write` can't set 0600 or write atomically, and agents can't call slash
@@ -602,3 +606,7 @@ Ruled on [#38](https://github.com/lokkju/skills/pull/38). The body above already
    against the stack on ml-01, and GitHub uses a dedicated test repo created through infra Pulumi.
 9. **Merged but open.** Propose a close only for real closing references. An `#N` seen only in a
    title or branch goes to the unclear bucket.
+10. **`/next` fingerprint and CI (D28).** The fingerprint drops the newest pipeline `updated_at`
+    and takes each open change's head commit SHA plus its combined check state instead. Every
+    Actions run in progress bumped `updated_at` and threw away a saved slate for nothing; the
+    head and check state still move when a push lands or a check result changes.
