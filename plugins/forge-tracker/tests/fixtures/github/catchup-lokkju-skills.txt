@@ -1,0 +1,33 @@
+lokkju/skills on github.com, 2026-10-14 04:19 to 2026-10-15 04:19 (--since; the marker isn't read or moved)
+
+Waiting on you
+  #25 mentioned, updated 2026-10-15: session-decisions: check that $.tool.list() includes deferred tools before decision_close trusts it
+  #26 mentioned, updated 2026-10-15: session-decisions: keep the stored queue across a resume that changes the session id
+  #18 mentioned, updated 2026-10-14: fix(session-decisions): settle and keep items when the task tools come and go
+  #17 mentioned, updated 2026-10-14: fix(session-decisions): keep an item's label when TaskUpdate changes its subject
+Merged since
+  #4  1 PR: #31 fix(session-decisions): treat the fallback ledger as a normal path
+  #7  1 PR: #17 fix(session-decisions): keep an item's label when TaskUpdate changes its subject
+  #9  1 PR: #18 fix(session-decisions): settle and keep items when the task tools come and go
+  #14  1 PR: #29 feat(session-decisions): revise open items in place (decision_update, revised marker, skill section)
+  #20  1 PR: #32 feat(session-decisions): render markdown in cards and expand long items
+  #25  1 PR: #35 fix(session-decisions): tell the model to load a deferred TaskUpdate
+  #26  1 PR: #34 fix(session-decisions): keep the stored queue when the session id changes
+  #27  1 PR: #28 fix(session-decisions): accept (recommend: ...) and nested parentheses at any depth
+  (no issue) #16 chore: release wave
+  (no issue) #30 fix(session-decisions): accept only real link tokens and catch self-numbered drafts
+  (no issue) #33 chore: release 2026.10.15.1
+  (no issue) #39 feat(session-decisions): open More in a question dialog and give URLs their own line
+  changelog: 1 entry added
+    **session-decisions:** an entry
+Decisions made
+  #10  Ruling (2026-10-14): yes. New repos that aren't Rust crates use yeet, for SemVer as well as CalVer. Rust crates stay on release-plz. yeet already releases th...
+  #38  Rulings on the design questions (2026-10-15):
+Board movement
+  untiered +11 -10
+Health
+  main push run 38679945924 (CI): passed
+  flaky: none
+  tags session-decisions--v*: session-decisions--v2026.10.15.1 (2026-10-15)
+  tags forge-release--v*: forge-release--v2026.10.14.1 (2026-10-14)
+  tags registry:app: registry tags aren't read on GitHub yet

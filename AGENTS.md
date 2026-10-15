@@ -11,6 +11,11 @@
 - `plugins/forge-release/`: release-PR setup across forges. So far only `scripts/github-app-create`
   (GitHub App manifest flow); no skill yet. Standard-library Python plus `openssl`; tests run with
   `uv run --no-project --with pytest pytest plugins/forge-release/tests`.
+- `plugins/forge-tracker/`: issue-tracker working rules and reports (design in
+  `docs/specs/forge-tracker.md`). So far the read-only GitHub layer and `/catchup`: a
+  standard-library Python CLI (`scripts/forge-tracker`) and `commands/catchup.md`. Tests run with
+  `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over recorded fixtures,
+  no network.
 
 `npx skills add lokkju/skills` finds every `SKILL.md` under `plugins/*/skills/`, so a skill here
 is installable for any agent as well as through the marketplace.
@@ -64,8 +69,8 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
 
 - `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, then
   `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
-- `forge-release`: `ruff check`, `ruff format --check` and the pytest suite on Python 3.11 and
-  3.14.
+- `forge-release` and `forge-tracker`: `ruff check`, `ruff format --check` and the pytest suite
+  on Python 3.11 and 3.14.
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
 
@@ -78,6 +83,8 @@ claude plugin validate --strict plugins/<name>
 claude plugin test plugins/session-decisions
 uvx ruff check plugins/forge-release && uvx ruff format --check plugins/forge-release
 uv run --no-project --with pytest pytest plugins/forge-release/tests
+uvx ruff check plugins/forge-tracker && uvx ruff format --check plugins/forge-tracker
+uv run --no-project --with pytest pytest plugins/forge-tracker/tests
 uv run --no-project scripts/check-skill-names.py
 ```
 

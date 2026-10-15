@@ -95,12 +95,15 @@ pull requests, `!N` for GitLab merge requests, and `group/project#N` across proj
 
 | Forge | Reads through | Auth | CA |
 | --- | --- | --- | --- |
-| GitHub | `gh api` (REST), `gh api graphql` where REST needs one call per item | `gh auth` | system |
+| GitHub | `urllib` against REST, and GraphQL where REST needs one call per item | the token from `gh auth token` | system |
 | GitLab | `glab api` (REST), `glab api graphql` for the same reason | `glab auth` | `glab`'s `ca_cert` for the host |
 | Forgejo | `urllib` against `/api/v1` | `FORGEJO_TOKEN`, else the matching login in `tea`'s config | `ca_file:` in the config file |
 
 Forgejo goes through `urllib` and not `tea` because `tea`'s output is meant for terminals and
-covers only part of what's needed; it does no harm to borrow its token.
+covers only part of what's needed; it does no harm to borrow its token. GitHub does the same
+with `gh`'s token: `urllib` gives the transport the status code and the `Link` header directly,
+and every GitHub request passes the same read guard as Forgejo's. `gh auth token` runs once per
+command, and the token goes only into the `Authorization` header.
 
 ### What it reads
 

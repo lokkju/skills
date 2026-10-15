@@ -68,3 +68,18 @@ targets:
       - plugins/forge-release/CHANGELOG.md
       - plugins/forge-release/README.md
       - plugins/forge-release/tests
+
+  forge-tracker:
+    type: path
+    path: plugins/forge-tracker
+    tag_prefix: forge-tracker--v
+    version_files:
+      - path: plugins/forge-tracker/.claude-plugin/plugin.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: plugins/forge-tracker/CHANGELOG.md
+    exclude_paths:
+      - plugins/forge-tracker/CHANGELOG.md
+      - plugins/forge-tracker/README.md
+      - plugins/forge-tracker/tests
