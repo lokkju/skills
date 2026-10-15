@@ -42,7 +42,9 @@ write a recommendation isn't ready to ask yet, which is the point.
 ### Seeing
 
 - **Transcript:** the row where the assistant asked becomes the item's card, and shrinks to
-  `✓ D3 · <ruling>` once it's settled.
+  `✓ D3 · <ruling>` once it's settled. Claude Code folds a TaskCreate call into a group with the
+  calls around it, which draws nothing on the main view, so the card draws in that group's place;
+  this works the same at any terminal size, in fullscreen and on the main screen.
 - **Sidebar:** in fullscreen, the first new item opens the queue beside the transcript (Claude
   Code only seats a pane it wasn't asked for from 144 columns). Close it and it stays closed
   until the queue empties, and then closes itself.

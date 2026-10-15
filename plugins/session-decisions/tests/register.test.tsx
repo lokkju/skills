@@ -650,6 +650,25 @@ describe('drawing', () => {
     expect(await settled.find({ key: 'accept-D1' })).toBeUndefined()
   })
 
+  test('a folded tool group with a TaskCreate in it draws the card under the group', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const call = (tool: string, output: unknown) => ({ tool_use_id: tool, tool, input: {}, isRunning: false, isErrored: false, isInterrupted: false, output })
+    const calls = [call('ToolSearch', {}), call('TaskCreate', { task: { id: '1', subject: 'D1 DECIDE: x' } })]
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolGroup', props: { calls, isActive: false, isExpanded: false } as never })
+      expect(await ui.find({ key: 'accept-D1' })).toBeDefined()
+      await ui.unmount()
+    }
+    // Unfolded, the group is ToolUse rows, each drawing its own card.
+    const open = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls, isActive: false, isExpanded: true } as never })
+    expect(await open.find({ key: 'accept-D1' })).toBeUndefined()
+    const running = [call('TaskCreate', undefined)].map(one => ({ ...one, isRunning: true }))
+    const live = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls: running, isActive: true, isExpanded: false } as never })
+    expect(await live.find({ key: 'accept-D1' })).toBeUndefined()
+  })
+
   test('the sidebar opens itself in fullscreen and docks borderless', async ($, on) => {
     const { opened } = engine(on)
     await start($)

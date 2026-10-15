@@ -29,6 +29,8 @@ const PANE = 'session-decisions'
 const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
+// The tools whose transcript row draws as its item's card.
+const CARD_TOOLS = ['TaskCreate', ADD_TOOL, UPDATE_TOOL] as const
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
 const KEEP_RECORDS = 100
 const RECORD = /^(session|list):/
@@ -56,6 +58,24 @@ const DAY = 24 * 60 * 60 * 1000
 // Claude Code's own theme keys, so the cards follow whichever theme the person runs.
 const ACCENT = 'claude'
 const KIND_COLOR = { DECIDE: 'warning', ACTION: 'suggestion' } as const
+
+/**
+ * The item a finished TaskCreate, decision_add or decision_update call made or changed, found by
+ * the task id or label in its output; undefined for any other call or one that didn't finish.
+ */
+function rowItem(
+  list: readonly Item[],
+  call: { tool: string; isRunning: boolean; isErrored: boolean; isInterrupted: boolean; output?: unknown },
+): Item | undefined {
+  if (call.isRunning || call.isErrored || call.isInterrupted) return undefined
+  if (call.tool === 'TaskCreate') {
+    const id = String((call.output as { task?: { id?: unknown } } | undefined)?.task?.id ?? '')
+    return id ? list.find(one => one.source === 'tasks' && one.id === id) : undefined
+  }
+  if (call.tool !== ADD_TOOL && call.tool !== UPDATE_TOOL) return undefined
+  const label = String(call.output ?? '').split(' ')[0]
+  return label ? list.find(one => one.source === 'ledger' && one.label === label) : undefined
+}
 
 function safeId(id: unknown): string | null {
   return typeof id === 'string' && SAFE_ID.test(id) && id !== '.' && id !== '..' ? id : null
@@ -567,24 +587,44 @@ export const register: Register = on => {
   })
 
   // In the transcript, a finished TaskCreate, decision_add or decision_update row draws as its item's card.
-  on('ui.render', { component: 'ToolUse', props: { tool: 'TaskCreate' } }, async ($, e, next) => {
-    measure(e)
-    if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
-    const id = String((e.props.output as { task?: { id?: unknown } } | undefined)?.task?.id ?? '')
-    const item = (await read($, items)).find(one => one.source === 'tasks' && one.id === id)
-    if (!item) return next(e)
-    return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
-  })
-  for (const tool of [ADD_TOOL, UPDATE_TOOL]) {
+  for (const tool of CARD_TOOLS) {
     on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
       measure(e)
-      if (e.props.isRunning || e.props.isErrored || e.props.isInterrupted) return next(e)
-      const label = String(e.props.output ?? '').split(' ')[0]
-      const item = (await read($, items)).find(one => one.source === 'ledger' && one.label === label)
+      const item = rowItem(await read($, items), e.props)
       if (!item) return next(e)
       return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
     })
   }
+
+  // Claude Code 2.1.286 folds a TaskCreate call into a tool group with the calls around it (a
+  // ToolSearch that loaded it, say), and a folded group of those draws as nothing at all, so its
+  // card would show only in ctrl+o. A folded group draws as usual with its items' cards under it;
+  // an unfolded one is ToolUse rows, which draw them already.
+  on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    if (e.props.isExpanded) return next(e)
+    const list = await read($, items)
+    const found: Item[] = []
+    for (const call of e.props.calls) {
+      const item = rowItem(list, call)
+      if (item && !found.includes(item)) found.push(item)
+    }
+    if (found.length === 0) return next(e)
+    measure(e)
+    const { Box } = $.ui.resolve(e)
+    const below = await next(e)
+    return (
+      <Box flexDirection="column">
+        {below}
+        {await Promise.all(
+          found.map(async item => (
+            <Box key={`group-${item.source}-${item.id}`} flexDirection="column">
+              {await drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })}
+            </Box>
+          )),
+        )}
+      </Box>
+    )
+  })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     measure(e)
