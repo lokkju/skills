@@ -28,6 +28,11 @@ Call TaskCreate with a subject in one of these forms, and the context in the des
 rejects a subject missing its recommendation or link; fix it and create it again. Don't number
 items yourself while the hook is working.
 
+Keep the subject to one short line: the question, the recommendation and the link. Everything else
+goes in the description, written as short paragraphs or `- ` bullets with real line breaks between
+them, never as one long paragraph. The user reads it in a dialog that keeps your line breaks but
+shows no markdown and cuts what doesn't fit the screen, so put what they need to decide first.
+
 In your message, refer to the item by its label ("D3"); TaskList shows it if TaskCreate's result doesn't.
 
 If TaskCreate's result shows the subject without a label, the hook isn't running (a `claude -p`
