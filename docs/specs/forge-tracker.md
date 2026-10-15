@@ -1,13 +1,13 @@
 # forge-tracker: design
 
-_Status: draft, 2026-10-15. Covers [#12](https://github.com/lokkju/skills/issues/12) (the
+_Status: decided, 2026-10-15. Covers [#12](https://github.com/lokkju/skills/issues/12) (the
 plugin and its fixed constraints), [#21](https://github.com/lokkju/skills/issues/21) (the
 read-only forge layer), [#22](https://github.com/lokkju/skills/issues/22) (`/groom`),
 [#23](https://github.com/lokkju/skills/issues/23) (`/catchup`) and
 [#24](https://github.com/lokkju/skills/issues/24) (`/next`). The constraints come from the
 forge-tracker section of the 2026-10-01 session-decisions and forge-tracker spec in the private
-skills-marketplace repo; they're restated here so this file stands on its own. Open points are
-in [Questions for Loki](#questions-for-loki)._
+skills-marketplace repo; they're restated here so this file stands on its own. Every design
+question is settled; the rulings are in [Decisions (2026-10-15)](#decisions-2026-10-15)._
 
 ## Purpose
 
@@ -16,7 +16,7 @@ tracker honest enough to plan from. It does two kinds of thing:
 
 - **Working rules** the assistant follows during any session: file discovered work on the right
   tracker, record rulings one way, fetch and re-read before acting on an issue, and put
-  `Closes #N` in every PR or MR.
+  `Closes #N` in a PR or MR whose work was picked up from an issue.
 - **Three commands** built on one read-only forge layer that works the same on GitHub, GitLab and
   Forgejo: `/catchup` (what changed and what waits on you), `/next` (what to work on, and what
   agents can start now) and `/groom` (find tracker drift and fix it when you approve).
@@ -26,24 +26,10 @@ plugin `userConfig` or the per-repo config file.
 
 ## The prototype
 
-#24's comment reports a measurement "while using the prototype". I couldn't find that prototype
-from ml-01. I searched:
-
-- GitHub code search across the `lokkju` and `codexpublicus` owners for `catchup`,
-  `forge-tracker`, `/groom`, `merge_status`, `has_conflicts` and `passed only on retry`. The only
-  hits are the 2026-10-01 spec and a session-decisions test fixture that mentions forge-tracker
-  in passing.
-- Every file and the git history (deleted files included) of every repo under
-  `/home/lokkju/projects`, plus `~/.claude/skills`, `~/.claude/commands`, `~/.claude/plugins` and
-  `~/.local/bin`.
-- `~/.cache` for the `catchup/` and `next/` markers #23 and #24 describe; there are none.
-- `glab` and `tea` aren't installed here and have no config; the GitLab measurement came from
-  another machine.
-
-So nothing is reused from it yet. The issues read like they were written from it (the
-four-minute window, the page cap that rendered as "none", `merge_status: unchecked`), and this
-design takes those lessons as given. If the prototype has working GitLab adapter code, the
-GitLab phase should start from it (question 2).
+#24's comment reports a measurement "while using the prototype". That prototype isn't reused:
+its lessons (the four-minute window, the page cap that rendered as "none", `merge_status:
+unchecked`) are already in #23, #24 and this design, which takes them as given. The local test
+stack under [Testing](#testing) replaces it as the place GitLab and Forgejo behaviour is measured.
 
 ## Layout
 
@@ -62,7 +48,7 @@ plugins/forge-tracker/
     writes.py                     the named write operations and the write-wrapper
   commands/catchup.md next.md groom.md
   skills/forge-tracker/SKILL.md   the working rules
-  hooks/hooks.json, hooks/register.ts     SessionStart list and the Closes #N check
+  hooks/hooks.json, hooks/register.ts     SessionStart list and the closing-reference check
   tests/                          pytest over recorded fixtures; claude plugin test for the module
 ```
 
@@ -80,9 +66,10 @@ The forge layer and the three reports are a Python CLI, like forge-release's
   pytest with no network.
 
 The function-hooks module stays small. It owns what has to be a hook: the SessionStart list and
-the `Closes #N` check on PR or MR creation. It reaches the forge only by running the CLI with
-`$.process.run`. The commands are markdown files that run the CLI and hand its output to Claude
-with instructions. Question 1 asks whether this split is right.
+the closing-reference check on PR or MR creation. It reaches the forge only by running the CLI
+with `$.process.run`. The commands are markdown files that run the CLI and hand its output to Claude
+with instructions. The cost is two languages in one plugin and two test runners, which the
+reasons above outweigh.
 
 ## The forge layer (#21)
 
@@ -161,11 +148,14 @@ never re-poll to wait for an answer.
 
 ### Rules
 
-- **Reads can't write.** The read transport refuses every method but GET. GraphQL reads are POST,
-  which conflicts with that rule; the transport allows a POST only to the forge's GraphQL
-  endpoint and only when the document parses as queries with no `mutation` (question 3). The
-  check is in `transport.py`, below the adapters, where no adapter can bypass it. Writes go through
-  a separate transport that only `writes.py` imports.
+- **Reads can't write.** #21's "GET only" means read-only. The read transport refuses every
+  method but GET, with one exception: a POST to the forge's GraphQL endpoint whose document's
+  operations are all queries. The transport finds the operation type of every operation in the
+  document by parsing it (comments and strings skipped, a shorthand `{ ... }` counted as a
+  query), never by matching the string `mutation`; a mutation or subscription anywhere in the
+  document, a POST to any other path, or a document it can't parse is refused before any request
+  is sent. The check is in `transport.py`, below the adapters, where no adapter can bypass it.
+  Writes go through a separate transport that only `writes.py` imports.
 - **Paginate to the end or fail.** Every list follows `Link` or `X-Next-Page` to the last page.
   A page cap that is hit makes the read FAILED with the cap in the reason. It never becomes a
   short list that renders as "none".
@@ -202,8 +192,8 @@ Each runs as `forge-tracker write <op>` with a JSON payload on stdin and prints 
 **The write-wrapper.** When the config sets `write_wrapper:`, every operation runs the wrapper
 instead of calling the forge: `<wrapper> <op>` with the same JSON on stdin, in the repo root.
 The wrapper does the write itself (a project's own `decide` command, its scrubber) and exits 0,
-or exits non-zero to refuse, and its stderr is shown. Question 4 asks whether the wrapper should
-do the write or only vet it.
+or exits non-zero to refuse, and its stderr is shown. forge-tracker never sends a write of its
+own when a wrapper is set.
 
 ## Configuration
 
@@ -332,10 +322,10 @@ reused.
   agent can build, say). An assignee is never a reason; it's shown as owner.
 - **Blocked:** an open blocker by native link or the configured convention. A link whose blocker
   is closed isn't blocking, and `/groom` reports it.
-- **Agent-ready:** open, not person-only, not blocked. Question 5 asks whether the agent label
-  should be required as well.
-- **Merged but open:** flagged on the item, since it inflates the ready list badly; `/groom`
-  fixes it.
+- **Agent-ready:** open, not person-only, not blocked. The agent label isn't required; when it's
+  configured, it only sorts labelled items first within their tier.
+- **Merged but open:** flagged on the item when a merged change has a real closing reference to
+  it (the same rule `/groom` uses), since it inflates the ready list badly; `/groom` fixes it.
 
 **Unblock count:** for each person-only item, how many agent-ready items it unblocks, counted
 transitively through blocking links with a visited set: a cycle counts each item once and is
@@ -377,7 +367,7 @@ and writes nothing until you approve.
 
 | Check | Evidence the report shows | Proposed change |
 | --- | --- | --- |
-| Merged but still open | the merged change, its closing reference, and that the merge sha is on the default branch | `close` with a comment naming it |
+| Merged but still open | the merged change, its closing reference (GitHub `closingIssuesReferences`, GitLab `closes_issues`, Forgejo closing keywords), and that the merge sha is on the default branch | `close` with a comment naming it |
 | Tier label without matching milestone, or the reverse | the label, the milestone | `labels` or `milestone` |
 | Blocked label with nothing linked | the label, no links | `unlink` |
 | Link whose blocker is closed | the link, the blocker's close date | `unlink` |
@@ -389,7 +379,7 @@ and writes nothing until you approve.
 
 **Verified or unclear.** A change goes in the proposal list only when the CLI verified it. The
 rest goes in an unclear bucket that's never acted on: `conflicts: unknown`, a merged change that
-mentions `#N` only in its title or branch without a closing reference (question 9), a branch
+mentions `#N` only in its title or branch without a closing reference, a branch
 whose commits aren't all reachable from the default branch, and every duplicate.
 
 **Approval.** Claude shows the proposals numbered with their evidence and asks once. You answer
@@ -431,14 +421,20 @@ None of it needs the commands.
   filing, search open issues for the same thing and comment there instead when one exists.
 - **Rulings** are recorded with one verb: `forge-tracker write rule <N>`, which goes through the
   write-wrapper when there is one and otherwise posts `Ruling (YYYY-MM-DD): <ruling text>`, adds
-  the decision-made label and removes needs-human (question 6). Never an ad hoc comment, a
-  bundled note, or a session label such as `D12`.
+  the decision-made label and removes needs-human and decision, in one step. `/groom`'s "decided
+  but still waiting" check then catches only rulings recorded some other way. Never an ad hoc
+  comment, a bundled note, or a session label such as `D12`.
 - **Freshness.** At pickup, before merge and before handoff: `git fetch`, then re-read the
   issue and its comments since you last read it (`forge-tracker issue <N> --since <time>`), and
-  say what changed.
-- **`Closes #N`** (or `Closes !N` / `group/project#N` as the forge writes it) in every PR or MR
-  body. After merge, confirm the issue closed; when it didn't (a merge to a non-default branch,
-  say), close it with `write close`.
+  say what changed. At pickup, `forge-tracker issue <N> --pickup` also records `N` against the
+  current branch, which is what the closing-reference rule below reads.
+- **Closing references.** When the work was picked up from an issue, the PR or MR body carries
+  `Closes #N` (or `Closes !N` / `group/project#N` as the forge writes it). Work counts as picked
+  up from an issue when forge-tracker recorded the pickup for the branch, or when the branch name
+  has the issue number as a segment (`21-github-adapter`, `fix/21`; date-shaped segments such as
+  `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
+  confirm the issue closed; when it didn't (a merge to a non-default branch, say), close it with
+  `write close`.
 - **Shared account.** Never infer that the user acted from the account that acted.
 - **Agents** pass `--no-mark` to `/catchup` (or `forge-tracker catchup --no-mark`) when they run
   it for themselves.
@@ -460,10 +456,14 @@ Assignment is what the spec asks for, and the label is what makes an item need a
 assignee only narrows the list to you. That's consistent with the shared-account rule, which
 forbids reading an assignee as the signal.
 
-**`Closes #N` check.** A `tool.call` hook on Bash that matches `gh pr create`, `glab mr create`
-and `tea pr create` (and `gh api` POSTs to `/pulls`) and denies the call when the body has no
-closing reference, telling the assistant to add one or a `No-Issue: <reason>` line for a change
-with no issue (question 7). It doesn't look at PRs opened outside the assistant.
+**Closing-reference check.** A `tool.call` hook on Bash that matches `gh pr create`, `glab mr
+create` and `tea pr create` (and `gh api` POSTs to `/pulls`). It acts only when the work was
+picked up from an issue, by the rule in [Working rules](#working-rules-the-skill): a pickup
+forge-tracker recorded for the current branch, or the issue number as a branch segment. When
+that issue has no closing reference in the body, the hook lets the call run and adds a warning
+to the assistant's context naming the issue, so it can edit the PR or MR body. It never denies
+the call, and a PR or MR with no issue behind it gets nothing. It doesn't look at PRs opened
+outside the assistant.
 
 ## State
 
@@ -475,6 +475,7 @@ All state is local to the machine, outside the repo, and safe to delete.
 | `/next` facts and slate | `.../forge-tracker/next/<host>_<project>/{facts,slate}.json` | until the fingerprint moves |
 | needs-human cache | `.../forge-tracker/needs-human/<host>_<project>_<user>.json` | 10 minutes |
 | forge probe | `.../forge-tracker/hosts.json` | a day |
+| issue pickups | `.../forge-tracker/pickup/<host>_<project>.json` (branch to issue) | until the branch's change merges |
 
 Directories are created 0700 and files written 0600 by a temp file and `os.replace`. A
 relative `XDG_CACHE_HOME` is ignored. The tracker itself (issues, labels, comments) is the only
@@ -486,7 +487,7 @@ forge-tracker names neither session-decisions nor git-commit, in code, skill tex
 two plugins meet only through what each does on its own: a session-decisions item can link
 `#N`, and forge-tracker's SessionStart list is context that never enters a task list. A repo
 with only forge-tracker installed gets every feature here. The same goes for git-commit's
-`Closes #N` wording: forge-tracker enforces it from its own hook and skill.
+`Closes #N` wording: forge-tracker checks it from its own hook and skill.
 
 ## Testing
 
@@ -494,8 +495,17 @@ with only forge-tracker installed gets every feature here. The same goes for git
   recorded fixtures per forge: pagination to the end, a hit page cap as FAILED, each read failing
   alone, three-valued mergeability (including GitLab `unchecked` with `has_conflicts: false`),
   bot detection, native and convention links, and a token in stderr coming out as `***`.
-  Fixtures are real responses recorded once from live instances and scrubbed, stored under
-  `tests/fixtures/<forge>/`.
+  Fixtures are real responses recorded from the live targets below and scrubbed, stored under
+  `tests/fixtures/<forge>/`; CI reads only these, so it stays fast and needs no network.
+- **Live targets.** GitHub uses a dedicated public repo, `lokkju/forge-tracker-fixtures`, created
+  through Pulumi in lokkju/infra and seeded with issues, PRs, labels, milestones and blocking
+  links. GitLab CE and Forgejo run from a docker-compose stack in
+  `plugins/forge-tracker/tests/live/`, with a seed script that creates the repos, issues, MRs,
+  labels and blocking links (native on Forgejo, the `relates_to` convention on GitLab CE). GitLab
+  is served under a subpath behind a TLS proxy with a locally generated CA, so `api_base:` and
+  the pinned-CA path are exercised. Live runs go against the stack on a machine that can host it
+  (ml-01 for this repo) and against the GitHub fixtures repo; recording fixtures is a live run
+  with `--record`.
 - **Transport.** A write method, a GraphQL `mutation`, or a mutation hidden after a query in the
   same document is refused before any process runs.
 - **Reports.** Each report's text and `--json` against fixture worlds: the marker moving only
@@ -506,9 +516,10 @@ with only forge-tracker installed gets every feature here. The same goes for git
   wrapper refusing.
 - **Module.** `claude plugin test plugins/forge-tracker`, with `process.run` hooked to return
   canned CLI output: the SessionStart block, its failure line, nothing outside a repo, and the
-  `Closes #N` deny and allow cases.
+  closing-reference warning: a recorded pickup, an issue-numbered branch, a date-shaped branch,
+  and a PR with no issue that gets nothing.
 - **Live smoke.** One read-only run per forge (`forge-tracker smoke`), by hand, not in CI: every
-  read against a real project, printing counts and any FAILED part.
+  read against its live target, printing counts and any FAILED part.
 - CI gets a `forge-tracker` job shaped like `forge-release`'s (ruff, pytest on 3.11 and 3.14),
   and `claude plugin test plugins/forge-tracker` joins the `plugins` job.
 
@@ -519,50 +530,43 @@ Each phase is a releasable PR or two.
 1. **GitHub read layer and `/catchup`.** Detection, config loader, transport rules, the GitHub
    adapter with the contract suite, `/catchup` with its marker, the plugin skeleton, the
    marketplace entry and the yeet target. This is the smallest slice that's useful on its own,
-   and it exercises every rule in #21.
+   and it exercises every rule in #21. Its fixtures come from the GitHub fixtures repo; until
+   that repo exists and is seeded, they're recorded from this repo and scrubbed.
 2. **Working rules and hooks.** The skill, `write file` and `write rule` with the write-wrapper,
-   the SessionStart list and the `Closes #N` hook. Still GitHub only.
+   the SessionStart list, `issue --pickup` and the closing-reference hook. Still GitHub only.
 3. **`/next` on GitHub.** Facts, fingerprint cache, classification, unblock counts, the slate.
 4. **`/groom` on GitHub.** The checks, the unclear bucket, the remaining writes.
-5. **GitLab adapter.** Contract suite with GitLab fixtures, self-hosted subpath and CA, the
-   `relates_to` convention. Every report then works on GitLab with no other change.
-6. **Forgejo adapter.** The same, plus the Forgejo mergeability measurement.
+5. **GitLab adapter.** The docker-compose stack and its seed script, the contract suite with
+   GitLab fixtures recorded from it, self-hosted subpath and CA, the `relates_to` convention.
+   Every report then works on GitLab with no other change.
+6. **Forgejo adapter.** Forgejo joins the stack; the same, plus the Forgejo mergeability
+   measurement.
 7. **Later, not now:** the status pane from #24 that shows the slate's top items, reading only
    the cache.
 
-## Questions for Loki
+## Decisions (2026-10-15)
 
-1. **Python CLI plus a thin hooks module, or everything in the TypeScript module?** I recommend
-   the Python CLI for the forge layer and reports, with the module limited to SessionStart and
-   the `Closes #N` hook and the commands as markdown. Agents can run a CLI but not a slash
-   command, `$.http.fetch` can't pin a CA, and `$.fs.write` can't do 0600 or an atomic rename.
-   The cost is two languages in one plugin and two test runners.
-2. **Which forge first, and where's the prototype?** I recommend GitHub first, since this repo,
-   its CI and an authenticated `gh` are all here. But the prototype measured GitLab, which
-   suggests GitLab is where you actually use it; if so, swap phases 1 and 5. Either way, point me
-   at the prototype so its adapter code and fixtures carry over.
-3. **GraphQL under "GET only".** #21 asks for GET only and also for GraphQL where REST is thin,
-   and GraphQL reads are POST. GitHub's PR list has no `mergeable` and its blocking links are
-   per issue in REST. I recommend allowing POST to the GraphQL endpoint only for documents that
-   parse as queries with no `mutation`, checked in the transport.
-4. **Write-wrapper contract.** I recommend the wrapper performs the write itself (`<wrapper> <op>`,
-   JSON on stdin, non-zero to refuse), so a project can route rulings through its own `decide`
-   command. The alternative is a filter that returns a scrubbed payload for forge-tracker to send.
-5. **What makes an item agent-ready?** I recommend open, not person-only and not blocked, with
-   the agent label, when configured, sorting those items first within their tier. Requiring the
-   label would hide most of the board in repos that don't label carefully.
-6. **Does recording a ruling also remove needs-human?** I recommend yes: `rule` adds
-   decision-made and removes needs-human and decision in one step, so `/groom`'s "decided but
-   still waiting" check only catches rulings recorded some other way.
-7. **Enforce `Closes #N` with a deny hook?** I recommend a deny on `gh pr create`, `glab mr
-   create` and `tea pr create` without a closing reference, with a `No-Issue: <reason>` line as
-   the escape for chores and releases. Skill-only wording is what the 2026-10-01 evidence showed
-   being skipped.
-8. **Live smoke targets.** #21's done-when needs a live read-only run per forge. Which
-   self-hosted GitLab (ideally one with a subpath and a pinned CA) and which Forgejo instance
-   should those run against, and with which account?
-9. **What counts as a reference for "merged but still open"?** #22 counts `#N` in a title or
-   branch. A branch named for an issue often carries part of the work, and closing on that would
-   close unfinished issues. I recommend proposing a close only for closing references (GitHub
-   `closingIssuesReferences`, GitLab `closes_issues`, Forgejo closing keywords), and listing title
-   and branch mentions in the unclear bucket.
+Ruled on [#38](https://github.com/lokkju/skills/pull/38). The body above already reflects each one.
+
+1. **Architecture.** A standard-library Python CLI plus a thin hooks module. `$.http.fetch` can't
+   pin a CA, `$.fs.write` can't set 0600 or write atomically, and agents can't call slash
+   commands.
+2. **Prototype.** Not needed. Its lessons are already in #24 and in this doc, and a local test
+   instance replaces it. The phase order stands, so GitHub comes first.
+3. **GraphQL.** Allowed. A POST goes only to the GraphQL endpoint, and only for documents whose
+   operations are all queries, checked by parsing the operation type rather than matching a
+   string. #21's "GET only" meant read-only.
+4. **Write-wrapper.** The wrapper does the write itself: `<wrapper> <op>`, JSON on stdin, and a
+   non-zero exit refuses.
+5. **Agent-ready.** Open, not person-only and not blocked. The agent label only sorts items
+   within a tier.
+6. **Rulings and needs-human.** Recording a ruling adds decision-made and removes needs-human and
+   decision in one step.
+7. **Closing references.** `Closes #N` is expected only when the work was picked up from an
+   issue, recorded by forge-tracker or named in the branch. A missing one only warns, and PRs with
+   no issue are untouched.
+8. **Test setup.** A docker-compose stack of Forgejo and GitLab CE, with a seed script for repos,
+   issues, MRs, labels and blocking links. Fixtures recorded from it keep CI fast, live runs go
+   against the stack on ml-01, and GitHub uses a dedicated test repo created through infra Pulumi.
+9. **Merged but open.** Propose a close only for real closing references. An `#N` seen only in a
+   title or branch goes to the unclear bucket.
