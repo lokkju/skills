@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.15.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.1...session-decisions--v2026.10.15.2) (2026-10-15)
+
+### Features
+
+- **session-decisions:** open More in a question dialog and give URLs their own line ([ec2dbde](https://github.com/lokkju/skills/commit/ec2dbdeb48935f803ff6a134d39a2e5a1b7349d0))
+
 ## [session-decisions--v2026.10.15.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.14.1...session-decisions--v2026.10.15.1) (2026-10-15)
 
 ### Features

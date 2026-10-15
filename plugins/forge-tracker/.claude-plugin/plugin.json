@@ -1,7 +1,7 @@
 {
   "name": "forge-tracker",
   "description": "Keeps durable work on the forge's issue tracker and the tracker honest enough to plan from. This release has the read-only GitHub layer and /catchup: what changed and what's waiting on you since your last catchup, with every failed read stated plainly.",
-  "version": "0.0.0",
+  "version": "2026.10.15.1",
   "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
   "homepage": "https://github.com/lokkju/skills/tree/main/plugins/forge-tracker",
   "repository": "https://github.com/lokkju/skills",
