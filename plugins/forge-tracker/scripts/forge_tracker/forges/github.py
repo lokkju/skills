@@ -266,7 +266,7 @@ class GitHub:
         return out
 
     def mentions_since(self, login: str, since: datetime) -> list[Mention]:
-        query = f"repo:{self.project} mentions:{login} updated:>={iso(since)}"
+        query = f"repo:{self.project} is:open mentions:{login} updated:>={iso(since)}"
         raw = self.t.get_all("/search/issues", {"q": query}, key="items")
         return [
             Mention(
