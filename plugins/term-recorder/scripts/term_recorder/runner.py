@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional, TextIO
 
-from .steps import Step
+from .steps import Step, parse_size
 
 SESSION = "rec"
 
@@ -68,7 +68,10 @@ class Recorder:
         self.log = log
         self.socket = f"term-record-{os.getpid()}"
         self.tmux = Tmux(self.socket)
-        self.frames: list[tuple[float, str]] = []
+        # (cast time, "o" for a screen or "r" for a resize, the screen or "COLSxROWS")
+        self.frames: list[tuple[float, str, str]] = []
+        self._clock = 0.0
+        self.cols0, self.rows0 = options.cols, options.rows
         self.recording = True
         self.busy = False
         self._lock = threading.Lock()
@@ -144,12 +147,12 @@ class Recorder:
         return status.strip() or "?"
 
     def _capture(self) -> None:
-        clock = 0.0
         last = None
         prev = time.monotonic()
         while not self._stop.is_set():
             now = time.monotonic()
-            clock += (now - prev) / (self.o.busy_timescale if self.busy else 1.0)
+            with self._lock:
+                self._clock += (now - prev) / (self.o.busy_timescale if self.busy else 1.0)
             prev = now
             if self.recording:
                 try:
@@ -158,21 +161,22 @@ class Recorder:
                     frame = None
                 if frame is not None and frame != last:
                     with self._lock:
-                        self.frames.append((clock, frame))
+                        self.frames.append((self._clock, "o", frame))
                     last = frame
             self._stop.wait(self.o.frame_interval)
 
     def cast(self) -> str:
-        """The frames as an asciicast v2 file."""
-        header = {"version": 2, "width": self.o.cols, "height": self.o.rows}
+        """The frames as an asciicast v2 file; a resize is an "r" event."""
+        header = {"version": 2, "width": self.cols0, "height": self.rows0}
         lines = [json.dumps(header)]
         with self._lock:
             frames = list(self.frames)
-        for at, frame in frames:
-            for bad, good in CAST_FIXES:
-                frame = frame.replace(bad, good)
-            text = "\x1b[H\x1b[2J" + frame.rstrip("\n").replace("\n", "\r\n")
-            lines.append(json.dumps([round(at, 3), "o", text], ensure_ascii=False))
+        for at, kind, data in frames:
+            if kind == "o":
+                for bad, good in CAST_FIXES:
+                    data = data.replace(bad, good)
+                data = "\x1b[H\x1b[2J" + data.rstrip("\n").replace("\n", "\r\n")
+            lines.append(json.dumps([round(at, 3), kind, data], ensure_ascii=False))
         return "\n".join(lines) + "\n"
 
     # --- steps ---------------------------------------------------------------------------------
@@ -286,6 +290,14 @@ class Recorder:
         self.log.write(f"--- {name} ({path}) ---\n{screen.rstrip()}\n")
         self.log.flush()
         return path
+
+    def _resize(self, step: Step) -> None:
+        size = parse_size(step.args[0])
+        assert size is not None
+        self.o.cols, self.o.rows = size
+        self.tmux("resize-window", "-t", SESSION, "-x", str(size[0]), "-y", str(size[1]))
+        with self._lock:
+            self.frames.append((self._clock, "r", f"{size[0]}x{size[1]}"))
 
     def _record(self, step: Step) -> None:
         self.recording = step.args[0] == "on"

@@ -47,6 +47,7 @@ One per line, shell quoting, `#` comments:
 | `click TEXT` | left-clicks the first on-screen TEXT |
 | `sleep SECONDS` | |
 | `snap NAME` | captures the screen as text |
+| `resize COLSxROWS` | changes the terminal's size mid-run; snap after each to see where a layout breaks |
 | `record on\|off` | turns cast frames on or off |
 | `include FILE` | runs FILE's steps in place |
 | `when REGEX STEP...` | runs STEP only if the screen matches now |

@@ -82,6 +82,8 @@ def test_include_resolves_relative_to_its_file(tmp_path: Path):
         ("sleep soon", "isn't a number"),
         ("wait '(' 3", "bad regex"),
         ("record maybe", "record takes on or off"),
+        ("resize wide", "resize wants COLSxROWS"),
+        ("resize 5x2", "at least 10x3"),
         ("when 'x' include y", "when can't guard include"),
         ("type ${NOPE}", "no --var NOPE"),
         ("type 'unclosed", "No closing quotation"),
@@ -166,6 +168,23 @@ def test_click_sends_an_sgr_mouse_press(tmp_path: Path):
     assert done.returncode == 0, done.stderr
     # "Close" starts at column 13 (1-based); the click lands one column in, on row 1.
     assert "\\x1b[<0;14;1M" in (out / "clicked.txt").read_text()
+
+
+@needs_tmux
+def test_resize_changes_the_terminal_and_lands_in_the_cast(tmp_path: Path):
+    # Prints the size at start and on every SIGWINCH.
+    done, out = record(
+        tmp_path,
+        "wait 'size 30 100' 10\nresize 60x12\nwait 'size 12 60' 10\nsnap narrow\n",
+        "bash",
+        "-c",
+        "trap 'echo size $(stty size)' WINCH; echo size $(stty size); while :; do sleep 0.1; done",
+        extra=("--cast", str(tmp_path / "c.cast")),
+    )
+    assert done.returncode == 0, done.stderr
+    assert "size 12 60" in (out / "narrow.txt").read_text()
+    events = [json.loads(line) for line in (tmp_path / "c.cast").read_text().splitlines()[1:]]
+    assert [e[2] for e in events if e[1] == "r"] == ["60x12"]
 
 
 @needs_tmux

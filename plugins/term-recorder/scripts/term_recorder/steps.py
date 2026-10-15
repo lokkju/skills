@@ -10,7 +10,8 @@
     click TEXT                    a left click on the first on-screen TEXT
     sleep SECONDS
     snap NAME                     the screen as plain text, to NAME.txt and stdout
-    record on|off                 cast frames on or off; on from the start unless a step says
+    resize COLSxROWS              the terminal's new size, so one run can snap several widths
+    record on|off                cast frames on or off; on from the start unless a step says
     include FILE                  FILE's steps, in place
     when REGEX STEP...            STEP only when the screen matches REGEX right now
 
@@ -38,6 +39,7 @@ ARITY: dict[str, tuple[int, Optional[int]]] = {
     "click": (1, 1),
     "sleep": (1, 1),
     "snap": (1, 1),
+    "resize": (1, 1),
     "record": (1, 1),
     "include": (1, 1),
     "when": (2, None),
@@ -49,6 +51,14 @@ NUMERIC = {"wait": (1,), "gone": (1,), "idle": (1, 2), "type": (1,), "sleep": (0
 
 class StepError(ValueError):
     """A step file that can't be run; the message names the file and line."""
+
+
+def parse_size(text: str) -> Optional[tuple[int, int]]:
+    """COLSxROWS as (cols, rows), or None when it isn't one or is smaller than 10x3."""
+    match = re.fullmatch(r"(\d+)x(\d+)", text)
+    if not match or int(match[1]) < 10 or int(match[2]) < 3:
+        return None
+    return int(match[1]), int(match[2])
 
 
 @dataclass
@@ -108,6 +118,8 @@ def build(words: list[str], where: str, base: Path) -> Step:
                 raise StepError(f"{where}: {action}: {args[index]!r} isn't a number") from None
     if action in ("wait", "gone", "idle"):
         _regex(args[0], where)
+    if action == "resize" and parse_size(args[0]) is None:
+        raise StepError(f"{where}: resize wants COLSxROWS, at least 10x3, got {args[0]!r}")
     if action == "record" and args[0] not in ("on", "off"):
         raise StepError(f"{where}: record takes on or off, got {args[0]!r}")
     return Step(action, args, where, base)

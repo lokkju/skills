@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import io
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +31,7 @@ Steps (one per line, shell quoting, # comments):
   click TEXT                    a left click on the first on-screen TEXT
   sleep SECONDS
   snap NAME                     the screen as text, to OUT/NAME.txt and stdout
+  resize COLSxROWS              a new terminal size mid-run, to snap several widths
   record on|off                 cast frames on or off (on unless a step says)
   include FILE                  FILE's steps, in place
   when REGEX STEP...            STEP only if the screen matches now
@@ -60,7 +60,12 @@ def parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="a step file; repeat to run several in order; - reads stdin",
     )
-    p.add_argument("--size", default="100x30", metavar="COLSxROWS", help="default 100x30")
+    p.add_argument(
+        "--size",
+        default="100x30",
+        metavar="COLSxROWS",
+        help="the starting size (100x30); a resize step changes it mid-run",
+    )
     p.add_argument("-C", "--cwd", type=Path, default=None, help="where COMMAND starts")
     p.add_argument(
         "-o",
@@ -131,8 +136,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not command:
         print("term-record: no command; put it after --", file=sys.stderr)
         return 2
-    size = re.fullmatch(r"(\d+)x(\d+)", args.size)
-    if not size or int(size[1]) < 10 or int(size[2]) < 3:
+    size = steplib.parse_size(args.size)
+    if size is None:
         print(
             f"term-record: --size wants COLSxROWS, at least 10x3, got {args.size}", file=sys.stderr
         )
@@ -170,8 +175,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     out = args.out or Path(tempfile.mkdtemp(prefix="term-record-"))
     out.mkdir(parents=True, exist_ok=True)
     options = Options(
-        cols=int(size[1]),
-        rows=int(size[2]),
+        cols=size[0],
+        rows=size[1],
         cwd=(args.cwd or Path.cwd()).resolve(),
         env=env,
         term=args.term,
