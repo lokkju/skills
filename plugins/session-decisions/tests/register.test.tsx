@@ -117,7 +117,18 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, lists, store, filled, submitted, status, clock, opened, offered, session, copied, toasts }
+  // $.ui.ask is a call of AskUserQuestion. Each dialog takes the next scripted reply: a string is the
+  // option chosen or the text typed under Other, null dismisses it.
+  const asked: { question: string; header: string; options: string[] }[] = []
+  const replies: (string | null)[] = []
+  on('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
+    const question = e.questions[0]!
+    asked.push({ question: question.question, header: question.header, options: question.options.map(one => one.label) })
+    const reply = replies.shift() ?? null
+    if (reply === null) return { deny: 'The user dismissed the question' }
+    return { result: { questions: e.questions, answers: { [question.question]: reply } } }
+  })
+  return { tasks, lists, store, filled, submitted, status, clock, opened, offered, session, copied, toasts, asked, replies }
 }
 
 async function start($: any) {
@@ -670,26 +681,63 @@ describe('markdown', () => {
     }
   })
 
-  test('More shows the description, the link and copy buttons for its commands', async ($, on) => {
-    const { copied } = engine(on)
+  test('More opens the item in a dialog with its context, and Accept or a copy acts on it', async ($, on) => {
+    const { asked, replies, filled, copied } = engine(on)
     await start($)
     await create($, SUBJECT, DESCRIPTION)
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    // Nothing expands inline any more.
+    expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
+    expect(await ui.find({ key: 'detail' })).toBeUndefined()
+    replies.push('Accept: core')
+    await ui.press({ key: 'more-D1' })
+    expect(asked.at(-1)).toEqual({
+      question: 'run mise run core or read the guide first?\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
+      header: 'D1',
+      options: ['Accept: core', 'Copy link', 'Copy mise run flux-up core', 'Close'],
+    })
+    expect(filled.at(-1)).toBe('D1: go with **core**, it is _faster_')
+    expect((await ui.find({ key: 'more-D1' }))?.text).toBe('More')
+    replies.push('Copy link', 'Copy mise run flux-up core')
+    await ui.press({ key: 'label-D1' })
+    await ui.press({ key: 'label-D1' })
+    expect(copied).toEqual(['https://github.com/lokkju/skills/issues/20', 'mise run flux-up core'])
+    expect(filled).toHaveLength(1)
+  })
+
+  test('Done, typed text and a dismissal from the dialog', async ($, on) => {
+    const { asked, replies, filled } = engine(on)
+    await start($)
     await create($, 'ACTION: log in [no link]', '')
-    for (const surface of SURFACES) {
-      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'Pane', requestId: PLUGIN, props: {} as never })
-      expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
-      expect(await ui.find({ key: 'more-A1' })).toBeUndefined()
-      await ui.press({ key: 'more-D1' })
-      expect((await ui.find({ key: 'description-D1' }))?.text).toBe(DESCRIPTION)
-      expect(await ui.find({ type: 'Link' })).toBeDefined()
-      expect((await ui.find({ key: 'copy-D1-0' }))?.text).toBe('Copy mise run flux-up core')
-      await ui.press({ key: 'copy-D1-1' })
-      expect((await ui.find({ key: 'more-D1' }))?.text).toBe('Less')
-      await ui.press({ key: 'more-D1' })
-      expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
-      await ui.unmount()
-    }
-    expect(copied).toEqual(SURFACES.map(() => 'mise run core'))
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]', '')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    replies.push('Done')
+    await ui.press({ key: 'more-A1' })
+    expect(asked.at(-1)).toEqual({ question: 'log in', header: 'A1', options: ['Done', 'Close'] })
+    expect(filled.at(-1)).toBe('A1: done')
+    replies.push('  Postgres, we need the extensions  ')
+    await ui.press({ key: 'label-D1' })
+    expect(asked.at(-1)?.options).toEqual(['Accept: SQLite', 'Close'])
+    expect(filled.at(-1)).toBe('A1: done\nD1: Postgres, we need the extensions')
+    replies.push('Close', null)
+    await ui.press({ key: 'more-D1' })
+    await ui.press({ key: 'more-D1' })
+    expect(asked).toHaveLength(4)
+    expect(filled).toHaveLength(2)
+  })
+
+  test('a long description is cut to fit the dialog', async ($, on) => {
+    const { asked, replies } = engine(on)
+    await start($)
+    const long = Array.from({ length: 12 }, (_, i) => `Line ${i + 1} of the context, with **some** detail.`).join('\n')
+    await create($, 'ACTION: log in [no link]', long)
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    replies.push(null)
+    await ui.press({ key: 'more-A1' })
+    const question = asked.at(-1)!.question
+    expect(question.startsWith('log in\n\nLine 1 of the context, with some detail.')).toBe(true)
+    expect(question).not.toContain('Line 7')
+    expect(question.endsWith('…')).toBe(true)
   })
 
   test('a settled row and the toast use plain text', async ($, on) => {
@@ -722,5 +770,48 @@ describe('link and label forms', () => {
     // A retitle written with a typed prefix keeps the item's own label.
     await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u-prefix', taskId: '1', subject: '[D7] DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]' })
     expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres or DuckDB? (recommend DuckDB) [#3]')
+  })
+
+  test('a short link stays on the button row; a URL gets its own line', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: ship it? (recommend yes) [#3]')
+    await create($, 'ACTION: review the PR [https://github.com/lokkju/skills/pull/20/files]')
+    await create($, 'ACTION: read the repo [https://github.com/lokkju/skills]')
+    const LONG = 'https://example.com/a/very/long/path/that/would/never/fit/beside/the/buttons/of/a/fifty-two/column/sidebar?with=query'
+    await create($, `ACTION: read the runbook [${LONG}]`)
+    await create($, 'ACTION: open the dashboard [http://grafana.lab/d/x]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    // Per card: the link text at the end of its actions row, and the link drawn on a line of its own.
+    type Node = { type: string; props?: Record<string, unknown>; children?: (Node | string)[] }
+    const textOf = (node: Node | string): string =>
+      typeof node === 'string' ? node : node.type === 'Link' ? String(node.props?.label ?? node.props?.href) : (node.children ?? []).map(textOf).join('')
+    const cards = new Map<string, { row: string; own: string[] }>()
+    const walk = (node: Node | string) => {
+      if (typeof node === 'string') return
+      if (String(node.props?.key ?? '').startsWith('card-')) {
+        const children = (node.children ?? []).filter((one): one is Node => typeof one !== 'string')
+        const top = children.find(one => one.props?.key === 'top')!
+        const label = String(top.children?.map(one => (typeof one === 'string' ? '' : one.props?.label ?? '')).join(''))
+        const actions = children.find(one => one.props?.key === 'actions')!
+        const last = actions.children?.at(-1)
+        cards.set(label, {
+          row: last && typeof last !== 'string' && last.type === 'Text' ? textOf(last) : '',
+          own: children.filter(one => one.type === 'Text').map(textOf),
+        })
+      }
+      for (const child of node.children ?? []) walk(child)
+    }
+    walk((await ui.drawn()) as unknown as Node)
+    expect(cards.get('D1')).toEqual({ row: '#3', own: [] })
+    expect(cards.get('A1')).toEqual({ row: '', own: ['lokkju/skills#20'] })
+    expect(cards.get('A2')).toEqual({ row: '', own: ['lokkju/skills'] })
+    expect(cards.get('A3')).toEqual({ row: '', own: [LONG] })
+    expect(cards.get('A4')).toEqual({ row: '', own: ['http://grafana.lab/d/x'] })
+    const links = await ui.findAll({ type: 'Link' })
+    expect(links.map(link => link.text)).toEqual(['lokkju/skills#20', 'lokkju/skills', LONG])
+    // Wrapped, never truncated, so the whole URL is there to read.
+    const drawn = JSON.stringify(await ui.drawn())
+    expect(drawn).toContain(`{"type":"Text","props":{"wrap":"wrap"},"children":[{"type":"Link","props":{"href":"${LONG}"`)
   })
 })

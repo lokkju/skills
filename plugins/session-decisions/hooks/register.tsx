@@ -20,7 +20,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { codeSpans, linkHref, plainText } from './markdown'
+import { codeSpans, excerpt, githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -41,8 +41,6 @@ const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} 
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
-// Cards showing their detail (description, link, copy buttons), by `<source>:<id>`.
-const expanded = atom({ plugin: 'session-decisions', key: 'expanded' } as const, [] as string[])
 // Whether this surface docks panes beside the transcript: fixed per session on the terminal and
 // learnt from the footer's drawing. A module variable, since a drawing may not write state.
 let docks = false
@@ -639,7 +637,7 @@ function answer($: $, lines: string[]) {
 }
 
 /** Copy a command from a card; a surface with no clipboard path says so in a toast. */
-async function copy($: $, text: string, surface: Parameters<$['ui']['copy']>[0]['surface']): Promise<void> {
+async function copy($: $, text: string, surface: Surface): Promise<void> {
   const done = await $.ui.copy({ text, surface }).catch((err: unknown) => ({ isCopied: false as const, reason: String(err) }))
   $.ui.toast(done.isCopied ? 'Copied' : `Couldn't copy: ${done.reason}`)
 }
@@ -692,23 +690,18 @@ async function drawCard(
 
   const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
   const choice = parts.recommendation ? shortRecommendation(plainText(parts.recommendation)).choice : null
-  const id = `${item.source}:${item.id}`
-  const open = (await read($, expanded)).includes(id)
-  const href = linkHref(parts.link)
-  const codes = codeSpans(`${parts.question}\n${item.description}`).slice(0, 5)
-  const more = item.description.trim() !== '' || codes.length > 0 || href !== null
+  const short = parts.link === null || isShortLink(parts.link)
   const stale = item.created !== undefined && now - item.created > DAY
   const revised = revisedIn(item.description)
   const frame = opts.bordered
     ? { borderStyle: 'round', borderColor: opts.isNext ? ACCENT : 'inactive', hover: { borderColor: ACCENT }, paddingX: 1 }
     : {}
+  const more = (press: { surface: Surface }) => void popup($, item, press.surface)
   return (
     <Box key={`card-${item.source}-${item.id}`} flexDirection="column" {...frame}>
       <Box key="top" flexDirection="row" gap={1}>
         {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
-        <Text bold color={opts.isNext && !opts.bordered ? ACCENT : undefined}>
-          {item.label}
-        </Text>
+        <Button key={`label-${item.label}`} plain label={item.label} hover={{ bold: true }} onPress={more} />
         {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
         <Box flexGrow={1} />
         {revised && <Text dimColor>{`revised ${revised}`}</Text>}
@@ -720,20 +713,7 @@ async function drawCard(
       </Box>
       <Markdown key={`question-${item.label}`} text={parts.question} />
       {rec?.qualifier && <Markdown key={`qualifier-${item.label}`} text={rec.qualifier} dimColor />}
-      {open && (
-        <Box key="detail" flexDirection="column" marginTop={1}>
-          {item.description.trim() !== '' && <Markdown key={`description-${item.label}`} text={item.description.trim()} />}
-          {href && <Link href={href} />}
-          {codes.map((code, i) => (
-            <Button
-              key={`copy-${item.label}-${i}`}
-              plain
-              label={`Copy ${code.length > 40 ? `${code.slice(0, 39)}…` : code}`}
-              onPress={press => void copy($, code, press.surface)}
-            />
-          ))}
-        </Box>
-      )}
+      {!short && parts.link !== null && linkLine(Link, Text, parts.link)}
       <Box key="actions" flexDirection="row" gap={1}>
         {rec && item.kind === 'DECIDE' && (
           <Button
@@ -747,19 +727,81 @@ async function drawCard(
           <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer($, [`${item.label}: done`])} />
         )}
         <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
-        {more && (
-          <Button
-            key={`more-${item.label}`}
-            label={open ? 'Less' : 'More'}
-            dimColor
-            onPress={() => update($, expanded, list => (list.includes(id) ? list.filter(one => one !== id) : [...list, id]))}
-          />
-        )}
+        <Button key={`more-${item.label}`} label="More" dimColor onPress={more} />
         <Box flexGrow={1} />
-        <Text dimColor wrap="truncate-start">
-          {parts.link ?? 'no link'}
-        </Text>
+        {short && (
+          <Text dimColor wrap="truncate-start">
+            {parts.link ?? 'no link'}
+          </Text>
+        )}
       </Box>
     </Box>
   )
+}
+
+/**
+ * A link too long for the button row, on its own line: a GitHub issue, pull request or repository
+ * by its short name, any other URL whole and wrapped, and what a `Link` can't take as dim text.
+ */
+function linkLine(Link: Elements['Link'], Text: Elements['Text'], token: string) {
+  const href = linkHref(token)
+  if (!href) {
+    return (
+      <Text dimColor wrap="wrap">
+        {token}
+      </Text>
+    )
+  }
+  return (
+    <Text wrap="wrap">
+      <Link href={href} label={githubShort(href) ?? href} />
+    </Text>
+  )
+}
+
+type Surface = Parameters<$['ui']['copy']>[0]['surface']
+
+/** What the popup asks: the question, the full recommendation when the tag shortens it, and the context. */
+function popupQuestion(item: Item): string {
+  const parts = splitBody(item.body)
+  const lines = [plainText(parts.question)]
+  if (parts.recommendation) {
+    const full = plainText(parts.recommendation)
+    if (shortRecommendation(full).choice !== full) lines.push(`Recommended: ${full}`)
+  }
+  const about = excerpt(item.description)
+  if (about) lines.push('', about)
+  return lines.join('\n')
+}
+
+/**
+ * More, or the card's label: the item in Claude Code's question dialog. Accept and Done fill the
+ * prompt as the card's buttons do, the copy options copy, and text typed under Other becomes the
+ * item's answer. A dismissed dialog changes nothing.
+ */
+async function popup($: $, item: Item, surface: Surface): Promise<void> {
+  const parts = splitBody(item.body)
+  const choices: { label: string; run: () => void }[] = []
+  if (item.kind === 'DECIDE' && parts.recommendation) {
+    const choice = shortRecommendation(plainText(parts.recommendation)).choice
+    choices.push({ label: `Accept: ${choice}`, run: answer($, [`${item.label}: go with ${parts.recommendation}`]) })
+  }
+  if (item.kind === 'ACTION') choices.push({ label: 'Done', run: answer($, [`${item.label}: done`]) })
+  const url = parts.link && /^https?:\/\//i.test(parts.link) ? parts.link : null
+  if (url) choices.push({ label: 'Copy link', run: () => void copy($, url, surface) })
+  const code = codeSpans(`${parts.question}\n${item.description}`)[0]
+  if (code && choices.length < 3) {
+    const shown = code.replace(/\s+/g, ' ')
+    choices.push({ label: `Copy ${shown.length > 30 ? `${shown.slice(0, 29)}…` : shown}`, run: () => void copy($, code, surface) })
+  }
+  choices.push({ label: 'Close', run: () => undefined })
+  let picked: string
+  try {
+    picked = (await $.ui.ask(popupQuestion(item), { header: item.label, options: choices.map(one => one.label) })).trim()
+  } catch {
+    return
+  }
+  const chosen = choices.find(one => one.label === picked)
+  if (chosen) chosen.run()
+  else if (picked) answer($, [`${item.label}: ${picked}`])()
 }

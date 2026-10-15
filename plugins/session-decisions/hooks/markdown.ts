@@ -60,3 +60,48 @@ export function linkHref(token: string | null): string | null {
   if (url.username || url.password || href.includes('@')) return null
   return href.length <= 2048 && /^[\x21-\x7e]+$/.test(href) ? href : null
 }
+
+/** A link token short enough to sit at the end of a card's button row: `#12`, `!4`, `owner/repo#3`. */
+export function isShortLink(token: string): boolean {
+  return /^(?:[\w.-]+\/[\w.-]+)?[#!]\d+$/.test(token)
+}
+
+// First path segments of github.com that aren't an owner.
+const GITHUB_PAGES = new Set(['apps', 'enterprise', 'features', 'login', 'marketplace', 'notifications', 'orgs', 'search', 'settings', 'sponsors', 'topics'])
+
+/**
+ * A github.com issue or pull request URL as `owner/repo#N`, a repository URL as `owner/repo`; null
+ * for any other URL, which a card shows whole.
+ */
+export function githubShort(href: string): string | null {
+  let url: URL
+  try {
+    url = new URL(href)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'https:' || !/^(www\.)?github\.com$/i.test(url.hostname)) return null
+  const [owner, repo, kind, number] = url.pathname.split('/').filter(Boolean)
+  if (!owner || !repo || GITHUB_PAGES.has(owner.toLowerCase())) return null
+  const name = `${owner}/${repo.replace(/\.git$/, '')}`
+  if (kind === undefined) return name
+  return (kind === 'issues' || kind === 'pull') && number && /^\d+$/.test(number) ? `${name}#${number}` : null
+}
+
+/**
+ * Markdown as plain text cut to fit a dialog: at most `lines` lines and `max` characters, blank-line
+ * runs squeezed to one, cut at a word with `…`.
+ */
+export function excerpt(markdown: string, max = 320, lines = 6): string {
+  const text = plainText(markdown)
+    .split('\n')
+    .map(line => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  const kept = text.split('\n').slice(0, lines).join('\n')
+  if (kept.length <= max && kept === text) return text
+  const cut = kept.length <= max ? kept : kept.slice(0, max)
+  const word = kept.length <= max ? cut : cut.replace(/\s+\S*$/, '')
+  return `${(word || cut).trimEnd()}…`
+}

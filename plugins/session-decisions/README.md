@@ -54,15 +54,26 @@ write a recommendation isn't ready to ask yet, which is the point.
   `revised <date>`, so a changed recommendation doesn't slip past you. The assistant revises with
   TaskUpdate, or with the plugin's `decision_update` tool for an item it added without the task
   tools. The question and qualifier draw as markdown; one-line rows, chips and toasts show it as
-  plain text. **More** shows the item's description, its link as a clickable one when it's a URL,
-  and a **Copy** button for each command in backticks (it copies on the terminal; Claude Code has
-  no clipboard path for the other surfaces yet).
+  plain text.
+- **Links:** a short link (`#12`, `!45`, `owner/repo#12`, or `no link`) sits at the right end of
+  the button row. A URL gets a line of its own under the question, as a clickable link: a GitHub
+  issue or pull request reads `owner/repo#12` and a GitHub repository `owner/repo`; any other URL
+  is shown whole and wraps instead of being cut off. A plain `http:` URL other than localhost
+  can't be a clickable link in Claude Code, so it's shown as dim text.
+- **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
+  dialog, headed by the label. The dialog shows the question, the full recommendation when the
+  tag shortens it, and the start of the item's description (up to six lines). Its options are
+  **Accept: <choice>** for a decision or **Done** for an action, **Copy link** when the link is a
+  URL, **Copy <command>** for the first command in backticks, and **Close**. Copying works on the
+  terminal; Claude Code has no clipboard path for the other surfaces yet. Whatever you type under
+  the dialog's Other becomes your answer, `D3: <your text>` in the prompt. Esc closes the dialog
+  and changes nothing.
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
 
 **Accept** puts `D3: go with <the recommendation>` in your prompt, **Done** puts `A2: done`, and
-**Answer** puts `D3: ` for you to finish. Each press adds or replaces that item's line, so one
+**Answer** puts `D3: ` for you to finish. The dialog **More** opens fills the same lines. Each press adds or replaces that item's line, so one
 message can answer several items; **Accept all** adds a line for every open recommendation. You
 edit and send it like any other message, and the assistant marks each item completed with a
 dated `Ruling (2026-10-08): ...` line. Completed items stay in the task list as the session's
