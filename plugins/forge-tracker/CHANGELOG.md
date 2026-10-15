@@ -1,5 +1,13 @@
 # Changelog
 
+## [forge-tracker--v2026.10.15.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.1...forge-tracker--v2026.10.15.2) (2026-10-15)
+
+### Fixes
+
+- **forge-tracker:** always print the standing-backlog line in /catchup ([d5c6ff1](https://github.com/lokkju/skills/commit/d5c6ff1834c60a8e0da54f8c275488dcea1806ab))
+- **forge-tracker:** say where the marker moves in the /catchup header ([4d6a100](https://github.com/lokkju/skills/commit/4d6a10088e384408d1af4b8d98409b803e672ab8))
+- **forge-tracker:** list only open items as mentions in /catchup ([f5b6628](https://github.com/lokkju/skills/commit/f5b662822def5c46660400b154fce5b973b8435b))
+
 ## forge-tracker--v2026.10.15.1 (2026-10-15)
 
 ### Features
