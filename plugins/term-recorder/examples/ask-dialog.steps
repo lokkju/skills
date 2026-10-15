@@ -6,7 +6,9 @@ include claude-start.steps
 paste ask-dialog.prompt
 sleep 1
 keys Enter
-wait 'Close' 120
+# The dialog's numbered option. Wait on text the prompt doesn't contain, or the wait matches the
+# echoed prompt and snaps before the dialog opens.
+wait '[0-9]\. Accept' 120
 sleep 2
 snap dialog
 keys Escape

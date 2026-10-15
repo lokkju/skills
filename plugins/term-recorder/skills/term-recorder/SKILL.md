@@ -66,6 +66,8 @@ that opens the question dialog and snaps it.
   switch the installed copy off (`"enabledPlugins": {"<name>@<marketplace>": false}`).
 - The task tools (TaskCreate and the rest) are off in an interactive session on Claude 5 models
   unless `--env CLAUDE_CODE_ENABLE_TODO_TOOLS=1`.
+- Your prompt is echoed on screen, so wait on text only the result shows (a dialog's numbered
+  option such as `'[0-9]\. Accept'`), never on a word from the prompt itself.
 - Its busy marker, for `idle`: `'\([0-9]+m? ?[0-9]*s · |esc to interrupt'`.
 - Each run is a real conversation on the user's account. Keep it to the turns the check needs.
 
