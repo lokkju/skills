@@ -1,0 +1,12 @@
+# Brings a fresh Claude Code session to an empty prompt. Include it first in a step file whose
+# command is `claude ...`.
+#
+# A directory Claude Code hasn't seen asks whether to trust it first. Keys sent before that
+# dialog takes input land on "No, exit", so wait a moment before moving to "Yes".
+wait 'trust this folder|❯' 60
+when 'trust this folder' sleep 1.5
+when 'trust this folder' keys Down
+when 'trust this folder' wait '❯ Yes, I trust' 10
+when '❯ Yes, I trust' keys Enter
+wait '❯' 60
+sleep 1
