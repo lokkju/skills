@@ -1,0 +1,12 @@
+# Shows how Claude Code's question dialog (AskUserQuestion, which a hooks module's $.ui.ask also
+# opens) renders a multi-line question with markdown in it, and snaps it as "dialog".
+#
+#   term-record -C "$(mktemp -d)" -s examples/ask-dialog.steps -- claude --model haiku
+include claude-start.steps
+paste ask-dialog.prompt
+sleep 1
+keys Enter
+wait 'Close' 120
+sleep 2
+snap dialog
+keys Escape

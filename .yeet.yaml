@@ -83,3 +83,18 @@ targets:
       - plugins/forge-tracker/CHANGELOG.md
       - plugins/forge-tracker/README.md
       - plugins/forge-tracker/tests
+
+  term-recorder:
+    type: path
+    path: plugins/term-recorder
+    tag_prefix: term-recorder--v
+    version_files:
+      - path: plugins/term-recorder/.claude-plugin/plugin.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: plugins/term-recorder/CHANGELOG.md
+    exclude_paths:
+      - plugins/term-recorder/CHANGELOG.md
+      - plugins/term-recorder/README.md
+      - plugins/term-recorder/tests

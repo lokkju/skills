@@ -1,0 +1,9 @@
+Call the AskUserQuestion tool exactly once, right now, with no other tools and no text first. One question, header "D99", options "Accept" and "Close". The question field must be exactly this text, newlines included:
+D99 DECIDE: pick a probe answer?
+Recommended: **Accept**, because `code span` and a [link](https://example.com).
+
+First paragraph line one.
+Line two of the same paragraph.
+
+- bullet one
+- bullet two

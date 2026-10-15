@@ -16,6 +16,11 @@
   standard-library Python CLI (`scripts/forge-tracker`) and `commands/catchup.md`. Tests run with
   `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over recorded fixtures,
   no network.
+- `plugins/term-recorder/`: drives a terminal program from a step file on a private tmux server
+  and captures it (text snaps, asciicast, GIF via agg). A standard-library Python CLI
+  (`scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
+  example step files for Claude Code. Tests run with
+  `uv run --no-project --with pytest pytest plugins/term-recorder/tests` and need tmux.
 
 `npx skills add lokkju/skills` finds every `SKILL.md` under `plugins/*/skills/`, so a skill here
 is installable for any agent as well as through the marketplace.
@@ -69,8 +74,8 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
 
 - `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, then
   `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
-- `forge-release` and `forge-tracker`: `ruff check`, `ruff format --check` and the pytest suite
-  on Python 3.11 and 3.14.
+- `forge-release`, `forge-tracker` and `term-recorder`: `ruff check`, `ruff format --check` and
+  the pytest suite on Python 3.11 and 3.14 (tmux is installed for term-recorder's).
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
 
@@ -85,6 +90,8 @@ uvx ruff check plugins/forge-release && uvx ruff format --check plugins/forge-re
 uv run --no-project --with pytest pytest plugins/forge-release/tests
 uvx ruff check plugins/forge-tracker && uvx ruff format --check plugins/forge-tracker
 uv run --no-project --with pytest pytest plugins/forge-tracker/tests
+uvx ruff check plugins/term-recorder && uvx ruff format --check plugins/term-recorder
+uv run --no-project --with pytest pytest plugins/term-recorder/tests
 uv run --no-project scripts/check-skill-names.py
 ```
 

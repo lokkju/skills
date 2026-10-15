@@ -1,11 +1,12 @@
-# Ruff settings for the Python in this repo (forge-release and forge-tracker).
+# Ruff settings for the Python in this repo (forge-release, forge-tracker and term-recorder).
 line-length = 100
-# forge-release's and forge-tracker's READMEs promise python3 3.9 or newer.
+# Their READMEs promise python3 3.9 or newer.
 target-version = "py39"
 # Extensionless Python entry points.
 extend-include = [
   "plugins/forge-release/scripts/github-app-create",
   "plugins/forge-tracker/scripts/forge-tracker",
+  "plugins/term-recorder/scripts/term-record",
 ]
 
 [lint]
