@@ -2,6 +2,7 @@
 fixtures/github/; the edge cases (conflicts, retries, bots, failures) are set up here because a
 live repo rarely has all of them at once."""
 
+import urllib.parse
 from datetime import datetime, timezone
 
 import pytest
@@ -165,6 +166,24 @@ def test_mentions_use_search_and_mark_changes(transport_for):
     mentions = adapter(world, transport_for).mentions_since("me", T0)
     assert [(m.number, m.is_change) for m in mentions] == [(3, True), (4, False)]
     assert "mentions:me" in world.calls[0][1] and "repo:acme/widgets" in world.calls[0][1]
+
+
+def test_mentions_leave_out_closed_issues_and_merged_changes(transport_for):
+    items = [
+        issue(3, pull_request={"url": "x"}),
+        issue(5, state="closed", closed_at="2026-10-12T00:00:00Z"),
+        issue(6, state="closed", pull_request={"url": "x", "merged_at": "2026-10-12T00:00:00Z"}),
+    ]
+
+    def search(url):
+        # GitHub applies `is:open` server side; this fake does the same.
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["q"][0]
+        found = [i for i in items if "is:open" not in query.split() or i["state"] == "open"]
+        return response({"total_count": len(found), "incomplete_results": False, "items": found})
+
+    world = World().route("/search/issues", search)
+    mentions = adapter(world, transport_for).mentions_since("me", T0)
+    assert [m.number for m in mentions] == [3]
 
 
 def test_open_changes_map_reviewers_conflicts_and_pipeline(transport_for):

@@ -1,10 +1,8 @@
 lokkju/skills on github.com, 2026-10-14 04:19 to 2026-10-15 04:19 (--since; the marker isn't read or moved)
 
 Waiting on you
-  #25 mentioned, updated 2026-10-15: session-decisions: check that $.tool.list() includes deferred tools before decision_close trusts it
-  #26 mentioned, updated 2026-10-15: session-decisions: keep the stored queue across a resume that changes the session id
-  #18 mentioned, updated 2026-10-14: fix(session-decisions): settle and keep items when the task tools come and go
-  #17 mentioned, updated 2026-10-14: fix(session-decisions): keep an item's label when TaskUpdate changes its subject
+  nothing
+  standing: none (not updated in the window)
 Merged since
   #4  1 PR: #31 fix(session-decisions): treat the fallback ledger as a normal path
   #7  1 PR: #17 fix(session-decisions): keep an item's label when TaskUpdate changes its subject

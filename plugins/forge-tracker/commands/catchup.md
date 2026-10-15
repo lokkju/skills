@@ -20,7 +20,7 @@ Present it like this:
 
 1. **Waiting on you** first. Keep every item's number, and say which list put it there (review
    requested, assigned, mentioned, the needs-human or decision label). Keep the standing-backlog
-   count line as it is.
+   count line as it is, `standing: none` included.
 2. Then **Merged since**, **Decisions made**, **Board movement** and **Health**, shortened where
    the report is long, but never dropping a failed CI run, a flaky job or a ruling.
 3. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A

@@ -294,6 +294,7 @@ def build(
     report["waiting"] = {
         "items": sorted(items.values(), key=lambda e: e["updated"], reverse=True),
         "standing": standing,
+        "all": show_all,
         "failed": waiting_failed,
         "notes": notes,
     }
@@ -459,13 +460,15 @@ def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
         "since": "--since; the marker isn't read or moved",
         "no-identity": "identity FAILED, so the marker wasn't read: the last 7 days",
     }[window["basis"]]
+    start, end = _when(window["start"], tz), _when(window["end"], tz)
     if window.get("note"):
         basis += f"; {window['note']}"
-    if report["marker"] == "keep" and window["basis"] in ("marker", "first"):
+    if report["marker"] == "move":
+        basis += f"; marker moves to {end}"
+    elif report["marker"] == "keep" and window["basis"] in ("marker", "first"):
         basis += "; --no-mark, so the marker stays"
     elif report["marker"] == "held":
         basis += "; a read FAILED, so the marker stays"
-    start, end = _when(window["start"], tz), _when(window["end"], tz)
     lines = [f"{report['project']} on {report['host']}, {start} to {end} ({basis})", ""]
 
     waiting = report["waiting"]
@@ -479,11 +482,17 @@ def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
             lines.append(
                 f"  {item['ref']} {reasons}, updated {_day(item['updated'], tz)}: {item['title']}"
             )
+    if not waiting["items"] and not waiting["standing"] and not waiting["failed"]:
+        lines.append("  nothing")
+    # An empty backlog is said as none, unless --all listed it above or a read it needs failed.
+    standing_failed = not report["user"] or any(
+        f["part"] in ("open_changes", "open_issues") for f in waiting["failed"]
+    )
     if waiting["standing"]:
         parts = [f"{n} {reason}" for reason, n in waiting["standing"].items()]
         lines.append(f"  standing: {', '.join(parts)} (not updated in the window)")
-    if not waiting["items"] and not waiting["standing"] and not waiting["failed"]:
-        lines.append("  nothing")
+    elif not waiting.get("all") and not standing_failed:
+        lines.append("  standing: none (not updated in the window)")
     lines += _failed_lines(waiting["failed"])
     lines += [f"  ({note})" for note in waiting["notes"]]
 
