@@ -81,6 +81,7 @@ class Issue:
     milestone: Optional[Milestone] = None
     author: Optional[str] = None
     url: str = ""
+    body: str = ""
 
 
 @dataclass(frozen=True)
@@ -176,6 +177,20 @@ class Link:
     blocker_open: bool
     kind: str  # native | convention
     blocker_project: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ClosingRef:
+    """A change whose body or commits carry a real closing reference (`Closes #N`) to an issue,
+    whatever the change's state. `state` is open, merged or closed."""
+
+    issue: int
+    change: int
+    state: str
+    branch: str
+    base: str
+    merged_at: Optional[datetime] = None
+    change_project: Optional[str] = None  # None when the change is in the issue's project
 
 
 @dataclass

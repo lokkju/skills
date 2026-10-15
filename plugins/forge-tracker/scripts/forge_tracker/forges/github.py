@@ -13,6 +13,7 @@ from typing import Any, Optional
 from ..model import (
     Branch,
     Change,
+    ClosingRef,
     Comment,
     ForgeError,
     Issue,
@@ -81,6 +82,7 @@ def _issue(raw: dict) -> Issue:
         else None,
         author=(raw.get("user") or {}).get("login"),
         url=raw.get("html_url") or "",
+        body=raw.get("body") or "",
     )
 
 
@@ -419,3 +421,142 @@ class GitHub:
                     )
                 )
         return out
+
+    # --- /next: the fingerprint and closing references -----------------------------------------
+
+    def fingerprint_inputs(self) -> dict[str, Any]:
+        """The cheap reads `/next` fingerprints its facts with: the default branch and its head,
+        open issue and change counts, the newest issue, change and Actions run update times, every
+        milestone (id, title, due, state) and every branch head. Four requests on a small repo."""
+        data = self.t.graphql(NEXT_FINGERPRINT, {"owner": self.owner, "name": self.name})
+        repo = (data or {}).get("repository")
+        if not isinstance(repo, dict):
+            raise ForgeError("GraphQL returned no repository for the fingerprint")
+        default = repo.get("defaultBranchRef") or {}
+        if not default.get("name"):
+            raise ForgeError("GraphQL returned no default branch for the fingerprint")
+
+        def newest(key: str) -> Optional[str]:
+            nodes = (repo.get(key) or {}).get("nodes") or []
+            return nodes[0].get("updatedAt") if nodes else None
+
+        milestones = self.t.graphql_all(
+            MILESTONES, {"owner": self.owner, "name": self.name}, ("repository", "milestones")
+        )
+        heads = self.t.graphql_all(
+            BRANCH_HEADS, {"owner": self.owner, "name": self.name}, ("repository", "refs")
+        )
+        runs = self.t.get(f"{self.repo_path}/actions/runs", {"per_page": 1})
+        if not isinstance(runs, dict) or not isinstance(runs.get("workflow_runs"), list):
+            raise ForgeError("actions/runs returned no workflow_runs list")
+        newest_run = runs["workflow_runs"][0] if runs["workflow_runs"] else {}
+        return {
+            "default_branch": default["name"],
+            "default_head": (default.get("target") or {}).get("oid"),
+            "open_issues": (repo.get("openIssues") or {}).get("totalCount"),
+            "open_changes": (repo.get("openChanges") or {}).get("totalCount"),
+            "newest_issue": newest("newestIssue"),
+            "newest_change": newest("newestChange"),
+            "newest_pipeline": newest_run.get("updated_at"),
+            "milestones": sorted(
+                [
+                    m.get("id") or "",
+                    m.get("title") or "",
+                    m.get("dueOn") or "",
+                    m.get("state") or "",
+                ]
+                for m in milestones
+            ),
+            "branch_heads": {
+                h["name"]: (h.get("target") or {}).get("oid") for h in heads if h.get("name")
+            },
+        }
+
+    def closing_refs(self) -> list[ClosingRef]:
+        """Every change, open, merged or closed, with a real closing reference to an open issue:
+        GitHub's `closedByPullRequestsReferences`, the link that closes the issue on merge. A
+        `#N` in a title or branch isn't one."""
+        nodes = self.t.graphql_all(
+            CLOSING_REFS, {"owner": self.owner, "name": self.name}, ("repository", "issues")
+        )
+        out = []
+        for node in nodes:
+            refs = node.get("closedByPullRequestsReferences") or {}
+            listed = refs.get("nodes") or []
+            if int(refs.get("totalCount") or 0) > len(listed):
+                raise ForgeError(
+                    f"#{node['number']} has more than {len(listed)} closing references"
+                )
+            for change in listed:
+                project = (change.get("repository") or {}).get("nameWithOwner")
+                out.append(
+                    ClosingRef(
+                        issue=int(node["number"]),
+                        change=int(change["number"]),
+                        state=(change.get("state") or "").lower(),
+                        branch=change.get("headRefName") or "",
+                        base=change.get("baseRefName") or "",
+                        merged_at=parse_time(change.get("mergedAt")),
+                        change_project=None if project in (None, self.project) else project,
+                    )
+                )
+        return out
+
+
+NEXT_FINGERPRINT = """
+query NextFingerprint($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    defaultBranchRef { name target { oid } }
+    openIssues: issues(states: OPEN) { totalCount }
+    openChanges: pullRequests(states: OPEN) { totalCount }
+    newestIssue: issues(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes { updatedAt }
+    }
+    newestChange: pullRequests(first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
+      nodes { updatedAt }
+    }
+  }
+}
+"""
+
+MILESTONES = """
+query Milestones($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    milestones(first: 100, after: $cursor, states: [OPEN, CLOSED]) {
+      pageInfo { hasNextPage endCursor }
+      nodes { id title dueOn state }
+    }
+  }
+}
+"""
+
+BRANCH_HEADS = """
+query BranchHeads($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    refs(refPrefix: "refs/heads/", first: 100, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes { name target { oid } }
+    }
+  }
+}
+"""
+
+CLOSING_REFS = """
+query ClosingRefs($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    issues(states: OPEN, first: 50, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        closedByPullRequestsReferences(first: 25, includeClosedPrs: true) {
+          totalCount
+          nodes {
+            number state mergedAt headRefName baseRefName
+            repository { nameWithOwner }
+          }
+        }
+      }
+    }
+  }
+}
+"""
