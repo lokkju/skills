@@ -186,16 +186,18 @@ const DIALOG_GUTTER = 2
 const UNMEASURED_ROWS = 24
 
 /**
- * An item as the question dialog asks it, in plain text: the question, a blank line,
+ * An item as the question dialog asks it, in plain text: the question, `Link: <url>` when there's a
+ * link to show, a blank line,
  * `Recommended: <recommendation>`, a blank line, and the description as `dialogText` shapes it, cut
  * so that the question and its `options` fit a screen of `size`, or to 24 rows when it's unmeasured.
  */
 export function dialogQuestion(
-  item: { question: string; recommendation: string | null; description: string },
+  item: { question: string; recommendation: string | null; description: string; link?: string | null },
   options: number,
   size: { rows: number; columns: number } | null,
 ): string {
   const head = [plainText(item.question, true)]
+  if (item.link) head.push(`Link: ${item.link}`)
   if (item.recommendation) head.push('', `Recommended: ${plainText(item.recommendation, true)}`)
   const about = dialogText(item.description)
   if (!about) return head.join('\n')

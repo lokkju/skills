@@ -61,16 +61,26 @@ write a recommendation isn't ready to ask yet, which is the point.
   the button row. A URL gets a line of its own under the question, as a clickable link: a GitHub
   issue or pull request reads `owner/repo#12` and a GitHub repository `owner/repo`; any other URL
   is shown whole and wraps instead of being cut off. A plain `http:` URL other than localhost
-  can't be a clickable link in Claude Code, so it's shown as dim text.
+  can't be a clickable link in Claude Code, so it's shown as dim text. When the session's
+  repository has a remote on a forge the plugin can name, the short link and any `#12`, `!45` or
+  `owner/repo#12` in the question are clickable too, pointing at that forge: `#12` an issue
+  (GitHub and Forgejo send it on to a pull request with that number), `!45` a pull or merge
+  request. It reads `origin` (or the only remote) once, at session start, and knows github.com,
+  gitlab.com, codeberg.org, and hosts named `gitlab.*`, `forgejo.*` or `gitea.*`; on any other
+  host the references stay text, since a self-hosted forge's kind can't be told from its name.
+  On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
+  ctrl/cmd+click); one without OSC 8 support shows the text alone.
 - **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
   dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
-  hands it plain text: the question, `Recommended: <the full recommendation>`, and the item's
+  hands it plain text: the question, `Link: <url>` when the link is a URL or a reference the
+  plugin can resolve (the dialog makes no hyperlinks, so the URL opens only where the terminal
+  spots URLs in plain text itself), `Recommended: <the full recommendation>`, and the item's
   description with its paragraphs and list items kept and its links written as `text (url)`. A
   description too long for the screen is cut so the options stay in view, and ends with
   `… N more lines not shown`; the plugin measures the screen when it draws the card, so a dialog
   opened right after a change of height alone may be cut for the old one. Its options are
-  **Accept: <choice>** for a decision or **Done** for an action, **Copy link** when the link is a
-  URL, **Copy <command>** for the first command in backticks, and **Close**. Copying works on the
+  **Accept: <choice>** for a decision or **Done** for an action, **Copy link** when there's a
+  `Link:` line, **Copy <command>** for the first command in backticks, and **Close**. Copying works on the
   terminal; Claude Code has no clipboard path for the other surfaces yet. Whatever you type under
   the dialog's Other becomes your answer, `D3: <your text>` in the prompt. Esc closes the dialog
   and changes nothing.

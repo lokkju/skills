@@ -21,6 +21,7 @@ import {
   upsert,
 } from './queue'
 import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
+import { type Forge, forgeOf, linkRefs, refHref } from './forge'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -53,6 +54,27 @@ function measure(site: { viewport?: { rows: number; columns: number } }) {
   if (site.viewport && site.viewport.rows > 0 && site.viewport.columns > 0) screen = { rows: site.viewport.rows, columns: site.viewport.columns }
 }
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
+// The forge the session's repository is on, read from its git remote at session start, so `#12`
+// and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
+let forge: Forge | null = null
+
+/** The forge of the `origin` remote, or of the only remote when there's no `origin`. */
+async function remoteForge($: $): Promise<Forge | null> {
+  const git = async (...args: string[]) => {
+    const ran = await $.process.run(['git', ...args], { timeoutMs: 5000 })
+    return ran.exitCode === 0 ? ran.stdout.trim() : ''
+  }
+  try {
+    let url = await git('remote', 'get-url', 'origin')
+    if (!url) {
+      const names = (await git('remote')).split('\n').filter(Boolean)
+      if (names.length === 1) url = await git('remote', 'get-url', names[0] ?? '')
+    }
+    return url ? forgeOf(url) : null
+  } catch {
+    return null
+  }
+}
 
 const DAY = 24 * 60 * 60 * 1000
 // Claude Code's own theme keys, so the cards follow whichever theme the person runs.
@@ -366,6 +388,7 @@ export const register: Register = on => {
         required: ['label', 'ruling'],
       },
     }))
+    forge = await remoteForge($)
     const term = await $.env.get('TERM')
     const noColor = await $.env.get('NO_COLOR')
     await update($, ascii, () => Boolean(noColor) || term === 'dumb')
@@ -761,8 +784,8 @@ async function drawCard(
           </Text>
         )}
       </Box>
-      <Markdown key={`question-${item.label}`} text={parts.question} />
-      {rec?.qualifier && <Markdown key={`qualifier-${item.label}`} text={rec.qualifier} dimColor />}
+      <Markdown key={`question-${item.label}`} text={linkRefs(parts.question, forge)} />
+      {rec?.qualifier && <Markdown key={`qualifier-${item.label}`} text={linkRefs(rec.qualifier, forge)} dimColor />}
       {!short && parts.link !== null && linkLine(Link, Text, parts.link)}
       <Box key="actions" flexDirection="row" gap={1}>
         {rec && item.kind === 'DECIDE' && (
@@ -779,13 +802,22 @@ async function drawCard(
         <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
         <Button key={`more-${item.label}`} label="More" dimColor onPress={more} />
         <Box flexGrow={1} />
-        {short && (
-          <Text dimColor wrap="truncate-start">
-            {parts.link ?? 'no link'}
-          </Text>
-        )}
+        {short && shortLink(Link, Text, parts.link)}
       </Box>
     </Box>
+  )
+}
+
+/**
+ * A short link at the end of the button row: `#12`, `!4` or `owner/repo#12` as a link to it on the
+ * repository's forge when that's known, else as dim text, as is `no link`.
+ */
+function shortLink(Link: Elements['Link'], Text: Elements['Text'], token: string | null) {
+  const href = refHref(token, forge)
+  return (
+    <Text key="link" dimColor wrap="truncate-start">
+      {href && token ? <Link href={href} label={token} /> : (token ?? 'no link')}
+    </Text>
   )
 }
 
@@ -824,7 +856,8 @@ async function popup($: $, item: Item, surface: Surface): Promise<void> {
     choices.push({ label: `Accept: ${choice}`, run: answer($, [`${item.label}: go with ${parts.recommendation}`]) })
   }
   if (item.kind === 'ACTION') choices.push({ label: 'Done', run: answer($, [`${item.label}: done`]) })
-  const url = parts.link && /^https?:\/\//i.test(parts.link) ? parts.link : null
+  // A URL as written, or a reference as its URL on the repository's forge.
+  const url = parts.link && /^https?:\/\//i.test(parts.link) ? parts.link : refHref(parts.link, forge)
   if (url) choices.push({ label: 'Copy link', run: () => void copy($, url, surface) })
   const code = codeSpans(`${parts.question}\n${item.description}`)[0]
   if (code && choices.length < 3) {
@@ -834,7 +867,7 @@ async function popup($: $, item: Item, surface: Surface): Promise<void> {
   choices.push({ label: 'Close', run: () => undefined })
   let picked: string
   try {
-    const question = dialogQuestion({ ...parts, description: item.description }, choices.length, screen)
+    const question = dialogQuestion({ ...parts, description: item.description, link: url }, choices.length, screen)
     picked = (await $.ui.ask(question, { header: item.label, options: choices.map(one => one.label) })).trim()
   } catch {
     return
