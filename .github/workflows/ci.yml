@@ -40,12 +40,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: [forge-release, forge-tracker]
+        plugin: [forge-release, forge-tracker, term-recorder]
         python: ["3.11", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # term-recorder's tests drive real tmux sessions.
+      - name: Install tmux
+        if: matrix.plugin == 'term-recorder'
+        run: command -v tmux || { sudo apt-get update && sudo apt-get install -y tmux; }
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: ${{ matrix.python }}

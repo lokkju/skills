@@ -10,6 +10,8 @@ These are the Claude Code plugins and agent skills I run on my own machines ever
 
 **[forge-tracker](plugins/forge-tracker/README.md)** keeps durable work on the forge's issue tracker, and the tracker honest enough to plan from. Right now it's `/catchup`: when you come back to a project, it tells you what's waiting on you (mentions, review requests, needs-human issues), what merged, which rulings were made, how the board moved and whether CI is healthy, all since your last catchup. Every read fails on its own and says so; nothing that failed is shown as empty. GitHub only for now; GitLab and Forgejo, `/next` and `/groom` come next.
 
+**[term-recorder](plugins/term-recorder/README.md)** lets an assistant see a terminal program the way you do. It runs the program on a private tmux server, drives it from a step file of keystrokes, waits and clicks, and hands back plain-text screen snaps, an asciicast or a GIF. It works on Claude Code itself, which is how I check what a plugin's dialog really looks like.
+
 **[claude-session-index](https://github.com/lokkju/claude-session-index)** indexes, searches and reports on your Claude Code sessions. It lives in its own repo; the marketplace just lists it.
 
 ## Install
