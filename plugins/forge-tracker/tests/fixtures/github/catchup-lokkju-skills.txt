@@ -2,6 +2,7 @@ lokkju/skills on github.com, 2026-10-14 04:19 to 2026-10-15 04:19 (--since; the 
 
 Waiting on you
   nothing
+  standing: none (not updated in the window)
 Merged since
   #4  1 PR: #31 fix(session-decisions): treat the fallback ledger as a normal path
   #7  1 PR: #17 fix(session-decisions): keep an item's label when TaskUpdate changes its subject

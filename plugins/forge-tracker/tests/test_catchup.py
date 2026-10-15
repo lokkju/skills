@@ -395,6 +395,27 @@ def test_header_says_what_happens_to_the_marker(env, basis, marker, says):
     assert header == f"acme/widgets on github.com, 2026-10-08 08:00 to 2026-10-15 08:00 {says}"
 
 
+def waiting_lines(report):
+    text = catchup.render(report, timezone.utc)
+    return text.split("Waiting on you\n")[1].split("Merged since\n")[0].splitlines()
+
+
+def test_an_empty_standing_backlog_is_said_as_none(env):
+    report = json_report(env)
+    report["waiting"]["standing"] = {}
+    assert waiting_lines(report)[-1] == "  standing: none (not updated in the window)"
+    report["waiting"]["items"] = []
+    assert waiting_lines(report) == ["  nothing", "  standing: none (not updated in the window)"]
+
+
+def test_standing_none_isnt_claimed_when_its_read_failed(env):
+    report = json_report(env)
+    report["waiting"]["items"] = []
+    report["waiting"]["standing"] = {}
+    report["waiting"]["failed"] = [{"part": "open_issues", "reason": "HTTP 502"}]
+    assert waiting_lines(report) == ["  open_issues: FAILED (HTTP 502)"]
+
+
 def test_all_lists_the_standing_backlog(env):
     code, text = run_catchup(env, "--all")
     assert code == 0
