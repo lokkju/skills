@@ -459,13 +459,15 @@ def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
         "since": "--since; the marker isn't read or moved",
         "no-identity": "identity FAILED, so the marker wasn't read: the last 7 days",
     }[window["basis"]]
+    start, end = _when(window["start"], tz), _when(window["end"], tz)
     if window.get("note"):
         basis += f"; {window['note']}"
-    if report["marker"] == "keep" and window["basis"] in ("marker", "first"):
+    if report["marker"] == "move":
+        basis += f"; marker moves to {end}"
+    elif report["marker"] == "keep" and window["basis"] in ("marker", "first"):
         basis += "; --no-mark, so the marker stays"
     elif report["marker"] == "held":
         basis += "; a read FAILED, so the marker stays"
-    start, end = _when(window["start"], tz), _when(window["end"], tz)
     lines = [f"{report['project']} on {report['host']}, {start} to {end} ({basis})", ""]
 
     waiting = report["waiting"]

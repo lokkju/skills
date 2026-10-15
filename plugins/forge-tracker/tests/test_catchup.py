@@ -253,7 +253,7 @@ def run_catchup(env, *args, http=None, now=NOW, out=None):
 
 
 EXPECTED = """\
-acme/widgets on github.com, 2026-10-08 08:00 to 2026-10-15 08:00 (first catchup here: the last 7 days)
+acme/widgets on github.com, 2026-10-08 08:00 to 2026-10-15 08:00 (first catchup here: the last 7 days; marker moves to 2026-10-15 08:00)
 
 Waiting on you
   #41 review requested: feat: GitHub adapter (draft no, conflicts: unknown)
@@ -296,7 +296,8 @@ def test_next_window_opens_five_minutes_before_the_marker(env):
     code, text = run_catchup(env, now=later)
     assert code == 0
     assert text.startswith(
-        "acme/widgets on github.com, 2026-10-15 07:55 to 2026-10-16 08:00 (since your last catchup)"
+        "acme/widgets on github.com, 2026-10-15 07:55 to 2026-10-16 08:00"
+        " (since your last catchup; marker moves to 2026-10-16 08:00)"
     )
     assert json.loads(env["marker"].read_text())["end"] == "2026-10-16T08:00:00Z"
 
@@ -363,6 +364,35 @@ def test_identity_failure_reads_no_marker(env):
     assert "mentions: FAILED (needs your identity, which failed)" in text
     assert text.rstrip().endswith("identity: FAILED (HTTP 500 from /user: boom with ***)")
     assert env["marker"].read_text() == before
+
+
+def json_report(env, *args):
+    code, text = run_catchup(env, "--json", *args)
+    assert code == 0
+    return json.loads(text)
+
+
+@pytest.mark.parametrize(
+    "basis, marker, says",
+    [
+        (
+            "first",
+            "move",
+            "(first catchup here: the last 7 days; marker moves to 2026-10-15 08:00)",
+        ),
+        ("marker", "move", "(since your last catchup; marker moves to 2026-10-15 08:00)"),
+        ("marker", "keep", "(since your last catchup; --no-mark, so the marker stays)"),
+        ("first", "keep", "(first catchup here: the last 7 days; --no-mark, so the marker stays)"),
+        ("marker", "held", "(since your last catchup; a read FAILED, so the marker stays)"),
+        ("since", "keep", "(--since; the marker isn't read or moved)"),
+    ],
+)
+def test_header_says_what_happens_to_the_marker(env, basis, marker, says):
+    report = json_report(env)
+    report["window"]["basis"] = basis
+    report["marker"] = marker
+    header = catchup.render(report, timezone.utc).splitlines()[0]
+    assert header == f"acme/widgets on github.com, 2026-10-08 08:00 to 2026-10-15 08:00 {says}"
 
 
 def test_all_lists_the_standing_backlog(env):
