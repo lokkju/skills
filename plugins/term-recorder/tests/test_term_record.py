@@ -13,7 +13,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from term_recorder import steps as steplib  # noqa: E402
+from term_recorder import steps as steplib
 
 TERM_RECORD = SCRIPTS / "term-record"
 
@@ -36,6 +36,7 @@ def record(tmp_path: Path, steps: str, *command: str, extra: tuple[str, ...] = (
             "--",
             *command,
         ],
+        check=False,
         capture_output=True,
         text=True,
         timeout=60,
@@ -210,14 +211,17 @@ def test_idle_waits_for_a_busy_marker_to_clear(tmp_path: Path):
     assert "done" in after and "working" not in after
 
 
-def test_usage_errors_exit_2(tmp_path: Path):
+def test_usage_errors_exit_2():
     done = subprocess.run(
         [sys.executable, str(TERM_RECORD), "--size", "huge", "--", "true"],
+        check=False,
         capture_output=True,
         text=True,
     )
     assert done.returncode == 2
     assert "--size wants COLSxROWS" in done.stderr
-    done = subprocess.run([sys.executable, str(TERM_RECORD)], capture_output=True, text=True)
+    done = subprocess.run(
+        [sys.executable, str(TERM_RECORD)], check=False, capture_output=True, text=True
+    )
     assert done.returncode == 2
     assert "no command" in done.stderr
