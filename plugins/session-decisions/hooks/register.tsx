@@ -462,8 +462,9 @@ export const register: Register = (on, options) => {
     const found = handoffs(reply, queue)
     if (found.length === 0) return result
     await update($, handoffNudge, () => nudge(found))
-    const count = found.length === 1 ? 'A step' : `${found.length} steps`
-    $.ui.toast(`${count} handed to you but not in the decision queue: ${plainText(found[0] ?? '')}`)
+    // Short, since a toast is narrow: the first line names the count and starts the first hand-off.
+    const count = found.length === 1 ? 'A hand-off' : `${found.length} hand-offs`
+    $.ui.toast(`${count} not queued: ${plainText(found[0] ?? '')}`)
     return result
   })
 

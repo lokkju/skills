@@ -119,9 +119,9 @@ requests) carries the ruling and its date, never `D3`, which means nothing anywh
 The skill tells the assistant to queue every step only you can do, but the slip comes at the end
 of a long reply: a "Left for you:" list (merge these PRs, run this on each host) with none of it
 queued. When a reply ends, the plugin reads it for work handed to you that isn't in the queue. If
-it finds any, a toast names the first line (`2 steps handed to you but not in the decision queue:
-Merge #41 and #42`), and with your next message the assistant is told which lines they were and to
-queue whatever is still waiting on you. It never blocks or rewrites the reply, and costs no extra
+it finds any, a toast names the first line (`2 hand-offs not queued: Merge #41 and #42`), and with
+your next message the assistant is told which lines they were and to queue whatever is still
+waiting on you. It never blocks or rewrites the reply, and costs no extra
 model call.
 
 It looks for two things: the list items under a hand-off heading (`Left for you:`, `Next steps for

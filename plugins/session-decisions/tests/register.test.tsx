@@ -454,7 +454,7 @@ describe('hand-off check', () => {
     await prompt($, 'ship both fixes')
     const stopped = await stop($, HANDOFF)
     expect(stopped.block).toBeUndefined()
-    expect(toasts.at(-1)).toBe('2 steps handed to you but not in the decision queue: Merge #41 and #42')
+    expect(toasts.at(-1)).toBe('2 hand-offs not queued: Merge #41 and #42')
     const next = await prompt($)
     const text = next.additionalContext?.join('\n') ?? ''
     expect(text).toContain('- Merge #41 and #42')
@@ -473,7 +473,7 @@ describe('hand-off check', () => {
     await stop($, HANDOFF)
     await stop($, 'Left for you:\n- A3: rotate the key')
     await stop($, 'Done: merged #41 and ran the backfill. If you need to roll back, run `git revert HEAD`.')
-    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
     expect((await prompt($)).additionalContext).toBeUndefined()
   })
 
@@ -485,7 +485,7 @@ describe('hand-off check', () => {
     await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'run the backfill on each host [no link]' })
     await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
     await stop($, 'Left for you:\n- Run the backfill on each host')
-    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
   })
 
   test('a Stop hook continuation is left alone', async ($, on) => {
@@ -493,7 +493,7 @@ describe('hand-off check', () => {
     classic(on)
     await start($)
     await stop($, HANDOFF, true)
-    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
   })
 
   test('the handoff_check option turns it off', { options: { handoff_check: false } }, async ($, on) => {
@@ -501,7 +501,7 @@ describe('hand-off check', () => {
     classic(on)
     await start($)
     await stop($, HANDOFF)
-    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
     expect((await prompt($)).additionalContext).toBeUndefined()
   })
 })
