@@ -12,7 +12,7 @@ These are the Claude Code plugins and agent skills I run on my own machines ever
 
 **[term-recorder](plugins/term-recorder/README.md)** lets an assistant see a terminal program the way you do. It runs the program on a private tmux server, drives it from a step file of keystrokes, waits and clicks, and hands back plain-text screen snaps, an asciicast or a GIF. It works on Claude Code itself, which is how I check what a plugin's dialog really looks like.
 
-**[claude-session-index](https://github.com/lokkju/claude-session-index)** indexes, searches and reports on your Claude Code sessions. It lives in its own repo; the marketplace just lists it.
+**[session-history](https://github.com/lokkju/claude-session-index)** indexes, searches and reports on your Claude Code sessions. It lives in its own repo, lokkju/claude-session-index, along with the `claude-session-index` CLI it drives; the marketplace just lists it. It used to be called `claude-session-index` too, until Claude Code reserved plugin names that start with `claude-`. If you installed it under that name, run `claude plugin uninstall claude-session-index@lokkju`, then `claude plugin marketplace update lokkju` and `claude plugin install session-history@lokkju`.
 
 ## Install
 

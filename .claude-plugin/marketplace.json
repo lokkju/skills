@@ -24,7 +24,7 @@
       "description": "Drives a terminal program from a step file on a private tmux server and captures what it shows: text snaps, an asciicast and a GIF. For checking how a TUI really renders, and for demos."
     },
     {
-      "name": "claude-session-index",
+      "name": "session-history",
       "source": { "source": "github", "repo": "lokkju/claude-session-index" },
       "description": "Index, search, and report on Claude Code sessions. TPS skill for work summarization."
     }
