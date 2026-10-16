@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.16.3](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.2...session-decisions--v2026.10.16.3) (2026-10-16)
+
+### Fixes
+
+- **session-decisions:** the hand-off nudge points at deferred TaskCreate before decision_add ([053c120](https://github.com/lokkju/skills/commit/053c120bda9ed267f594e87b1d1aa92ef8f00b97))
+
 ## [session-decisions--v2026.10.16.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.1...session-decisions--v2026.10.16.2) (2026-10-16)
 
 ### Features

@@ -1,7 +1,7 @@
 {
   "name": "term-recorder",
   "description": "Drives a terminal program from a step file on a private tmux server with a clean environment, and captures what it shows: plain-text screen snaps, an asciicast, and a GIF through agg. For checking how a TUI really renders, Claude Code included, and for recording demos.",
-  "version": "2026.10.15.2",
+  "version": "2026.10.16.1",
   "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
   "homepage": "https://github.com/lokkju/skills/tree/main/plugins/term-recorder",
   "repository": "https://github.com/lokkju/skills",
