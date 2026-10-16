@@ -479,6 +479,24 @@ def mk(number, title="", branch="", closing=()):
         (mk(5, "fix", "sd-26", (3,)), [3, 26]),
         (mk(5, "fix: see acme/other#9 and #5", "x"), []),
         (mk(5, "feat: v2 parser", "v2"), []),
+        # lokkju/infra's real branches: versions, run ids and dates name no issue.
+        (
+            mk(279, "chore(homelab): GARM runner image 2.338.0", "garm-runner-2.338.0-38790455020"),
+            [],
+        ),
+        (mk(156, "chore(cilium): 1.20.2", "cilium-1.20.2"), []),
+        (mk(155, "chore(cilium): 1.19.8, 365-day Hubble certs", "cilium-1.19.8"), []),
+        (mk(170, "docs(plans): spikes", "lokkju/plans-2026-10-08"), []),
+        (
+            mk(
+                200,
+                "chore(homelab): agent-runner image",
+                "agent-runner-1.18.35-5e5bdad-38507457856",
+            ),
+            [],
+        ),
+        (mk(5, "fix: x (#0)", "fix-0"), []),
+        (mk(5, "fix: x", "fix-42"), [42]),
     ],
 )
 def test_issue_numbers(c, numbers):

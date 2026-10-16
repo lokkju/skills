@@ -59,9 +59,11 @@ A later `/next` shows the saved slate, with its age, until the facts move.
    Keep each item's in-flight marks (an open PR with its draft, conflict and CI state, or a pushed
    branch) and never call a lane with `conflicts: unknown` ready to merge.
 3. **Blocked**: each item and what it waits on.
-4. **Flags** last: merged-but-open issues, links to closed blockers and blocked labels with
+4. **Open PRs with no open issue**: each with its draft, conflict, CI and review state. These are
+   in flight too; never drop them, and never call one with `conflicts: unknown` ready to merge.
+5. **Flags** last: merged-but-open issues, links to closed blockers and blocked labels with
    nothing linked (all of which `/groom` fixes), blocking cycles, and pushed branches with no PR.
-5. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A
+6. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A
    failed read is not "nothing": never summarize it as empty or clear. When blocking links
    failed, the items listed as not classified may be blocked; don't call them agent-ready.
 

@@ -126,6 +126,9 @@ class Change:
     merged_at: Optional[datetime] = None
     merge_sha: Optional[str] = None
     closing_issues: tuple[int, ...] = ()
+    # The review decision, lowercased (`approved`, `changes_requested`, `review_required`), or
+    # None when the forge has none or it wasn't read.
+    review: Optional[str] = None
 
 
 @dataclass(frozen=True)

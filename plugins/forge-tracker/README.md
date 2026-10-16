@@ -88,8 +88,10 @@ The CLI classifies every open issue, deterministically:
 
 Each item also gets how many items it unblocks, counted transitively through open links (each
 item once, so a cycle can't loop; cycles are flagged), what has it **in flight** (an open PR that
-closes it or names it in its title or branch, or a pushed branch with its number as a segment),
-and a **merged-but-open** flag when a merged PR has a real closing reference to it.
+closes it or names it in its title or branch, or a pushed branch that names its number; versions
+and dates in a branch name aren't issue numbers), and a **merged-but-open** flag when a merged PR
+has a real closing reference to it. Open PRs that no open issue has in flight get their own list,
+with their draft, conflict, CI and review state.
 
 The **slate** is Claude's ranking: the order of your queue, and the agent-ready items grouped
 into lanes that shouldn't touch the same files. The grouping is Claude's judgement from titles,

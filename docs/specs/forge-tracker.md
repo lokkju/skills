@@ -117,7 +117,7 @@ error, never an empty list standing in for a failure.
 | Comments since T | issue, author, created, body | `GET /issues/comments?since=` (repo-wide) | project events with `target_type=note` | `GET /issues/comments?since=` |
 | Mentions of you since T | issue or change, author, time | search `mentions:<login>` | `GET /todos?action=mentioned` | search `mentioned=true` (verify) |
 | Blocking links | blocked, blocker, kind (native or convention) | GraphQL `blockedBy`, `subIssues` | `GET /issues/:iid/links` (`blocks` on tiers that have it) | `GET /issues/{i}/dependencies` |
-| Open changes | number, title, source branch, draft, reviewers, assignees, conflicts, head pipeline | GraphQL `pullRequests` (`mergeable` is missing from the REST list) | `GET /merge_requests?state=opened`, then one GET per MR for `head_pipeline` | `GET /pulls?state=open` |
+| Open changes | number, title, source branch, draft, reviewers, assignees, conflicts, head pipeline, review decision | GraphQL `pullRequests` (`mergeable` is missing from the REST list) | `GET /merge_requests?state=opened`, then one GET per MR for `head_pipeline` | `GET /pulls?state=open` |
 | Merged since T | number, title, branch, merge sha, merged at, closing issues | GraphQL `closingIssuesReferences` | `GET /merge_requests?state=merged&updated_after=`, `closes_issues` | `GET /pulls?state=closed` filtered on `merged` |
 | Closing references to open issues | issue, change, change state, base branch | GraphQL `closedByPullRequestsReferences(includeClosedPrs: true)` | `GET /issues/:iid/closed_by` (verify) | closing keywords in open and merged PR bodies (verify) |
 | CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs with `include_retried=true` | Actions runs where the instance has the API, else commit status |
@@ -274,7 +274,7 @@ the skill tells agents to always pass it when they run `/catchup` for their own 
    or updated in the window are listed in full; the standing backlog is one count line per list.
    An item on several lists is listed once and counted in each. `--all` lists everything.
 2. **Merged since:** changes merged in the window, grouped by the issue numbers in their titles
-   or branches (date-shaped branch segments such as `2026-10-14` are ignored), plus changelog
+   or branches (a branch names an issue as `/next`'s in-flight rule reads it), plus changelog
    entries added when `changelog:` is set.
 3. **Decisions made:** comments in the window matching `ruling_pattern`.
 4. **Board movement:** issues opened and closed, counted by tier.
@@ -311,8 +311,8 @@ Recommends what to work on: your queue, lanes agents can start now, and what's b
 recommends only; it never claims, assigns, comments or branches.
 
 **Facts** (the CLI, `forge-tracker next facts`): open issues with tier, due date, labels,
-owners, body and links; open changes with head pipeline and conflict state; branches with no
-change; and the closing references from changes to open issues. Cached under
+owners, body and links; open changes with head pipeline, conflict state and review decision;
+branches with no change; and the closing references from changes to open issues. Cached under
 `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/next/<host>_<project>/facts.json` with
 a fingerprint of cheap inputs: default-branch head, the newest issue and change `updated_at`,
 open issue and change counts, a digest of the milestones (id, title, due), the remote branch
@@ -350,8 +350,14 @@ reported as a cycle. The walk passes through every open blocked item and counts 
 aren't person-only; a blocker in another project blocks but isn't walked.
 
 **In flight:** an item is in flight when an open change has a closing reference to it or names it
-(`#N` in its title, or `N` as a segment of its branch), or a pushed branch with no change and at
-least one commit past the default branch has `N` as a segment. Phase 2's pickup record (branch
+(`#N` in its title, or `N` in its branch name), or a pushed branch with no change and at least
+one commit past the default branch names `N`. A branch names `N` only when it's clearly an issue
+number: a whole word at the start or end of a `/`-separated segment (`21-github-adapter`,
+`fix/21`, `sd-26`) or right after `issue`, `gh`, `fix` and similar words (`issue-21-x`). Digits
+inside a version (`cilium-1.20.2`, `v1`), a date (`plans-2026-10-08`), a run id or hash longer than
+six digits, a word with a leading zero, a number in the middle of a name (`phase-2-docs`) and `0`
+aren't issue numbers, and a `dependabot/` or `renovate/` branch names none. `/catchup` groups merged changes by the
+same rule (`forge_tracker/refs.py`). Phase 2's pickup record (branch
 to issue) is the other source; until phase 2 ships, `next.recorded_pickups` returns none and is
 the one place to read it.
 
@@ -373,6 +379,11 @@ agent-ready items it leaves out are listed as not in a lane.
   the same files. The grouping is Claude's stated judgement from titles, bodies and labels, and
   the output says so. A lane with an open change or a pushed branch is marked in flight.
 - **Blocked:** each blocked item and what it waits on.
+- **Open PRs with no open issue:** every open change that has no open issue in flight, with its
+  draft, conflict, CI and review state, its branch, and any issue numbers it names that aren't
+  open. It's the mirror of the branch-with-no-PR flag: work in flight that no issue accounts for,
+  listed rather than dropped. When the closing references read fails, the list says a PR on it
+  may still close an open issue.
 
 ```text
 lokkju/skills, slate from 2026-10-15 07:40 (facts unchanged since)
@@ -386,6 +397,8 @@ Agent lanes (grouped by judgement: these shouldn't share files)
   C  docs                           #13 0.1.0 minor fixes (P3)
 Blocked
   #22 /groom waits on #21 (native), #10 (convention: relates_to + blocked)
+Open PRs with no open issue
+  #33 chore: release wave (conflicts: no, ci: success, review: approved)  branch yeet/release-main
 Flags
   #14 is referenced by merged #31 but still open (run /groom)
 ```
@@ -463,8 +476,8 @@ None of it needs the commands.
 - **Closing references.** When the work was picked up from an issue, the PR or MR body carries
   `Closes #N` (or `Closes !N` / `group/project#N` as the forge writes it). Work counts as picked
   up from an issue when forge-tracker recorded the pickup for the branch, or when the branch name
-  has the issue number as a segment (`21-github-adapter`, `fix/21`; date-shaped segments such as
-  `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
+  names the issue number by `/next`'s in-flight rule (`21-github-adapter`, `fix/21`; versions
+  and dates such as `cilium-1.20.2` or `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
   confirm the issue closed; when it didn't (a merge to a non-default branch, say), close it with
   `write close`.
 - **Shared account.** Never infer that the user acted from the account that acted.

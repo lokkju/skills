@@ -87,7 +87,7 @@ def _issue(raw: dict) -> Issue:
 
 
 _CHANGE_FIELDS = """
-  number title url headRefName isDraft mergeable createdAt updatedAt mergedAt
+  number title url headRefName isDraft mergeable reviewDecision createdAt updatedAt mergedAt
   author { __typename login }
   mergeCommit { oid }
   assignees(first: 50) { nodes { login } }
@@ -183,6 +183,7 @@ def _change(node: dict, owner_repo: str) -> Change:
         merged_at=parse_time(node.get("mergedAt")),
         merge_sha=(node.get("mergeCommit") or {}).get("oid"),
         closing_issues=tuple(closing),
+        review=(node.get("reviewDecision") or "").lower() or None,
     )
 
 
