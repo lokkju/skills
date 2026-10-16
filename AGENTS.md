@@ -12,8 +12,9 @@
   (GitHub App manifest flow); no skill yet. Standard-library Python plus `openssl`; tests run with
   `uv run --no-project --with pytest pytest plugins/forge-release/tests`.
 - `plugins/forge-tracker/`: issue-tracker working rules and reports (design in
-  `docs/specs/forge-tracker.md`). So far the read-only GitHub layer and `/catchup`: a
-  standard-library Python CLI (`scripts/forge-tracker`) and `commands/catchup.md`. Tests run with
+  `docs/specs/forge-tracker.md`). So far the GitHub layer, `/catchup`, `/next` and `/groom`:
+  a standard-library Python CLI (`scripts/forge-tracker`) and `commands/`. Only
+  `scripts/forge_tracker/writes.py` writes to a forge. Tests run with
   `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over recorded fixtures,
   no network.
 - `plugins/term-recorder/`: drives a terminal program from a step file on a private tmux server

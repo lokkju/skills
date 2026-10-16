@@ -2,8 +2,9 @@
 
 Keeps durable work on the issue tracker of the repo it's about, and keeps that tracker honest
 enough to plan from. The design is [docs/specs/forge-tracker.md](../../docs/specs/forge-tracker.md);
-this release has a read-only forge layer for GitHub, `/catchup` and `/next`. The working rules,
-`/groom`, and the GitLab and Forgejo adapters come in later phases.
+this release has a read-only forge layer for GitHub, `/catchup`, `/next` and `/groom`, plus the
+write operations `/groom` applies. The working rules and the GitLab and Forgejo adapters come in
+later phases.
 
 ## Requirements
 
@@ -114,13 +115,71 @@ can't be read, items that would otherwise be agent-ready are listed as not class
 they might be blocked. The command exits 1 when any read failed and shows no slate until a run
 reads everything.
 
+## /groom
+
+Finds where the tracker has drifted from the truth and proposes the fixes. The report writes
+nothing; Claude shows you the proposals, numbered with their evidence, asks which to apply, and
+applies only the ones you name.
+
+```text
+/groom                   the report, then "Apply which? (numbers, all, none)"
+/groom --json            the same data as JSON, each proposal with its write payload
+```
+
+| Check | Proposes | Never proposes, puts in Unclear instead |
+| --- | --- | --- |
+| Merged but still open | `close`, with a comment naming the PR, when a merged PR has a real closing reference (`Closes #N`) and its merge commit is on the default branch | an issue a merged PR names only in its title or branch; a closing reference from a PR merged into another branch, or whose merge commit isn't on the default branch |
+| Tier label and milestone (tier label N pairs with milestone prefix N) | `labels` to add the missing tier label; `milestone` when exactly one open milestone fits | a label and milestone that disagree; no single milestone that fits |
+| Blocked label with nothing linked | `unlink` the label | |
+| Link to a closed blocker | `unlink` the link | |
+| Decided but still waiting: a ruling comment (by `ruling_pattern`) dated after the needs-human or decision label was added | `labels`: remove those, add `decision_made` | an issue whose label history can't be read |
+| Stale branch: no open PR, nothing ahead of the default branch | `delete-branch` (refused at apply time if the branch moved) | a branch with commits the default branch lacks, when idle for `stale_days` or the branch of a merged PR |
+| Conflicted or stale PR | nothing; listed for you | `conflicts: unknown` |
+| Likely duplicates (token-set similarity of titles and labels, open issues and those closed in 30 days) | nothing | every pair |
+| Placeholder due dates (one due date on more than one open milestone) | nothing; listed for you | |
+
+Merged PRs are read back 90 days. `stale_days` defaults to 14. A check whose config is unset
+(the tier, blocked-label and ruling checks) is listed as skipped, with the key it needs. Every
+check fails on its own: a failed read prints `<check>: FAILED (<reason>)` and the command exits 1,
+and nothing about that check is shown as clean.
+
+`forge-tracker groom apply` reads `{"approved": ["close #14", "delete-branch sd-26"]}` (the
+proposal ids) on stdin, re-runs every check, and refuses the whole list, writing nothing, when any
+id isn't a proposal any more. Then it writes the approved ones one at a time and prints a line for
+each: what it wrote, `REFUSED (...)` or `FAILED (...)`.
+
+```bash
+plugins/forge-tracker/scripts/forge-tracker groom
+echo '{"approved": ["close #14"]}' | plugins/forge-tracker/scripts/forge-tracker groom apply
+```
+
+### Writes
+
+Every write goes through `scripts/forge_tracker/writes.py`, the only module with a write
+transport (POST, PATCH and DELETE under the repo's own REST path; nothing else). The operations
+are named, and each takes a JSON payload:
+
+| Operation | Payload | On GitHub |
+| --- | --- | --- |
+| `close` | `issue`, `comment`, `change` | the comment, then close as completed; refused if it's already closed |
+| `labels` | `issue`, `add`, `remove` | add, then remove each; a label already off is noted |
+| `milestone` | `issue`, `milestone` (`{number, title}` or `null`) | set or clear |
+| `unlink` | `issue` and either `label` or `blocker` (+ `blocker_project`) | remove the label, or the blocked-by link; refused if the blocker reopened |
+| `delete-branch` | `branch`, `sha` | delete the ref; refused if the branch moved off `sha` or is protected |
+
+`forge-tracker write <op>` runs one with its payload on stdin. When the config sets
+`write_wrapper:`, forge-tracker sends no write of its own: it runs `<wrapper> <op>` in the repo
+root with the same JSON on stdin (plus `repo`), and the wrapper does the write and exits 0, or
+exits non-zero to refuse; its stderr is shown. Every operation, written, refused or failed, is
+appended to `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/writes/<host>_<project>.jsonl` (0600).
+
 ## Configuration
 
 Per repo, in `.claude/forge-tracker.local.md`. Only the YAML frontmatter is read, every key is
 optional, and an unknown key fails the load with its name. A report that needs an unset key
 leaves that part out and says so in one `setup:` line, which names what's missing and how to set
 it up. Set a label or `ruling_pattern` to `~` to record that the repo has none; the reports then
-say nothing about it. The keys `/catchup` and `/next` use:
+say nothing about it. The keys the commands use:
 
 ```markdown
 ---
@@ -129,6 +188,7 @@ api_base: https://git.corp.example/api/v3   # only when the host's API isn't at 
 labels:
   needs_human: needs-human     # person-only (firm)
   decision: decision           # person-only (firm)
+  decision_made: decided       # /groom: added when a ruling settles a waiting issue
   blocked: blocked             # /next: blocked even with nothing linked
   agent: agent-ready           # /next: sorts first within its tier; never required
 tiers:                        # first match wins; milestone prefixes are the fallback
@@ -138,13 +198,14 @@ ruling_pattern: '^Ruling \((\d{4}-\d{2}-\d{2})\):'
 changelog: CHANGELOG.md       # bullet lines added on the default branch in the window
 report_tags: ["v*"]           # globs over release and tag names
 person_only_markers: [hardware, legal]   # /next: words in a title or label that hint person-only
+stale_days: 14                # /groom: when a PR or an unmerged branch counts as stale
+write_wrapper: ./scripts/tracker-write   # every write runs `<wrapper> <op>` instead
 ---
 Free notes for the assistant.
 ```
 
-The file also accepts the keys later phases read (`ca_file`, `labels.decision_made`,
-`blocking`, `stale_days`, `write_wrapper`); the design doc describes them. The standard library has no YAML parser, so
-the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
+The file also accepts the keys later phases read (`ca_file`, `blocking`); the design doc
+describes them. The standard library has no YAML parser, so the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
 lists, quoted strings, integers, `~` or `null` for none, and `#` comments.
 
 ### Setting it up
@@ -158,9 +219,9 @@ mapped to the label that looks like it (`needs-human`, `human`, `decision`, `que
 shows you the proposal and writes `.claude/forge-tracker.local.md` only when you say so, with
 your corrections. That file is the only thing it writes; it doesn't commit it.
 
-For each role no label matched, the suggestion also prints a `gh label create` command. Until
-forge-tracker has its write layer, Claude gives you those commands to run and doesn't create
-labels itself; once you have, it puts their names in the file.
+For each role no label matched, the suggestion also prints a `gh label create` command.
+Creating a label isn't one of forge-tracker's write operations yet, so Claude gives you those
+commands to run and doesn't create labels itself; once you have, it puts their names in the file.
 
 On a no, Claude runs `forge-tracker labels decline`, which records the decline in
 `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/setup/<host>_<project>.json` (never in the repo or on
@@ -181,7 +242,8 @@ the document is a query; the guard finds each operation's type by tokenizing the
 (strings and comments skipped), so a `mutation` hidden after a query, or in a document it can't
 parse, is refused. Lists are read to the last page or fail: a page cap that is hit is a failed
 read with the cap in the reason, never a short list. Error text is cut to 300 characters with
-anything token-shaped replaced by `***`.
+anything token-shaped replaced by `***`. Writes have their own transport in `writes.py`, which
+no adapter or report imports (see [Writes](#writes)).
 
 ## Tests
 
@@ -189,7 +251,8 @@ anything token-shaped replaced by `***`.
 uv run --no-project --with pytest pytest plugins/forge-tracker/tests
 ```
 
-No test touches the network. `tests/fixtures/github/` holds `/catchup` and `/next` runs recorded
+No test touches the network, and no test writes to a forge: writes go to a fake transport or
+a fake wrapper. `tests/fixtures/github/` holds `/catchup`, `/next` and `/groom` runs recorded
 from a live repo with `--record <file>` (scrubbed of tokens and thinned of fields no adapter reads) and the
 report they produce; the edge cases a live repo rarely shows at once (conflicts, retries, bots,
 failures, page caps) are built in the tests. The GitHub fixtures will move to a dedicated seeded

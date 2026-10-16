@@ -16,7 +16,7 @@
     {
       "name": "forge-tracker",
       "source": "./plugins/forge-tracker",
-      "description": "Keeps work on the forge's issue tracker and the tracker honest enough to plan from; for now, a read-only GitHub layer and /catchup, what changed and what's waiting on you since your last catchup."
+      "description": "Keeps work on the forge's issue tracker and the tracker honest enough to plan from; for now on GitHub: /catchup (what changed and what's waiting on you), /next (what to work on) and /groom (tracker drift, fixed only on your approval)."
     },
     {
       "name": "term-recorder",
