@@ -127,6 +127,6 @@ export function nudge(lines: readonly string[]): string {
   return [
     'session-decisions: your last reply handed these to the user without a queue entry:',
     ...lines.map(line => `- ${line}`),
-    'Anything still waiting on the user (a merge, a step on their hosts, a decision) goes in the decision queue with TaskCreate (or decision_add), even when you could do it if asked. Ignore a line that is not a hand-off, or one the user has already dealt with.',
+    'Anything still waiting on the user (a merge, a step on their hosts, a decision) goes in the decision queue, even when you could do it if asked: TaskCreate (a deferred tool; load it with ToolSearch first), or decision_add only when TaskCreate is not in this session. Ignore a line that is not a hand-off, or one the user has already dealt with.',
   ].join('\n')
 }
