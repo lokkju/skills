@@ -175,7 +175,19 @@ class Repo:
                             mergeable="UNKNOWN",
                             title="feat: adapter",
                             commits=self._head(),
-                        )
+                            reviewDecision="REVIEW_REQUIRED",
+                        ),
+                        # No issue behind it at all.
+                        pr(
+                            42,
+                            "loki/ruleset-entry-point",
+                            title="fix(rulesets): require the dedicated entry point",
+                            isDraft=True,
+                            mergeable="CONFLICTING",
+                            reviewDecision="APPROVED",
+                        ),
+                        # Names only a closed issue (#19), and a version in its branch.
+                        pr(43, "cilium-1.20.2", title="chore(cilium): 1.20.2 (#19)"),
                     ],
                     "pullRequests",
                 ),
@@ -288,7 +300,7 @@ Your queue (no slate: most agent-ready items unblocked first)
   2. #15 buy the test hardware (needs-human)  unblocks 1: #20
   3. #13 legal review of the license (marker: legal)
 Agent-ready (no slate: by tier, agent label first, then due date)
-  #21 GitHub adapter (P1, due 2026-10-20)  in flight: #41 (conflicts: unknown, ci: pending)
+  #21 GitHub adapter (P1, due 2026-10-20)  in flight: #41 (conflicts: unknown, ci: pending, review: review required)
   #31 labelled P2 (P2, agent label)
   #30 second P2 (P2)
   #14 merged but open
@@ -302,6 +314,9 @@ Blocked
   #25 blocked by label only waits on nothing linked (blocked label only)
   #50 cycle a waits on #51 (native)
   #51 cycle b waits on #50 (native)
+Open PRs with no open issue
+  #42 fix(rulesets): require the dedicated entry point (draft, conflicts: yes, ci: pending, review: approved)  branch loki/ruleset-entry-point
+  #43 chore(cilium): 1.20.2 (#19) (conflicts: no, ci: pending)  branch cilium-1.20.2, names #19 (not open)
 Flags
   #14 is closed by merged #31 but still open (run /groom)
   #26 has a link to closed blocker #19 (run /groom)
@@ -448,6 +463,21 @@ def test_failed_closing_refs_say_merged_but_open_isnt_checked(env):
     # The open PR still marks #21 in flight? Not by its title or branch: only the closing
     # reference names it, so it's unmarked and the report says marks may be missing.
     assert "#21 GitHub adapter (P1, due 2026-10-20)\n" in text
+    # So #41 is listed with no issue, and the list says why it may be wrong.
+    assert "  #41 feat: adapter (conflicts: unknown" in text
+    assert "(closing references FAILED, so a PR here may still close an open issue)" in text
+
+
+def test_open_prs_with_no_open_issue_are_listed_in_json(env):
+    code, text = run_next(env, "--json")
+    assert code == 0
+    others = {c["ref"]: c for c in json.loads(text)["other_changes"]}
+    assert sorted(others) == ["#42", "#43"]  # #41 closes #21, so it's in flight there
+    assert others["#42"]["draft"] is True
+    assert others["#42"]["conflicts"] == "yes"
+    assert others["#42"]["review"] == "approved"
+    assert others["#42"]["names"] == []
+    assert others["#43"]["names"] == ["#19"]
 
 
 SLATE = {
@@ -468,7 +498,7 @@ Your queue
   2. #10 pick the storage format (decision)  unblocks 3: #22, #23, #24
 Agent lanes (grouped by judgement: these shouldn't share files)
   A  forges/github.py: the adapter  (in flight)
-     #21 GitHub adapter (P1, due 2026-10-20)  in flight: #41 (conflicts: unknown, ci: pending)
+     #21 GitHub adapter (P1, due 2026-10-20)  in flight: #41 (conflicts: unknown, ci: pending, review: review required)
   B  docs
      #31 labelled P2 (P2, agent label)
      #13 legal review of the license (marker: legal)  overruled: a license summary an agent can draft

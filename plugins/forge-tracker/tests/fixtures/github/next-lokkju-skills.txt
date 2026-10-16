@@ -1,4 +1,4 @@
-lokkju/skills on github.com, facts from 2026-10-15 22:30 (read now)
+lokkju/skills on github.com, facts from 2026-10-16 06:37 (read now)
 
 Your queue (no slate: most agent-ready items unblocked first)
   nothing person-only
@@ -15,6 +15,9 @@ Agent-ready (no slate: by tier, agent label first, then due date)
   #36 claude-explorer: installing it as a Claude Code plugin fails; investigate
   #37 session-decisions: decision_close dead-ends in a background subagent ($.tool.list() reports the parent's TaskUpdate)
   #45 forge-tracker: /catchup reads version numbers in branch names as issue numbers
+  #58 forge-tracker: /next ignores open PRs entirely; in_flight is never populated
+  #59 forge-tracker: offer to configure labels on first use; an unconfigured repo silently reports an empty queue
+  #60 session-decisions: per-repo forge override (kind and web base), ahead of forge_hosts
 Blocked
   nothing blocked
 (labels.needs_human isn't set, so no label marks needs-human items)

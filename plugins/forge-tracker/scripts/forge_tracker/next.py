@@ -122,6 +122,8 @@ def _change(c: Change) -> dict[str, Any]:
         "draft": c.draft,
         "conflicts": c.conflicts,
         "pipeline": c.pipeline,
+        "review": c.review,
+        "author": c.author,
         "assignees": list(c.assignees),
         "reviewers": list(c.reviewers),
         "updated": iso(c.updated),
@@ -336,7 +338,13 @@ def classify(
     closing = _part(facts, "closing")
     branches = _part(facts, "branches")
     pickups = pickups or {}
-    result: dict[str, Any] = {"items": [], "cycles": [], "other_branches": [], "notes": []}
+    result: dict[str, Any] = {
+        "items": [],
+        "cycles": [],
+        "other_branches": [],
+        "other_changes": [],
+        "notes": [],
+    }
     needs_human, decision = config.label("needs_human"), config.label("decision")
     blocked_label, agent_label = config.label("blocked"), config.label("agent")
     if not needs_human:
@@ -370,10 +378,16 @@ def classify(
     # What has each issue in flight, and which merged changes close an issue that's still open.
     in_flight: dict[int, list[dict[str, Any]]] = {}
     merged_by: dict[int, list[dict[str, Any]]] = {}
+    attached: set[str] = set()  # refs of open changes that have an open issue in flight
+    named: dict[str, set[int]] = {}  # every issue number each open change names, open or not
 
     def fly(number: int, entry: dict[str, Any]) -> None:
+        if entry["kind"] == "change":
+            named.setdefault(entry["ref"], set()).add(number)
         if number not in open_numbers:
             return
+        if entry["kind"] == "change":
+            attached.add(entry["ref"])
         listed = in_flight.setdefault(number, [])
         same = [e for e in listed if e["kind"] == entry["kind"] and e["ref"] == entry["ref"]]
         if same:
@@ -400,6 +414,7 @@ def classify(
             "draft": c["draft"],
             "conflicts": c["conflicts"],
             "pipeline": c["pipeline"],
+            "review": c.get("review"),
             "via": [via],
         }
 
@@ -444,6 +459,27 @@ def classify(
         for c in changes or []:
             if c["branch"] == branch:
                 fly(number, change_entry(c, "pickup"))
+
+    # Open changes with no open issue behind them: the mirror of a branch with no change.
+    for c in changes or []:
+        ref = f"#{c['number']}"
+        if ref in attached:
+            continue
+        result["other_changes"].append(
+            {
+                "ref": ref,
+                "title": c["title"],
+                "branch": c["branch"],
+                "draft": c["draft"],
+                "conflicts": c["conflicts"],
+                "pipeline": c["pipeline"],
+                "review": c.get("review"),
+                "author": c.get("author"),
+                "updated": c["updated"],
+                "url": c["url"],
+                "names": [f"#{n}" for n in sorted(named.get(ref, ()))],
+            }
+        )
 
     items: dict[int, dict[str, Any]] = {}
     for i in issues:
@@ -774,6 +810,7 @@ def build(
         "notes": classified["notes"],
         "cycles": classified["cycles"],
         "other_branches": classified["other_branches"],
+        "other_changes": classified["other_changes"],
         "failed": list(facts.get("failed") or []),
         "ok": bool(facts.get("ok")),
     }
@@ -826,18 +863,25 @@ def _details(item: Mapping[str, Any]) -> str:
     return f" ({', '.join(parts)})" if parts else ""
 
 
+def _change_state(c: Mapping[str, Any]) -> str:
+    """A change's draft, conflict, CI and review state, as ` (draft, conflicts: no, ...)`."""
+    bits = []
+    if c.get("draft"):
+        bits.append("draft")
+    if "conflicts" in c:
+        bits.append(f"conflicts: {c['conflicts']}")
+    if c.get("pipeline"):
+        bits.append(f"ci: {c['pipeline']}")
+    if c.get("review"):
+        bits.append(f"review: {c['review'].replace('_', ' ')}")
+    return f" ({', '.join(bits)})" if bits else ""
+
+
 def _flight(item: Mapping[str, Any]) -> str:
     out = []
     for f in item["in_flight"]:
         if f["kind"] == "change":
-            state_bits = []
-            if f.get("draft"):
-                state_bits.append("draft")
-            if "conflicts" in f:
-                state_bits.append(f"conflicts: {f['conflicts']}")
-            if f.get("pipeline"):
-                state_bits.append(f"ci: {f['pipeline']}")
-            out.append(f["ref"] + (f" ({', '.join(state_bits)})" if state_bits else ""))
+            out.append(f["ref"] + _change_state(f))
         else:
             ahead = f" ({f['ahead_by']} ahead)" if f.get("ahead_by") is not None else ""
             out.append(f"branch {f['ref']}{ahead}")
@@ -965,6 +1009,19 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         lines += failure("links")
         if not report["blocked"] and "links" not in failed:
             lines.append("  nothing blocked")
+
+    # Open changes no open issue has in flight: still work in flight, so they get their own list.
+    if report["other_changes"]:
+        lines.append("Open PRs with no open issue")
+        for c in report["other_changes"]:
+            refs_named = f", names {', '.join(c['names'])} (not open)" if c["names"] else ""
+            lines.append(
+                f"  {c['ref']} {c['title']}{_change_state(c)}  branch {c['branch']}{refs_named}"
+            )
+        if "closing" in failed:
+            lines.append(
+                "  (closing references FAILED, so a PR here may still close an open issue)"
+            )
 
     # Flags.
     flags = []
