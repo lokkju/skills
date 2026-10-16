@@ -20,8 +20,9 @@ claude plugin marketplace add lokkju/skills
 claude plugin install session-decisions@lokkju
 ```
 
-Restart Claude Code. There's nothing to configure; the skill tells the assistant when to queue
-something, and the hook keeps it honest.
+Restart Claude Code. There's nothing you have to configure; the skill tells the assistant when to
+queue something, and the hook keeps it honest. The one option, [`forge_hosts`](#forge-hosts),
+is for repositories on a self-hosted forge.
 
 ## How it works
 
@@ -66,9 +67,9 @@ write a recommendation isn't ready to ask yet, which is the point.
   `owner/repo#12` in the question are clickable too, pointing at that forge: `#12` an issue
   (GitHub and Forgejo send it on to a pull request with that number), `!45` a pull or merge
   request. It reads `origin` (or the only remote) once, at session start, and knows github.com,
-  gitlab.com, codeberg.org, and hosts named `gitlab.*`, `forgejo.*` or `gitea.*`; on any other
-  host the references stay text, since a self-hosted forge's kind can't be told from its name.
-  On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
+  gitlab.com, codeberg.org, and hosts named `gitlab.*`, `forgejo.*` or `gitea.*`. A self-hosted
+  forge's kind can't be told from any other name, so on any other host the references stay text
+  unless [`forge_hosts`](#forge-hosts) names it. On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
   ctrl/cmd+click); one without OSC 8 support shows the text alone.
 - **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
   dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
@@ -111,6 +112,35 @@ question asked two hours ago doesn't silently fall out of context.
 
 Labels are session-scoped. Anything recorded outside the session (commits, issues, pull
 requests) carries the ruling and its date, never `D3`, which means nothing anywhere else.
+
+### Forge hosts
+
+`forge_hosts` tells the plugin what kind of forge a host runs, for the ones it can't name itself:
+`host=kind` entries split by commas, where the kind is `github`, `gitlab`, `forgejo` or `gitea`
+(Gitea links the same way Forgejo does). For example:
+
+```text
+git.lab.example.com=forgejo, code.example.com=gitlab
+```
+
+With that set, a repository whose `origin` is `ssh://git@git.lab.example.com/me/demo.git` links
+`#12` to `https://git.lab.example.com/me/demo/issues/12` and `!4` to `.../pulls/4`. An entry
+wins over the built-in rules for its host, so `gitlab.example.com=forgejo` corrects a host whose
+name says the wrong thing. GitLab paths keep their subgroups (`group/sub/proj/-/issues/12`).
+
+Set it in `/config` (search for "Forge hosts"), or in `~/.claude/settings.json`:
+
+```json
+{
+  "pluginConfigs": {
+    "session-decisions@lokkju": { "options": { "forge_hosts": "git.lab.example.com=forgejo" } }
+  }
+}
+```
+
+The plugin reads the remote at session start, so a change applies from the next session. An
+entry it can't use (no `=`, a URL instead of a host name, an unknown kind) is skipped, and a toast
+at session start names it; the other entries still apply.
 
 ## Requirements
 

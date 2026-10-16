@@ -8,6 +8,34 @@ export type ForgeKind = 'github' | 'gitlab' | 'forgejo'
 /** A repository on a forge whose URL scheme is known: its kind, host, and path (`owner/repo`). */
 export type Forge = { kind: ForgeKind; host: string; repo: string }
 
+/** Hosts the person named a forge kind for (the `forge_hosts` option), lowercase. */
+export type ForgeHosts = Readonly<Record<string, ForgeKind>>
+
+const KINDS: Readonly<Record<string, ForgeKind>> = { github: 'github', gitlab: 'gitlab', forgejo: 'forgejo', gitea: 'forgejo' }
+const HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/
+
+/**
+ * The `forge_hosts` option, `host=kind` entries split by commas or whitespace, as hosts and their
+ * kinds (`gitea` is read as `forgejo`, whose URLs it shares), with a note for each entry it can't
+ * use. A host named twice takes its last kind.
+ */
+export function parseForgeHosts(option: unknown): { hosts: ForgeHosts; notes: string[] } {
+  const hosts: Record<string, ForgeKind> = {}
+  const notes: string[] = []
+  const text = Array.isArray(option) ? option.join(',') : typeof option === 'string' ? option : ''
+  for (const entry of text.replace(/\s*=\s*/g, '=').split(/[\s,]+/).filter(Boolean)) {
+    const at = entry.indexOf('=')
+    const host = (at < 0 ? '' : entry.slice(0, at)).toLowerCase()
+    const name = entry.slice(at + 1).toLowerCase()
+    const kind = Object.hasOwn(KINDS, name) ? KINDS[name] : undefined
+    if (at < 0) notes.push(`"${entry}" is not host=kind`)
+    else if (!HOST.test(host)) notes.push(`"${entry}": "${host}" is not a host name`)
+    else if (!kind) notes.push(`"${entry}": the kind is github, gitlab, forgejo or gitea`)
+    else hosts[host] = kind
+  }
+  return { hosts, notes }
+}
+
 // Only hosts whose kind can be told from the name alone: a self-hosted forge on any other name
 // could be any of the three, and a wrong guess makes a link that goes somewhere else.
 function kindOf(host: string): ForgeKind | null {
@@ -30,9 +58,10 @@ function repoPath(kind: ForgeKind, path: string): string | null {
 
 /**
  * The forge a git remote URL points at: `https://host/owner/repo(.git)`, `ssh://[user@]host[:port]/owner/repo`
- * or `user@host:owner/repo`. Null for a host this can't name the kind of, or a path it can't use.
+ * or `user@host:owner/repo`. `hosts` names the kind of a host it lists, before the built-in rules.
+ * Null for a host neither names the kind of, or a path it can't use.
  */
-export function forgeOf(remote: string): Forge | null {
+export function forgeOf(remote: string, hosts: ForgeHosts = {}): Forge | null {
   const text = remote.trim()
   let host: string
   let path: string
@@ -54,7 +83,7 @@ export function forgeOf(remote: string): Forge | null {
     return null
   }
   host = host.toLowerCase()
-  const kind = kindOf(host)
+  const kind = (Object.hasOwn(hosts, host) ? hosts[host] : undefined) ?? kindOf(host)
   if (!kind) return null
   const repo = repoPath(kind, path)
   return repo ? { kind, host, repo } : null
