@@ -266,9 +266,25 @@ class Repo:
                     {"name": "release", "commit": {"sha": "r"}, "protected": True},
                     {"name": "wip-idle", "commit": {"sha": "i"}},
                     {"name": "wip-fresh", "commit": {"sha": "f"}},
+                    # Bot branches, merged and reused: never proposed.
+                    {"name": "yeet/release-main", "commit": {"sha": "y1"}},
+                    {"name": "dependabot/npm_and_yarn/x-1.2.3", "commit": {"sha": "dp"}},
+                    {"name": "release-please--branches--main", "commit": {"sha": "rp"}},
+                    {"name": "changeset-release/main", "commit": {"sha": "cs"}},
+                    {"name": "renovate/x", "commit": {"sha": "rn"}},
+                    {"name": "keep/this", "commit": {"sha": "k"}},
                 ],
             ),
         )
+        for name in (
+            "yeet/release-main",
+            "dependabot/npm_and_yarn/x-1.2.3",
+            "release-please--branches--main",
+            "changeset-release/main",
+            "renovate/x",
+            "keep/this",
+        ):
+            w.route(f"/repos/acme/widgets/compare/main...{name}", {"ahead_by": 0, "commits": []})
         w.route("/repos/acme/widgets/compare/main...old-1", {"ahead_by": 0, "commits": []})
         w.route("/repos/acme/widgets/compare/main...release", {"ahead_by": 0, "commits": []})
         w.route(
@@ -368,7 +384,7 @@ def run_cli(env, *args, http=None, run=None, stdin=None):
 
 
 EXPECTED = """\
-acme/widgets on github.com: 7 proposals, 7 unclear, 3 listed for you
+acme/widgets on github.com: 8 proposals, 7 unclear, 3 listed for you
 (merged PRs since 2026-07-17; duplicates among open issues and those closed since 2026-09-15; stale after 10 days)
 
 Proposals
@@ -378,7 +394,8 @@ Proposals
   4. unlink #25 label: the blocked label with no open blocker linked
   5. unlink #26 from #19: blocked by #19, closed 2026-10-09
   6. labels #27 ruling: remove needs-human, add decided: 'Ruling (2026-10-14): ship the small one' on 2026-10-14, after needs-human was added on 2026-10-12
-  7. delete-branch old-1: no open PR, 0 commits ahead of main
+  7. delete-branch keep/this: no open PR, 0 commits ahead of main
+  8. delete-branch old-1: no open PR, 0 commits ahead of main
 Unclear (not acted on)
   #15 has a closing reference from #32, which merged into dev, not main, so the forge didn't close it
   #16 has a closing reference from merged #33, but bbb2222 isn't on main
@@ -442,8 +459,43 @@ def test_json_carries_each_proposal_with_its_write_payload(env):
         "sha": "d",
         "repo": "acme/widgets",
     }
-    assert [p["n"] for p in report["proposals"]] == list(range(1, 8))
+    assert [p["n"] for p in report["proposals"]] == list(range(1, 9))
     assert report["ok"] is True and report["failed"] == []
+
+
+def test_release_and_dependency_bot_branches_are_never_proposed(env):
+    _, text = run_cli(env, "groom", "--json")
+    report = json.loads(text)
+    named = {u["ref"] for u in report["unclear"]} | {
+        p["payload"].get("branch") for p in report["proposals"]
+    }
+    for bot in (
+        "yeet/release-main",
+        "dependabot/npm_and_yarn/x-1.2.3",
+        "release-please--branches--main",
+        "changeset-release/main",
+        "renovate/x",
+    ):
+        assert bot not in named
+    assert {"old-1", "keep/this"} <= named  # other merged branches still are
+
+
+def test_configured_keep_branches_are_skipped(env, repo_dir):
+    config = CONFIG.replace(
+        "stale_days: 10\n", 'stale_days: 10\ngroom:\n  keep_branches: ["keep/*"]\n'
+    )
+    env = dict(env, repo=repo_dir(config))
+    _, text = run_cli(env, "groom")
+    assert "delete-branch keep/this" not in text
+    assert "delete-branch old-1" in text
+    # A configured pattern adds to the built-in ones; it doesn't replace them.
+    assert "yeet/release-main" not in text
+
+
+def test_an_unknown_groom_key_fails_the_config(env, repo_dir):
+    env = dict(env, repo=repo_dir("---\ngroom:\n  keep: [x]\n---\n"))
+    code, _ = run_cli(env, "groom")
+    assert code == 2
 
 
 def test_a_title_or_branch_mention_is_never_a_close_proposal(env):

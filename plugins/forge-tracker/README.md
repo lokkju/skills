@@ -138,7 +138,10 @@ applies only the ones you name.
 | Likely duplicates (token-set similarity of titles and labels, open issues and those closed in 30 days) | nothing | every pair |
 | Placeholder due dates (one due date on more than one open milestone) | nothing; listed for you | |
 
-Merged PRs are read back 90 days. `stale_days` defaults to 14. A check whose config is unset
+Merged PRs are read back 90 days. `stale_days` defaults to 14. The stale-branch check never
+looks at the default branch, protected branches, or the branches release and dependency bots
+create and reuse (`yeet/*`, `release-please--*`, `changeset-release/*`, `dependabot/*`,
+`renovate/*`); `groom.keep_branches` adds globs of your own to that list. A check whose config is unset
 (the tier, blocked-label and ruling checks) is listed as skipped, with the key it needs. Every
 check fails on its own: a failed read prints `<check>: FAILED (<reason>)` and the command exits 1,
 and nothing about that check is shown as clean.
@@ -200,6 +203,8 @@ report_tags: ["v*"]           # globs over release and tag names
 person_only_markers: [hardware, legal]   # /next: words in a title or label that hint person-only
 stale_days: 14                # /groom: when a PR or an unmerged branch counts as stale
 write_wrapper: ./scripts/tracker-write   # every write runs `<wrapper> <op>` instead
+groom:
+  keep_branches: ["release/*", "gh-pages"]   # /groom: never propose deleting these (globs)
 ---
 Free notes for the assistant.
 ```

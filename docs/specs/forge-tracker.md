@@ -253,6 +253,8 @@ changelog: CHANGELOG.md
 report_tags: ["v*", "registry:app"]
 stale_days: 14
 write_wrapper: ./scripts/tracker-write
+groom:
+  keep_branches: ["release/*"]      # never proposed for deletion, on top of the bot branches
 ---
 Releases are cut by yeet; don't file issues for release PRs.
 ```
@@ -489,7 +491,11 @@ to judge, never closed by `/groom`.
   time is its newest `labeled` event; an issue with none is unclear.
 - A branch whose commits aren't all on the default branch is unclear only when its last commit
   is older than `stale_days` or it's the branch of a merged change; a fresh branch with work on
-  it isn't drift. Protected branches are left out. `stale_days` defaults to 14.
+  it isn't drift. `stale_days` defaults to 14. The check never looks at the default branch,
+  protected branches, or the branches release and dependency bots create and reuse (`yeet/*`,
+  `release-please--*`, `changeset-release/*`, `dependabot/*`, `renovate/*`); yeet, for one,
+  recreates `yeet/release-main` for every release PR. `groom.keep_branches` (a list of globs)
+  adds to that list; it doesn't replace it.
 - A due date is a likely placeholder when more than one open milestone uses it; on GitHub the
   due date belongs to the milestone, so every issue in one milestone shares it by design.
 - `forge-tracker groom apply` reads `{"approved": [ids]}` (ids like `close #14`, `labels #22

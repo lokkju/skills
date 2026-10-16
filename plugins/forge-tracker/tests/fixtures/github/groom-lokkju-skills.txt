@@ -1,4 +1,4 @@
-lokkju/skills on github.com: 15 proposals, 0 unclear, 0 listed for you
+lokkju/skills on github.com: 14 proposals, 0 unclear, 0 listed for you
 (merged PRs since 2026-07-18; duplicates among open issues and those closed since 2026-09-16; stale after 14 days, the default while stale_days isn't set)
 
 Proposals
@@ -16,7 +16,6 @@ Proposals
   12. delete-branch fix/sd-tools-gap: no open PR, 0 commits ahead of main, branch of merged #18
   13. delete-branch fix/task-tools-2-1-300: no open PR, 0 commits ahead of main, branch of merged #65
   14. delete-branch fix/term-recorder-example: no open PR, 0 commits ahead of main, branch of merged #49
-  15. delete-branch yeet/release-main: no open PR, 0 commits ahead of main, branch of merged #66
 Unclear (not acted on)
   none
 Listed for you

@@ -14,6 +14,7 @@ Read-only. Every check reads what it needs, fails on its own, and sorts what it 
 
 from __future__ import annotations
 
+import fnmatch
 import re
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -35,6 +36,15 @@ DEFAULT_STALE_DAYS = 14
 # Token-set similarity at or above this makes two issues likely duplicates.
 DUPLICATE_THRESHOLD = 0.6
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+# Branches release and dependency bots create and reuse. The stale-branch check never looks at
+# them; `groom.keep_branches` in the config adds more globs to this list.
+KEEP_BRANCHES = (
+    "yeet/*",
+    "release-please--*",
+    "changeset-release/*",
+    "dependabot/*",
+    "renovate/*",
+)
 
 CHECKS = {
     "merged": "merged but still open",
@@ -471,10 +481,17 @@ def check_decided(f: Findings, reads: Mapping[str, Any], config: Config) -> None
         )
 
 
-def check_branches(f: Findings, reads: Mapping[str, Any], stale: timedelta, now: datetime) -> None:
+def check_branches(
+    f: Findings,
+    reads: Mapping[str, Any],
+    stale: timedelta,
+    now: datetime,
+    keep: tuple[str, ...] = KEEP_BRANCHES,
+) -> None:
     """A branch with no open PR and every commit on the default branch is a delete proposal.
     One with commits the default branch lacks is unclear when it's idle past the stale age or is
-    the branch of a merged PR (a squash or rebase merge leaves its commits off the default)."""
+    the branch of a merged PR (a squash or rebase merge leaves its commits off the default).
+    Protected branches and those matching a `keep` glob are never looked at."""
     if not _needs(f, "branches", reads, "branches", "repo"):
         return
     default = reads["repo"].data.default_branch
@@ -483,7 +500,9 @@ def check_branches(f: Findings, reads: Mapping[str, Any], stale: timedelta, now:
         for change in reads["merged"].data:
             merged_from.setdefault(change.branch, change.number)
     for branch in sorted(reads["branches"].data, key=lambda b: b.name):
-        if branch.has_change or branch.protected:
+        if branch.has_change or branch.protected or branch.name == default:
+            continue
+        if any(fnmatch.fnmatchcase(branch.name, pattern) for pattern in keep):
             continue
         merged = (
             f", branch of merged #{merged_from[branch.name]}" if branch.name in merged_from else ""
@@ -620,7 +639,7 @@ def build(
     check_blocked_label(f, reads, config)
     check_closed_blockers(f, reads)
     check_decided(f, reads, config)
-    check_branches(f, reads, stale, now)
+    check_branches(f, reads, stale, now, KEEP_BRANCHES + config.keep_branches)
     check_changes(f, reads, stale, now)
     check_duplicates(f, reads, now)
     check_due_dates(f, reads)
