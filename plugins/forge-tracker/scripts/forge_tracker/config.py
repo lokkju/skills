@@ -37,7 +37,9 @@ KEYS = (
     "report_tags",
     "stale_days",
     "write_wrapper",
+    "groom",
 )
+GROOM_KEYS = ("keep_branches",)
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,8 @@ class Config:
     report_tags: tuple[str, ...] = ()
     stale_days: Optional[int] = None
     write_wrapper: Optional[str] = None
+    # Globs of branch names /groom never proposes deleting, on top of its built-in ones.
+    keep_branches: tuple[str, ...] = ()
     # Whether the file exists, and the keys it sets to `~` ("labels.needs_human", "ruling_pattern").
     found: bool = False
     set_to_none: frozenset[str] = frozenset()
@@ -307,6 +311,13 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
     if unknown:
         raise ConfigError(f"{source}: unknown key tiers.{', tiers.'.join(unknown)}")
 
+    groom = data.get("groom") or {}
+    if not isinstance(groom, dict):
+        raise ConfigError(f"{source}: groom must be a mapping")
+    unknown = sorted(set(groom) - set(GROOM_KEYS))
+    if unknown:
+        raise ConfigError(f"{source}: unknown key groom.{', groom.'.join(unknown)}")
+
     pattern = _string(data.get("ruling_pattern"), "ruling_pattern")
     try:
         ruling = re.compile(pattern, re.MULTILINE) if pattern else None
@@ -331,5 +342,6 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
         report_tags=_strings(data.get("report_tags"), "report_tags"),
         stale_days=stale,
         write_wrapper=_string(data.get("write_wrapper"), "write_wrapper"),
+        keep_branches=_strings(groom.get("keep_branches"), "groom.keep_branches"),
         set_to_none=frozenset(none),
     )

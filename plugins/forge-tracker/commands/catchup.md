@@ -45,8 +45,8 @@ can't see what those labels would mark. Present the report first, then handle se
   corrections. When the file already exists, add only the keys the suggestion printed and keep
   everything else in it. That file is the only thing you write; don't commit it unless the user
   asks (committing it shares the label names, and whether to is the repo's call).
-- **Labels that don't exist yet:** forge-tracker has no write layer yet, so don't create labels
-  on the forge yourself, even through `gh`. If the user wants them, give them the `gh label
+- **Labels that don't exist yet:** creating labels isn't one of forge-tracker's write
+  operations yet, so don't create them on the forge yourself, even through `gh`. If the user wants them, give them the `gh label
   create` commands from the suggestion to run, and once they have, put each name in the file in
   place of its `~`.
 - **No:** run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`. It writes one file

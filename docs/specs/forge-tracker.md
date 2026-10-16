@@ -201,6 +201,16 @@ The wrapper does the write itself (a project's own `decide` command, its scrubbe
 or exits non-zero to refuse, and its stderr is shown. forge-tracker never sends a write of its
 own when a wrapper is set.
 
+**Built so far (phase 4).** `close`, `labels`, `milestone`, `unlink` and `delete-branch`, on
+GitHub; `file` and `rule` come with phase 2. The write transport is defined in `writes.py` and
+sends only POST, PATCH and DELETE under the project's own REST path. Each payload is checked
+before anything is sent (a payload naming another `repo` is refused), and the operations that
+can go stale check first through the read transport: `close` refuses an issue that's already
+closed, `unlink` a blocker that reopened, and `delete-branch` a branch that moved off the
+payload's `sha` or is protected. The payload the wrapper gets carries `repo` (`owner/repo`).
+Every operation, written, refused or failed, is appended to
+`.../forge-tracker/writes/<host>_<project>.jsonl` (0600).
+
 ## Configuration
 
 ### userConfig
@@ -243,6 +253,8 @@ changelog: CHANGELOG.md
 report_tags: ["v*", "registry:app"]
 stale_days: 14
 write_wrapper: ./scripts/tracker-write
+groom:
+  keep_branches: ["release/*"]      # never proposed for deletion, on top of the bot branches
 ---
 Releases are cut by yeet; don't file issues for release PRs.
 ```
@@ -269,8 +281,9 @@ The report says so on that line, and the commands turn the `setup:` line into an
   the run isn't an agent's own. Claude shows the proposal and writes `.claude/forge-tracker.local.md`
   only on the user's yes, with their corrections, adding to an existing file rather than
   replacing it. That's the only write. Labels missing on the forge are an instruction for the
-  user (the printed `gh label create` commands) until the write layer exists; then creating them
-  becomes a named operation behind the write-wrapper like the others.
+  user (the printed `gh label create` commands) until creating them becomes a named operation
+  behind the write-wrapper like the others; the write layer exists, but that operation doesn't
+  yet.
 - **`forge-tracker labels decline`** records a no in the local cache (see [State](#state)), reads
   no forge and needs no token. The `setup:` line then says setup was declined, so the commands
   don't offer it again; the line stays, one line, because the report still can't see the labels.
@@ -464,6 +477,31 @@ write-wrapper, one at a time, and the result line says what was written or why i
 **Duplicates** are found in the CLI: token-set similarity over titles and labels, among open
 issues and issues closed in the last 30 days, above a fixed threshold. They're candidates for you
 to judge, never closed by `/groom`.
+
+**As built on GitHub (phase 4).** The details the table leaves open:
+
+- Merged changes are read back 90 days, for the named-only check and to say which merged change
+  a branch came from. Closing references cover every open issue whatever their age.
+- A tier label pairs with the milestone prefix at the same position in the config
+  (`tiers.labels[n]` with `tiers.milestone_prefixes[n]`); the check is skipped unless both are
+  set. A tier milestone without its label proposes `labels`; a tier label without a milestone
+  proposes `milestone` only when exactly one open milestone has the prefix. A label and
+  milestone that disagree, or a label on an issue whose milestone isn't a tier one, are unclear.
+- "Decided but still waiting" reads each waiting issue's label events and comments. The label's
+  time is its newest `labeled` event; an issue with none is unclear.
+- A branch whose commits aren't all on the default branch is unclear only when its last commit
+  is older than `stale_days` or it's the branch of a merged change; a fresh branch with work on
+  it isn't drift. `stale_days` defaults to 14. The check never looks at the default branch,
+  protected branches, or the branches release and dependency bots create and reuse (`yeet/*`,
+  `release-please--*`, `changeset-release/*`, `dependabot/*`, `renovate/*`); yeet, for one,
+  recreates `yeet/release-main` for every release PR. `groom.keep_branches` (a list of globs)
+  adds to that list; it doesn't replace it.
+- A due date is a likely placeholder when more than one open milestone uses it; on GitHub the
+  due date belongs to the milestone, so every issue in one milestone shares it by design.
+- `forge-tracker groom apply` reads `{"approved": [ids]}` (ids like `close #14`, `labels #22
+  ruling`, `delete-branch sd-26`, as the report prints them), re-runs every check, and refuses
+  the whole list, writing nothing, when any id isn't a current proposal. It then writes the
+  approved proposals one at a time and prints a result line for each.
 
 ```text
 lokkju/skills: 4 proposals, 3 unclear

@@ -171,6 +171,9 @@ class Branch:
     sha: str
     has_change: bool
     ahead_by: Optional[int] = None
+    protected: bool = False
+    # The head commit's date, when the compare against the default branch listed it.
+    head_date: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -180,6 +183,7 @@ class Link:
     blocker_open: bool
     kind: str  # native | convention
     blocker_project: Optional[str] = None
+    blocker_closed: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -194,6 +198,26 @@ class ClosingRef:
     base: str
     merged_at: Optional[datetime] = None
     change_project: Optional[str] = None  # None when the change is in the issue's project
+    title: str = ""
+    merge_sha: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class LabelEvent:
+    """A label added to (`labeled`) or removed from (`unlabeled`) one issue."""
+
+    event: str
+    label: str
+    created: datetime
+
+
+@dataclass(frozen=True)
+class MilestoneRef:
+    """A milestone defined on the project, with the number writes need."""
+
+    number: int
+    title: str
+    due: Optional[str] = None
 
 
 @dataclass(frozen=True)

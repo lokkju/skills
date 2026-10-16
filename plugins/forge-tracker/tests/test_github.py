@@ -536,3 +536,137 @@ def test_closing_refs_past_the_first_page_fail_the_read(transport_for):
 def test_open_issues_keep_their_body(transport_for):
     world = World().route("/repos/acme/widgets/issues", [issue(3, body="the details")])
     assert adapter(world, transport_for).open_issues()[0].body == "the details"
+
+
+# --- /groom's reads ---------------------------------------------------------------------------
+
+
+def test_milestones_keep_the_number_a_write_needs(transport_for):
+    world = World().route(
+        "/repos/acme/widgets/milestones",
+        [{"number": 3, "title": "Tier 1", "due_on": "2026-10-31T07:00:00Z"}, {"number": 4}],
+    )
+    out = adapter(world, transport_for).milestones()
+    assert [(m.number, m.title, m.due) for m in out] == [
+        (3, "Tier 1", "2026-10-31T07:00:00Z"),
+        (4, "", None),
+    ]
+    assert "state=open" in world.calls[0][1]
+
+
+def test_label_events_keep_only_label_changes(transport_for):
+    world = World().route(
+        "/repos/acme/widgets/issues/7/events",
+        [
+            {
+                "event": "labeled",
+                "label": {"name": "needs-human"},
+                "created_at": "2026-10-12T00:00:00Z",
+            },
+            {"event": "assigned", "created_at": "2026-10-12T01:00:00Z"},
+            {"event": "unlabeled", "label": {"name": "P1"}, "created_at": "2026-10-13T00:00:00Z"},
+        ],
+    )
+    out = adapter(world, transport_for).label_events(7)
+    assert [(e.event, e.label) for e in out] == [("labeled", "needs-human"), ("unlabeled", "P1")]
+
+
+def test_issue_comments_are_per_issue(transport_for):
+    world = World().route(
+        "/repos/acme/widgets/issues/7/comments",
+        [
+            {
+                "body": "Ruling (2026-10-14): yes",
+                "created_at": "2026-10-14T00:00:00Z",
+                "user": {"login": "release[bot]", "type": "Bot"},
+            }
+        ],
+    )
+    (c,) = adapter(world, transport_for).issue_comments(7)
+    assert (c.issue, c.author_is_bot, c.body) == (7, True, "Ruling (2026-10-14): yes")
+
+
+@pytest.mark.parametrize(
+    "status, expected",
+    [("behind", True), ("identical", True), ("ahead", False), ("diverged", False)],
+)
+def test_on_branch_reads_the_compare_status(transport_for, status, expected):
+    world = World().route("/repos/acme/widgets/compare/main...abc", {"status": status})
+    assert adapter(world, transport_for).on_branch("main", "abc") is expected
+
+
+def test_on_branch_without_a_status_fails(transport_for):
+    world = World().route("/repos/acme/widgets/compare/main...abc", {})
+    read = attempt(lambda: adapter(world, transport_for).on_branch("main", "abc"))
+    assert not read.ok and "returned no status" in read.error
+
+
+def test_branches_keep_protection_and_the_head_commit_date(transport_for):
+    world = (
+        World()
+        .route(
+            "/repos/acme/widgets/branches",
+            [
+                {"name": "main", "commit": {"sha": "m"}},
+                {"name": "release", "commit": {"sha": "r"}, "protected": True},
+                {"name": "wip", "commit": {"sha": "w"}},
+            ],
+        )
+        .route("/repos/acme/widgets/compare/main...release", {"ahead_by": 0, "commits": []})
+        .route(
+            "/repos/acme/widgets/compare/main...wip",
+            {
+                "ahead_by": 2,
+                "commits": [
+                    {"commit": {"committer": {"date": "2026-10-01T00:00:00Z"}}},
+                    {"commit": {"committer": {"date": "2026-10-02T00:00:00Z"}}},
+                ],
+            },
+        )
+    )
+    release, wip = adapter(world, transport_for).branches("main", [])
+    assert (release.protected, release.head_date) == (True, None)
+    assert (wip.protected, wip.head_date) == (False, datetime(2026, 10, 2, tzinfo=timezone.utc))
+
+
+def test_blocking_links_and_closing_refs_carry_what_groom_shows(transport_for):
+    blocker = {
+        "number": 4,
+        "state": "CLOSED",
+        "closedAt": "2026-10-09T00:00:00Z",
+        "repository": {"nameWithOwner": "acme/widgets"},
+    }
+    change = {
+        "number": 31,
+        "title": "fix: it",
+        "state": "MERGED",
+        "mergedAt": "2026-10-10T00:00:00Z",
+        "headRefName": "fix/14",
+        "baseRefName": "main",
+        "mergeCommit": {"oid": "abc1234"},
+        "repository": {"nameWithOwner": "acme/widgets"},
+    }
+    world = (
+        World()
+        .op(
+            "BlockingLinks",
+            connection([{"number": 22, "blockedBy": {"nodes": [blocker]}}], key="issues"),
+        )
+        .op(
+            "ClosingRefs",
+            connection(
+                [
+                    {
+                        "number": 14,
+                        "closedByPullRequestsReferences": {"totalCount": 1, "nodes": [change]},
+                    }
+                ],
+                key="issues",
+            ),
+        )
+    )
+    a = adapter(world, transport_for)
+    (link,) = a.blocking_links()
+    assert link.blocker_closed == datetime(2026, 10, 9, tzinfo=timezone.utc)
+    (ref,) = a.closing_refs()
+    assert (ref.title, ref.merge_sha) == ("fix: it", "abc1234")

@@ -93,12 +93,14 @@ class FakeRun:
         }
         self.origin = origin
         self.calls = []
+        self.kwargs = []
 
     def answer(self, prefix, returncode=0, stdout="", stderr=""):
         self.answers[tuple(prefix)] = (returncode, stdout, stderr)
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
+        self.kwargs.append(kwargs)
         if argv[:1] == ["git"] and argv[3:5] == ["remote", "get-url"]:
             if self.origin is None:
                 return subprocess.CompletedProcess(argv, 2, "", "fatal: not a git repository")
