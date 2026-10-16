@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.16.4](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.3...session-decisions--v2026.10.16.4) (2026-10-16)
+
+### Features
+
+- **session-decisions:** per-repo forge override in git config (tracker.forge, tracker.web) ([d62632a](https://github.com/lokkju/skills/commit/d62632a421bfa77eea92de92fa623477735c21c9))
+
 ## [session-decisions--v2026.10.16.3](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.2...session-decisions--v2026.10.16.3) (2026-10-16)
 
 ### Fixes
