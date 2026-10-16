@@ -650,6 +650,25 @@ describe('drawing', () => {
     expect(await settled.find({ key: 'accept-D1' })).toBeUndefined()
   })
 
+  test('a folded tool group with a TaskCreate in it draws the card under the group', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    const call = (tool: string, output: unknown) => ({ tool_use_id: tool, tool, input: {}, isRunning: false, isErrored: false, isInterrupted: false, output })
+    const calls = [call('ToolSearch', {}), call('TaskCreate', { task: { id: '1', subject: 'D1 DECIDE: x' } })]
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolGroup', props: { calls, isActive: false, isExpanded: false } as never })
+      expect(await ui.find({ key: 'accept-D1' })).toBeDefined()
+      await ui.unmount()
+    }
+    // Unfolded, the group is ToolUse rows, each drawing its own card.
+    const open = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls, isActive: false, isExpanded: true } as never })
+    expect(await open.find({ key: 'accept-D1' })).toBeUndefined()
+    const running = [call('TaskCreate', undefined)].map(one => ({ ...one, isRunning: true }))
+    const live = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls: running, isActive: true, isExpanded: false } as never })
+    expect(await live.find({ key: 'accept-D1' })).toBeUndefined()
+  })
+
   test('the sidebar opens itself in fullscreen and docks borderless', async ($, on) => {
     const { opened } = engine(on)
     await start($)
@@ -692,7 +711,7 @@ describe('markdown', () => {
     replies.push('Accept: core')
     await ui.press({ key: 'more-D1' })
     expect(asked.at(-1)).toEqual({
-      question: 'run mise run core or read the guide (https://example.com/guide) first?\n\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
+      question: 'run mise run core or read the guide (https://example.com/guide) first?\nLink: https://github.com/lokkju/skills/issues/20\n\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
       header: 'D1',
       options: ['Accept: core', 'Copy link', 'Copy mise run flux-up core', 'Close'],
     })
@@ -826,5 +845,37 @@ describe('link and label forms', () => {
     // Wrapped, never truncated, so the whole URL is there to read.
     const drawn = JSON.stringify(await ui.drawn())
     expect(drawn).toContain(`{"type":"Text","props":{"wrap":"wrap"},"children":[{"type":"Link","props":{"href":"${LONG}"`)
+  })
+
+  test('with a GitHub remote, references link to it in the card, the question and the dialog', async ($, on) => {
+    const { asked } = engine(on)
+    const ran: string[][] = []
+    on('process.run', (_$, e) => {
+      ran.push([...e.argv])
+      const origin = e.argv.join(' ') === 'git remote get-url origin'
+      return { value: { exitCode: origin ? 0 : 2, stdout: origin ? 'git@github.com:lokkju/skills.git\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    await start($)
+    expect(ran[0]).toEqual(['git', 'remote', 'get-url', 'origin'])
+    await create($, 'DECIDE: merge !4 before #9? (recommend yes) [#3]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    const link = await ui.find({ type: 'Link' })
+    expect(link?.props).toEqual({ href: 'https://github.com/lokkju/skills/issues/3', label: '#3' })
+    expect((await ui.find({ key: 'question-D1' }))?.text).toBe(
+      'merge [!4](https://github.com/lokkju/skills/pull/4) before [#9](https://github.com/lokkju/skills/issues/9)?',
+    )
+    await ui.press({ key: 'more-D1' })
+    expect(asked.at(-1)?.question).toContain('\nLink: https://github.com/lokkju/skills/issues/3\n')
+    expect(asked.at(-1)?.options).toContain('Copy link')
+  })
+
+  test('with no remote a forge can be named for, references stay text', async ($, on) => {
+    engine(on)
+    on('process.run', () => ({ value: { exitCode: 0, stdout: 'https://git.lab.example.org/me/repo.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+    await start($)
+    await create($, 'DECIDE: merge before #9? (recommend yes) [#3]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Link' })).toBeUndefined()
+    expect((await ui.find({ key: 'question-D1' }))?.text).toBe('merge before #9?')
   })
 })
