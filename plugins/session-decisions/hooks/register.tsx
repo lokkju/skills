@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Counters, Item, Kind, SessionRecord } from '../types'
+import type { Counters, Item, Kind, Loop, SessionRecord } from '../types'
 import {
   applyUpdate,
   age,
@@ -41,6 +41,9 @@ const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const,
 const created = atom({ plugin: 'session-decisions', key: 'created' } as const, {} as Record<string, number>)
 // Task-list items decision_close settled while TaskUpdate wasn't available, by task id.
 const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} as Record<string, Item>)
+// Subagent loops by agent id: how each was spawned, or that it has called a task tool.
+const loops = atom({ plugin: 'session-decisions', key: 'loops' } as const, {} as Record<string, Loop>)
+const TASK_TOOLS = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] as const
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
@@ -162,13 +165,28 @@ async function readTaskFiles($: $, dir: string): Promise<Item[] | null> {
 // refusal that points at TaskUpdate says how to reach it.
 const LOAD = ' If TaskUpdate is deferred, load it with ToolSearch first.'
 
-/** Whether TaskUpdate exists in this session, loaded or deferred; false when the host can't say. */
+/** Whether the main loop has TaskUpdate, loaded or deferred; false when the host can't say. */
 async function taskUpdateOffered($: $): Promise<boolean> {
   try {
     return (await $.tool.list()).some(tool => tool.name === 'TaskUpdate')
   } catch {
     return false
   }
+}
+
+/**
+ * Whether the loop a tool call came from has TaskUpdate. `$.tool.list()` answers for the main loop
+ * even inside a subagent (Claude Code 2.1.300, lokkju/skills#37), and a background subagent gets
+ * no task tools, so a subagent's loop is judged by what the plugin saw of it: one that has called
+ * a task tool has them, a foreground one has what the main loop has, and a background one, or one
+ * whose spawn the plugin didn't see, is taken not to.
+ */
+async function taskUpdateFor($: $, agentId: string | undefined): Promise<boolean> {
+  if (agentId === undefined) return taskUpdateOffered($)
+  const loop = (await read($, loops))[agentId]
+  if (loop === 'tasks') return true
+  if (loop === 'foreground') return taskUpdateOffered($)
+  return false
 }
 
 function asRecord(value: unknown): SessionRecord {
@@ -416,6 +434,29 @@ export const register: Register = (on, options) => {
     return { ...result, additionalContext: [...(result.additionalContext ?? []), text] }
   })
 
+  // What decision_close and decision_update need to know about a subagent: whether it was spawned
+  // in the background, which gives it no task tools. A teammate or a workflow's agent isn't
+  // recorded, and counts as having none until it calls one.
+  on('agent.spawn', async ($, e, next) => {
+    const ran = await next(e)
+    const id = ran.agentId
+    if (id && !e.isTeammate && !e.workflow) {
+      const loop: Loop = e.background ? 'background' : 'foreground'
+      await update($, loops, (map): Record<string, Loop> => (map[id] === 'tasks' ? map : { ...map, [id]: loop }))
+    }
+    return ran
+  })
+
+  // A subagent that calls a task tool has them, however it was spawned.
+  on('tool.call', { tool: TASK_TOOLS }, async ($, e, next) => {
+    const ran = await next(e)
+    const id = e.agentId
+    if (id !== undefined && ran.deny === undefined && !ran.isError) {
+      await update($, loops, (map): Record<string, Loop> => (map[id] === 'tasks' ? map : { ...map, [id]: 'tasks' }))
+    }
+    return ran
+  })
+
   on('tool.call', { tool: 'TaskCreate' }, async ($, e, next) => {
     const draft = parseDraft(String(e.subject ?? ''))
     if (!draft) return next(e)
@@ -517,9 +558,9 @@ export const register: Register = (on, options) => {
     if (!target) return { deny: `session-decisions: ${label} isn't in this session's decision queue.` }
     if (target.source === 'tasks') {
       return {
-        deny: (await taskUpdateOffered($))
+        deny: (await taskUpdateFor($, e.agentId))
           ? `session-decisions: ${label} is a task-list item; revise it with TaskUpdate, keeping its label, and add a Revised line to its description.${LOAD}`
-          : `session-decisions: ${label} is a task-list item and TaskUpdate isn't available; close it with decision_close as superseded and add the revised item with decision_add.`,
+          : `session-decisions: ${label} is a task-list item and TaskUpdate isn't available here; close it with decision_close as superseded and add the revised item with decision_add.`,
       }
     }
     if (!isOpen(target)) return { deny: `session-decisions: ${label} is settled; add a new item with decision_add instead.` }
@@ -543,7 +584,7 @@ export const register: Register = (on, options) => {
     const target =
       matches.find(item => item.source === 'ledger') ?? matches.find(isOpen) ?? matches[0]
     if (!target) return { deny: `session-decisions: ${label} isn't in this session's decision queue.` }
-    if (target.source === 'tasks' && (await taskUpdateOffered($))) {
+    if (target.source === 'tasks' && (await taskUpdateFor($, e.agentId))) {
       return {
         deny: `session-decisions: ${label} is a task-list item; mark it completed with TaskUpdate and add the ruling to its description.${LOAD}`,
       }
@@ -554,8 +595,13 @@ export const register: Register = (on, options) => {
     if (target.source === 'tasks') await update($, closed, map => ({ ...map, [target.id]: done }))
     await persist($)
     if (target.source === 'ledger') return { result: `${label} closed` }
+    if (e.agentId !== undefined) {
+      return {
+        result: `${label} closed in the decision queue. This agent has no TaskUpdate, so the task still shows it open until the main conversation marks it completed; the queue keeps the ruling.`,
+      }
+    }
     return {
-      result: `${label} closed in the decision queue. TaskUpdate isn't available, so its task still shows it open; the queue keeps the ruling.`,
+      result: `${label} closed in the decision queue. TaskUpdate isn't available here, so its task still shows it open; the queue keeps the ruling.`,
     }
   })
 

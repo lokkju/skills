@@ -72,8 +72,8 @@ queue never shows what the user has already moved past:
   `Ruling (<YYYY-MM-DD>): <the answer>`. Don't delete it; completed items are the session's record
   of what was decided. (Fallback ledger: call `mcp__session-decisions__decision_close` with the
   `label` and the `ruling`. If TaskUpdate isn't available for a task-list item, as after a restart
-  that drops the task tools, `decision_close` settles that item too; while TaskUpdate is
-  available, use it.)
+  that drops the task tools or in a background subagent, `decision_close` settles that item too;
+  while TaskUpdate is available, use it.)
 - If the item has a link, record the ruling there too, using whatever the project uses for that.
 - Labels are session-scoped and restart every session. Anything written outside this session
   (commits, issues, pull requests, docs, files) gets the ruling's content and date, never `D3` or

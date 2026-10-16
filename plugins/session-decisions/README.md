@@ -161,6 +161,14 @@ Without them, the assistant uses the plugin's `decision_add` and `decision_close
 same way in the cards, the sidebar, the footer and `/decisions`; only `/decisions` tags them
 `ledger`, since that's the one difference you'd notice: they don't appear in ctrl+t.
 
+A background subagent (`Agent` with `run_in_background`) never gets the task tools, even in a
+session that has them. Its items go through `decision_add` into the session's one queue, numbered
+after the main conversation's, so a subagent's item can be D2 after your D1; they show everywhere
+but ctrl+t, which lists the main conversation's D1 and not the subagent's D2. When a background
+subagent settles one of the main conversation's task-list items, `decision_close` settles it in
+the queue, as it does after a restart that drops the task tools. A foreground subagent has the task
+tools, and its items land in the main task list with the same labels.
+
 With `NO_COLOR` set or `TERM=dumb`, chips and glyphs fall back to ASCII (`[DECIDE]`, `+`, `x`).
 Otherwise the cards use Claude Code's theme colors and follow your theme.
 
@@ -208,11 +216,18 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   until their next session start. They share one stored record, but each numbers from what it
   holds, so items the two create in that time can get the same label. Rulings `decision_close`
   keeps for task-list items are written as the last session to write holds them.
-- `decision_close` and `decision_update` decide whether TaskUpdate exists from `$.tool.list()`.
-  On Claude Code 2.1.286 that list names a deferred tool before the model loads it through
-  ToolSearch, so a task-list item is sent to TaskUpdate whenever the session has it; the engine's
-  declarations don't promise that. If a later build lists only loaded tools, `decision_close`
-  would settle a task-list item in the queue while its task file stays open.
+- `decision_close` and `decision_update` decide whether the main conversation has TaskUpdate from
+  `$.tool.list()`. On Claude Code 2.1.300 that list names a deferred tool before the model loads
+  it through ToolSearch, so a task-list item is sent to TaskUpdate whenever the session has it;
+  the engine's declarations don't promise that. If a later build lists only loaded tools,
+  `decision_close` would settle a task-list item in the queue while its task file stays open.
+- Inside a subagent, `$.tool.list()` still answers the main conversation's tools, and no hook
+  lists a subagent's own. So the plugin judges a subagent by what it saw: one spawned in the
+  foreground has what the main conversation has, one that has called a task tool has them, and
+  any other (spawned in the background, a teammate, a workflow's agent, or one spawned before the
+  plugin loaded) is taken to have no TaskUpdate, so `decision_close` settles its task-list items
+  in the queue. A teammate that does have TaskUpdate and calls `decision_close` before any task
+  tool leaves its task file showing the item open.
 - A forked session is matched to its parent by the task files Claude Code copies into it, which
   it doesn't document either. A fork whose task files hold no decision items (a session that
   only used the fallback ledger, say) has nothing to match and starts a fresh queue. The parent's
@@ -222,8 +237,9 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
 - A task-list item settled with `decision_close` stays open in its task file, so ctrl+t still
   lists it as pending until something marks it completed with TaskUpdate. The cards, the sidebar,
   `/decisions` and the reminder after compaction all show it settled.
-- Whether TaskUpdate is offered comes from the session's tool list. A host that can't list its
-  tools is treated as not offering it, so `decision_close` settles task-list items there too.
+- Whether the main conversation has TaskUpdate comes from the session's tool list. A host that
+  can't list its tools is treated as not offering it, so `decision_close` settles task-list items
+  there too.
 - ctrl+t is Claude Code's own task list, which a plugin can't add to, so items added with
   `decision_add` (no task tools in the session) never appear there. Everything else this plugin
   draws shows them.

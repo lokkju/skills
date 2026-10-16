@@ -21,6 +21,14 @@ export type Item = {
 export type Counters = { D: number; A: number }
 
 /**
+ * What the plugin knows of a subagent's loop, by its agent id: spawned in the background or the
+ * foreground (as its `agent.spawn` said), or seen calling a task tool. `$.tool.list()` answers the
+ * main loop's tools inside a subagent, so this is how decision_close tells whether the loop that
+ * called it has TaskUpdate.
+ */
+export type Loop = 'background' | 'foreground' | 'tasks'
+
+/**
  * What `$.store` keeps per session, so a resumed session continues its numbering and ledger: under
  * `list:<CLAUDE_CODE_TASK_LIST_ID>` when that is set, `session:<session id>` otherwise. `closed` holds the task-list items `decision_close` settled while TaskUpdate wasn't available,
  * by task id, since their task files still show them open.
@@ -40,6 +48,7 @@ declare module 'claude-code' {
       counters: Counters
       created: Record<string, number>
       closed: Record<string, Item>
+      loops: Record<string, Loop>
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean
