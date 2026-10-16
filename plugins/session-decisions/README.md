@@ -179,7 +179,8 @@ skill tells the assistant to number items itself.
 
 Not every session gets TaskCreate. For models newer than Claude 4.x, Claude Code turns the task
 tools on only for background jobs, a launch tool list that names them, or
-`CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). To get them in an
+`CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). Since Claude Code
+2.1.300 the `haiku` alias is Haiku 5.5 on the Anthropic API, so this covers haiku as well. To get them in an
 ordinary session, set it in `~/.claude/settings.json`:
 
 ```json
