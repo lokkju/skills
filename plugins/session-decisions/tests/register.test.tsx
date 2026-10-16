@@ -366,6 +366,40 @@ describe('queue', () => {
     expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
   })
 
+  test('a background subagent without TaskUpdate settles a task-list item with decision_close', async ($, on) => {
+    // $.tool.list() keeps naming the main loop's TaskUpdate inside every subagent (lokkju/skills#37).
+    const { tasks } = engine(on)
+    let spawned = 0
+    on('agent.spawn', () => ({ model: 'haiku', agentId: `agent-${++spawned}` }))
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, 'ACTION: approve the deploy [no link]')
+    const background = (await $.agent.spawn({ prompt: 'settle A1', background: true } as never)).agentId
+    const foreground = (await $.agent.spawn({ prompt: 'settle D1', background: false } as never)).agentId
+    expect([background, foreground]).toEqual(['agent-1', 'agent-2'])
+    const close = (label: string, agentId?: string) =>
+      $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: `c-${Math.random()}`, label, ruling: 'done', ...(agentId ? { agentId } : {}) })
+    // The background subagent has no TaskUpdate, so decision_close settles the item in the queue.
+    const settled = await close('A1', background)
+    expect(settled.deny).toBeUndefined()
+    expect(settled.result).toContain('A1 closed in the decision queue')
+    expect(tasks.get('1')?.status).toBe('pending')
+    const revised = await $.tool.call({ tool: 'mcp__session-decisions__decision_update', tool_use_id: 'u1', label: 'D1', description: 'x', agentId: background })
+    expect(revised.deny).toContain('close it with decision_close as superseded')
+    // A foreground subagent has the main loop's task tools, and the main loop is still sent there.
+    expect((await close('D1', foreground)).deny).toContain('mark it completed with TaskUpdate')
+    expect((await close('D1')).deny).toContain('mark it completed with TaskUpdate')
+    // A subagent whose spawn the plugin didn't see is taken to have no TaskUpdate...
+    expect((await close('A2', 'agent-unknown')).result).toContain('A2 closed in the decision queue')
+    // ...unless it has called a task tool, which shows it has them.
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u2', taskId: '2', description: 'context', agentId: 'agent-seen' } as never)
+    expect((await close('D1', 'agent-seen')).deny).toContain('mark it completed with TaskUpdate')
+    const all = await $.command.run({ command: 'decisions', args: 'all', ...RUN })
+    expect(all.text).toContain('A1 ACTION: run gh auth login [no link]  (completed)')
+    expect(all.text).toContain('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]  (waiting')
+  })
+
   test('ledger items and stored rulings survive a re-read, and stay closable when the tools return', async ($, on) => {
     // The task list keeps its id across the resume; the session doesn't.
     const { offered, session } = engine(on, { CLAUDE_CODE_TASK_LIST_ID: SID })
@@ -399,6 +433,76 @@ describe('queue', () => {
     expect(after.additionalContext?.join('\n')).toContain('- D1 DECIDE: Postgres or SQLite?')
     const fresh = await $.classic.SessionStart({ source: 'startup' })
     expect(fresh.additionalContext).toBeUndefined()
+  })
+})
+
+describe('hand-off check', () => {
+  const HANDOFF = 'Both PRs are green.\n\nLeft for you:\n- Merge #41 and #42\n- Run the backfill on each host'
+
+  function classic(on: On) {
+    on('classic.Stop', () => ({}))
+    on('classic.UserPromptSubmit', () => ({}))
+  }
+  const prompt = ($: any, text = 'next') => $.classic.UserPromptSubmit({ prompt: text })
+  const stop = ($: any, message: string, active = false) =>
+    $.classic.Stop({ stop_hook_active: active, last_assistant_message: message })
+
+  test('an unqueued hand-off warns the person, never blocks, and reminds the model on the next prompt', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($, 'ship both fixes')
+    const stopped = await stop($, HANDOFF)
+    expect(stopped.block).toBeUndefined()
+    expect(toasts.at(-1)).toBe('2 hand-offs not queued: Merge #41 and #42')
+    const next = await prompt($)
+    const text = next.additionalContext?.join('\n') ?? ''
+    expect(text).toContain('- Merge #41 and #42')
+    expect(text).toContain('- Run the backfill on each host')
+    // Once only.
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  test('a reply whose hand-offs are queued, labelled or absent passes quietly', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await create($, 'ACTION: merge #41 and #42 [#41]')
+    await create($, 'ACTION: run the backfill on each host [no link]')
+    await stop($, HANDOFF)
+    await stop($, 'Left for you:\n- A3: rotate the key')
+    await stop($, 'Done: merged #41 and ran the backfill. If you need to roll back, run `git revert HEAD`.')
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  test('an item queued and settled in the same turn still covers its line', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'run the backfill on each host [no link]' })
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
+    await stop($, 'Left for you:\n- Run the backfill on each host')
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
+  })
+
+  test('a Stop hook continuation is left alone', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await stop($, HANDOFF, true)
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
+  })
+
+  test('the handoff_check option turns it off', { options: { handoff_check: false } }, async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await stop($, HANDOFF)
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
+    expect((await prompt($)).additionalContext).toBeUndefined()
   })
 })
 

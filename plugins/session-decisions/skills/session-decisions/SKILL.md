@@ -9,6 +9,10 @@ The user reads the decision queue (the cards, the decisions sidebar and footer, 
 ctrl+t where the session has task tools) as the list of things waiting on them. Every question you
 need answered, and every step only they can do, goes there in the same turn you ask it. The message still carries the detail; the queue is so nothing gets lost.
 
+Anything you hand back to the user counts, including a merge or a step on their hosts that you
+could do yourself if asked: a reply that ends with "left for you" or "you'll need to" items that
+aren't queued gets flagged to the user, and you're reminded on the next turn.
+
 ## Before you ask
 
 Ask only when the answer blocks the work and can't be settled from the request, the code, the
@@ -72,8 +76,8 @@ queue never shows what the user has already moved past:
   `Ruling (<YYYY-MM-DD>): <the answer>`. Don't delete it; completed items are the session's record
   of what was decided. (Fallback ledger: call `mcp__session-decisions__decision_close` with the
   `label` and the `ruling`. If TaskUpdate isn't available for a task-list item, as after a restart
-  that drops the task tools, `decision_close` settles that item too; while TaskUpdate is
-  available, use it.)
+  that drops the task tools or in a background subagent, `decision_close` settles that item too;
+  while TaskUpdate is available, use it.)
 - If the item has a link, record the ruling there too, using whatever the project uses for that.
 - Labels are session-scoped and restart every session. Anything written outside this session
   (commits, issues, pull requests, docs, files) gets the ruling's content and date, never `D3` or
