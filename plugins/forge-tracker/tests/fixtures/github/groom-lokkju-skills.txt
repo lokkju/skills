@@ -1,0 +1,28 @@
+lokkju/skills on github.com: 15 proposals, 0 unclear, 0 listed for you
+(merged PRs since 2026-07-18; duplicates among open issues and those closed since 2026-09-16; stale after 14 days, the default while stale_days isn't set)
+
+Proposals
+  1. delete-branch feat/forge-tracker-label-setup: no open PR, 0 commits ahead of main, branch of merged #62
+  2. delete-branch feat/forge-tracker-next: no open PR, 0 commits ahead of main, branch of merged #50
+  3. delete-branch feat/sd-forge-hosts: no open PR, 0 commits ahead of main, branch of merged #57
+  4. delete-branch feat/term-recorder: no open PR, 0 commits ahead of main, branch of merged #46
+  5. delete-branch fix/catchup-report: no open PR, 0 commits ahead of main, branch of merged #47
+  6. delete-branch fix/forge-tracker-prs-and-branches: no open PR, 0 commits ahead of main, branch of merged #61
+  7. delete-branch fix/next-fingerprint-state: no open PR, 0 commits ahead of main, branch of merged #52
+  8. delete-branch fix/sd-cards-and-links: no open PR, 0 commits ahead of main, branch of merged #55
+  9. delete-branch fix/sd-close-and-handoff: no open PR, 0 commits ahead of main, branch of merged #63
+  10. delete-branch fix/sd-more-dialog: no open PR, 0 commits ahead of main, branch of merged #53
+  11. delete-branch fix/sd-nested-paren: no open PR, 0 commits ahead of main, branch of merged #28
+  12. delete-branch fix/sd-tools-gap: no open PR, 0 commits ahead of main, branch of merged #18
+  13. delete-branch fix/task-tools-2-1-300: no open PR, 0 commits ahead of main, branch of merged #65
+  14. delete-branch fix/term-recorder-example: no open PR, 0 commits ahead of main, branch of merged #49
+  15. delete-branch yeet/release-main: no open PR, 0 commits ahead of main, branch of merged #66
+Unclear (not acted on)
+  none
+Listed for you
+  none
+Skipped (not configured)
+  tier labels and milestones: needs both tiers.labels and tiers.milestone_prefixes
+  blocked label with nothing linked: labels.blocked isn't set
+  decided but still waiting: labels.needs_human and labels.decision aren't set
+(setup: labels.needs_human, labels.decision and labels.blocked unset in .claude/forge-tracker.local.md, so no label marks needs-human, decision or blocked items. Set them, or set them to ~ to record that this repo has none; `forge-tracker labels suggest` proposes one from this repo's labels)
