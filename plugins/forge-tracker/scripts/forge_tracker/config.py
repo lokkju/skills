@@ -2,15 +2,19 @@
 
 The standard library has no YAML parser, so this reads the subset the config file needs: `key:
 value` lines, one level of nested mappings, inline `[a, b]` and block `- item` lists, single and
-double quoted strings, integers and `#` comments. Anything outside that subset, and any key not
-listed in KEYS, fails the load with the line or key named.
+double quoted strings, integers, `~` or `null` for none, and `#` comments. Anything outside that
+subset, and any key not listed in KEYS, fails the load with the line or key named.
+
+A label key or `ruling_pattern` set to `~` records that the repo has no such label or convention,
+which is different from leaving it out: the reports say nothing about a key set to `~`, and they
+do say when one is missing.
 """
 
 from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional
 
 from .detect import FORGES
@@ -51,6 +55,11 @@ class Config:
     report_tags: tuple[str, ...] = ()
     stale_days: Optional[int] = None
     write_wrapper: Optional[str] = None
+    # Whether the file exists, and the keys it sets to `~` ("labels.needs_human", "ruling_pattern").
+    found: bool = False
+    set_to_none: frozenset[str] = frozenset()
+    # When the user declined the offer to set it up (an ISO date), from the local cache.
+    setup_declined: Optional[str] = None
 
     def label(self, key: str) -> Optional[str]:
         return self.labels.get(key)
@@ -67,6 +76,49 @@ class Config:
                     return prefix
         return None
 
+    def setup_note(self, keys: tuple[str, ...]) -> Optional[str]:
+        """One line saying which of `keys` ("labels.needs_human", "ruling_pattern") are missing,
+        what the report can't do without them, and how to set them up; None when every key is
+        set or set to `~`. The line starts with SETUP_PREFIX and says "setup was declined" when
+        the user declined it here."""
+        missing = [k for k in keys if self._get(k) is None and k not in self.set_to_none]
+        if not missing:
+            return None
+        kinds = [k.split(".", 1)[1].replace("_", "-") for k in missing if k.startswith("labels.")]
+        lost = []
+        if kinds:
+            lost.append(f"no label marks {_join(kinds, 'or')} items")
+        if "ruling_pattern" in missing:
+            lost.append("rulings aren't picked out")
+        effect = _join(lost, "and")
+        if self.setup_declined:
+            how = (
+                f"setup was declined on {self.setup_declined}; "
+                "`forge-tracker labels suggest` still proposes a config"
+            )
+        else:
+            how = "`forge-tracker labels suggest` proposes one from this repo's labels"
+        if not self.found:
+            return f"{SETUP_PREFIX} no {PATH}, so {effect}. {how[0].upper()}{how[1:]}"
+        return (
+            f"{SETUP_PREFIX} {_join(missing, 'and')} unset in {PATH}, so {effect}. Set them, or set "
+            f"them to ~ to record that this repo has none; {how}"
+        )
+
+    def _get(self, key: str) -> Any:
+        if key.startswith("labels."):
+            return self.labels.get(key.split(".", 1)[1])
+        return getattr(self, key)
+
+
+SETUP_PREFIX = "setup:"
+
+
+def _join(parts: list[str], word: str) -> str:
+    if len(parts) <= 1:
+        return "".join(parts)
+    return ", ".join(parts[:-1]) + f" {word} " + parts[-1]
+
 
 def load(repo_dir: str) -> Config:
     path = os.path.join(repo_dir, PATH)
@@ -77,7 +129,7 @@ def load(repo_dir: str) -> Config:
         return Config()
     except OSError as error:
         raise ConfigError(f"can't read {PATH}: {error.strerror}") from None
-    return from_mapping(parse_frontmatter(text), PATH)
+    return replace(from_mapping(parse_frontmatter(text), PATH), found=True)
 
 
 def parse_frontmatter(text: str) -> dict[str, Any]:
@@ -122,6 +174,8 @@ def _scalar(raw: str, where: str) -> Any:
         return [_scalar(item, where) for item in _split_flow(raw[1:-1], where)]
     if raw[0] in "{&*!|>%@`":
         raise ConfigError(f"{where}: {raw[0]!r} isn't supported in this config file")
+    if raw in ("~", "null"):
+        return None
     if re.fullmatch(r"-?[0-9]+", raw):
         return int(raw)
     return raw
@@ -242,6 +296,9 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
         raise ConfigError(f"{source}: unknown key labels.{', labels.'.join(unknown)}")
     for name, value in labels.items():
         _string(value, f"labels.{name}")
+    none = {f"labels.{name}" for name, value in labels.items() if value is None}
+    if "ruling_pattern" in data and data["ruling_pattern"] is None:
+        none.add("ruling_pattern")
 
     tiers = data.get("tiers") or {}
     if not isinstance(tiers, dict):
@@ -264,7 +321,7 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
         forge=forge,
         api_base=_string(data.get("api_base"), "api_base"),
         ca_file=_string(data.get("ca_file"), "ca_file"),
-        labels=dict(labels),
+        labels={name: value for name, value in labels.items() if value is not None},
         tier_labels=_strings(tiers.get("labels"), "tiers.labels"),
         milestone_prefixes=_strings(tiers.get("milestone_prefixes"), "tiers.milestone_prefixes"),
         person_only_markers=_strings(data.get("person_only_markers"), "person_only_markers"),
@@ -274,4 +331,5 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
         report_tags=_strings(data.get("report_tags"), "report_tags"),
         stale_days=stale,
         write_wrapper=_string(data.get("write_wrapper"), "write_wrapper"),
+        set_to_none=frozenset(none),
     )

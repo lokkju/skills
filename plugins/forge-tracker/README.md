@@ -117,8 +117,10 @@ reads everything.
 ## Configuration
 
 Per repo, in `.claude/forge-tracker.local.md`. Only the YAML frontmatter is read, every key is
-optional, and an unknown key fails the load with its name. A report that needs an unset key says
-so and leaves that part out. The keys `/catchup` and `/next` use:
+optional, and an unknown key fails the load with its name. A report that needs an unset key
+leaves that part out and says so in one `setup:` line, which names what's missing and how to set
+it up. Set a label or `ruling_pattern` to `~` to record that the repo has none; the reports then
+say nothing about it. The keys `/catchup` and `/next` use:
 
 ```markdown
 ---
@@ -143,7 +145,33 @@ Free notes for the assistant.
 The file also accepts the keys later phases read (`ca_file`, `labels.decision_made`,
 `blocking`, `stale_days`, `write_wrapper`); the design doc describes them. The standard library has no YAML parser, so
 the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
-lists, quoted strings, integers and `#` comments.
+lists, quoted strings, integers, `~` or `null` for none, and `#` comments.
+
+### Setting it up
+
+When a repo has no config file, or one that leaves labels unset, `/catchup` and `/next` show the
+`setup:` line and Claude offers to set it up, once per repo. It runs `forge-tracker labels
+suggest`, which reads the repo's existing labels and prints a proposed file: each role
+mapped to the label that looks like it (`needs-human`, `human`, `decision`, `question`,
+`blocked`, `agent-ready` and their variants), the priority labels as tiers (`P0` to `P3`,
+`priority: high`, `priority:1`), and `~` for any role no label matched. It writes nothing. Claude
+shows you the proposal and writes `.claude/forge-tracker.local.md` only when you say so, with
+your corrections. That file is the only thing it writes; it doesn't commit it.
+
+For each role no label matched, the suggestion also prints a `gh label create` command. Until
+forge-tracker has its write layer, Claude gives you those commands to run and doesn't create
+labels itself; once you have, it puts their names in the file.
+
+On a no, Claude runs `forge-tracker labels decline`, which records the decline in
+`${XDG_CACHE_HOME:-~/.cache}/forge-tracker/setup/<host>_<project>.json` (never in the repo or on
+the forge). The `setup:` line then says setup was declined, and Claude doesn't offer it again.
+Deleting the file brings the offer back.
+
+```bash
+plugins/forge-tracker/scripts/forge-tracker labels suggest          # the proposal, as text
+plugins/forge-tracker/scripts/forge-tracker labels suggest --json   # the same, for scripts
+plugins/forge-tracker/scripts/forge-tracker labels decline          # stop offering setup here
+```
 
 ## Reads can't write
 

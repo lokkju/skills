@@ -18,6 +18,7 @@ from ..model import (
     ForgeError,
     Issue,
     Job,
+    Label,
     Link,
     Mention,
     Milestone,
@@ -228,6 +229,11 @@ class GitHub:
         if not isinstance(raw, dict) or not raw.get("default_branch"):
             raise ForgeError(f"{self.repo_path} returned no default_branch")
         return Repo(default_branch=raw["default_branch"])
+
+    def labels(self) -> list[Label]:
+        """Every label defined on the repo, for proposing a config."""
+        raw = self.t.get_all(f"{self.repo_path}/labels")
+        return [Label(item["name"], item.get("description") or "") for item in raw]
 
     # --- issues and comments -------------------------------------------------------------------
 

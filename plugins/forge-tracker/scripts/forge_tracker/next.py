@@ -32,7 +32,7 @@ from typing import Any, Callable, Optional
 
 from . import refs, state
 from .config import PATH as CONFIG_PATH
-from .config import Config
+from .config import SETUP_PREFIX, Config
 from .detect import Remote
 from .model import Branch, Change, ClosingRef, Issue, Link, Read, attempt, iso, parse_time
 
@@ -347,10 +347,9 @@ def classify(
     }
     needs_human, decision = config.label("needs_human"), config.label("decision")
     blocked_label, agent_label = config.label("blocked"), config.label("agent")
-    if not needs_human:
-        result["notes"].append("labels.needs_human isn't set, so no label marks needs-human items")
-    if not decision:
-        result["notes"].append("labels.decision isn't set, so no label marks decision items")
+    setup = config.setup_note(("labels.needs_human", "labels.decision"))
+    if setup:
+        result["notes"].append(setup)
     if issues is None:
         return result
 
@@ -958,7 +957,11 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
     if issues_failed:
         lines += issues_failed
     elif not queue:
-        lines.append("  nothing person-only")
+        unlabelled = any(n.startswith(SETUP_PREFIX) for n in report["notes"])
+        lines.append(
+            "  nothing person-only"
+            + (" (but labels aren't configured to mark any; see setup)" if unlabelled else "")
+        )
 
     # Agent lanes, or the agent-ready list when there's no slate.
     if current:

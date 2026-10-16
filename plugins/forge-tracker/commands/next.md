@@ -11,7 +11,37 @@ git fetch --quiet origin
 ```
 
 `/next` recommends; it never acts. Don't claim, assign, label, comment on or branch for any item
-because of this report unless the user asks.
+because of this report unless the user asks. The one write it may lead to is the local config
+file, as set out under setup below, and only on the user's yes.
+
+## When the report has a `setup:` line
+
+That line means `.claude/forge-tracker.local.md` is missing or leaves labels unset, so the report
+can't see what those labels would mark. With no needs-human or decision label configured, `Your
+queue: nothing person-only` means no label could put anything there, not that nothing needs the
+user; say so. Handle setup before ranking a slate:
+
+- If the line says `Setup was declined`, or you are running this for your own purposes, don't
+  offer anything; pass the line on once, as it is.
+- Otherwise offer to set it up, once. Run
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
+  and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
+  has no such label, plus a `gh label create` command for each role no label matched. Show the
+  user the proposal and ask whether to write it, as is or with their corrections.
+- **Yes:** write `.claude/forge-tracker.local.md` with the proposed content and the user's
+  corrections. When the file already exists, add only the keys the suggestion printed and keep
+  everything else in it. That file is the only thing you write; don't commit it unless the user
+  asks (committing it shares the label names, and whether to is the repo's call).
+- **Labels that don't exist yet:** forge-tracker has no write layer yet, so don't create labels
+  on the forge yourself, even through `gh`. If the user wants them, give them the `gh label
+  create` commands from the suggestion to run, and once they have, put each name in the file in
+  place of its `~`.
+- **No:** run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`. It writes one file
+  in the local cache (never the repo or the forge), so this command won't offer setup again
+  here; the report's line keeps saying what's unset. Tell the user they can ask for it any time.
+
+After writing the file, run the report command again from the top: the config is part of the
+facts' fingerprint, so the classification and any slate start over.
 
 ## When the report ends with `slate: needed`
 
