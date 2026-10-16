@@ -21,8 +21,9 @@ claude plugin install session-decisions@lokkju
 ```
 
 Restart Claude Code. There's nothing you have to configure; the skill tells the assistant when to
-queue something, and the hook keeps it honest. The one option, [`forge_hosts`](#forge-hosts),
-is for repositories on a self-hosted forge.
+queue something, and the hook keeps it honest. There are two options:
+[`forge_hosts`](#forge-hosts) is for repositories on a self-hosted forge, and
+[`handoff_check`](#hand-off-check) turns off the check for work handed to you outside the queue.
 
 ## How it works
 
@@ -112,6 +113,34 @@ question asked two hours ago doesn't silently fall out of context.
 
 Labels are session-scoped. Anything recorded outside the session (commits, issues, pull
 requests) carries the ruling and its date, never `D3`, which means nothing anywhere else.
+
+### Hand-off check
+
+The skill tells the assistant to queue every step only you can do, but the slip comes at the end
+of a long reply: a "Left for you:" list (merge these PRs, run this on each host) with none of it
+queued. When a reply ends, the plugin reads it for work handed to you that isn't in the queue. If
+it finds any, a toast names the first line (`2 steps handed to you but not in the decision queue:
+Merge #41 and #42`), and with your next message the assistant is told which lines they were and to
+queue whatever is still waiting on you. It never blocks or rewrites the reply, and costs no extra
+model call.
+
+It looks for two things: the list items under a hand-off heading (`Left for you:`, `Next steps for
+you:`, `You'll need to:`, `## What you need to do`), and a line that hands a step over by itself
+(`You'll need to merge it once CI passes`, `left for you`, `your call`, `please merge #12`, `run
+these on each host`). To keep false alarms rare, it skips:
+
+- a line that names a label (`A3: rotate the key`), or that an item already covers: an open item,
+  or one queued this turn, that shares a reference (`#41`, `!4`, a URL) with it, or most of its
+  words;
+- conditional, negated and questioning phrasing (`if you need to roll back`, `you won't need to`,
+  `will you need to review it first?`);
+- code blocks and quoted lines;
+- a heading that's really a sentence (`For you to compare, the two plans are:`), and a bare `Next
+  steps:`, which is usually the assistant's own plan.
+
+It reads the main conversation's replies, not a subagent's, and stays quiet while a Stop hook has
+the assistant continuing. Set `handoff_check` to `false` (in `/config`, or under `options` as in
+[Forge hosts](#forge-hosts)) to turn it off.
 
 ### Forge hosts
 

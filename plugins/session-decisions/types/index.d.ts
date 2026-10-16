@@ -49,6 +49,8 @@ declare module 'claude-code' {
       created: Record<string, number>
       closed: Record<string, Item>
       loops: Record<string, Loop>
+      turnStarted: number
+      handoffNudge: string
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean

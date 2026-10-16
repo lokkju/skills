@@ -23,6 +23,12 @@
       "title": "Forge hosts",
       "description": "Forges the plugin can't tell from the host name, as host=kind entries split by commas; kind is github, gitlab, forgejo or gitea. For example: git.lab.example.com=forgejo, code.example.com=gitlab. An entry here wins over the built-in rules for its host.",
       "default": ""
+    },
+    "handoff_check": {
+      "type": "boolean",
+      "title": "Hand-off check",
+      "description": "When a reply hands you work (\"left for you\", \"you'll need to merge\") that isn't in the decision queue, show a warning and remind the assistant to queue it on its next turn.",
+      "default": true
     }
   }
 }

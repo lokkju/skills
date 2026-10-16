@@ -9,6 +9,10 @@ The user reads the decision queue (the cards, the decisions sidebar and footer, 
 ctrl+t where the session has task tools) as the list of things waiting on them. Every question you
 need answered, and every step only they can do, goes there in the same turn you ask it. The message still carries the detail; the queue is so nothing gets lost.
 
+Anything you hand back to the user counts, including a merge or a step on their hosts that you
+could do yourself if asked: a reply that ends with "left for you" or "you'll need to" items that
+aren't queued gets flagged to the user, and you're reminded on the next turn.
+
 ## Before you ask
 
 Ask only when the answer blocks the work and can't be settled from the request, the code, the

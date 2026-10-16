@@ -22,6 +22,7 @@ import {
 } from './queue'
 import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { type Forge, type ForgeHosts, forgeOf, linkRefs, parseForgeHosts, refHref } from './forge'
+import { handoffs, nudge } from './handoff'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -44,6 +45,10 @@ const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} 
 // Subagent loops by agent id: how each was spawned, or that it has called a task tool.
 const loops = atom({ plugin: 'session-decisions', key: 'loops' } as const, {} as Record<string, Loop>)
 const TASK_TOOLS = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] as const
+// When the person's latest prompt was sent, so the hand-off check counts the items this turn made.
+const turnStarted = atom({ plugin: 'session-decisions', key: 'turnStarted' } as const, 0)
+// The hand-off reminder the model gets with the person's next prompt; empty when there's none.
+const handoffNudge = atom({ plugin: 'session-decisions', key: 'handoffNudge' } as const, '')
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
@@ -361,6 +366,7 @@ const WRAP = `Wrap up this session's decision queue, as the session-decisions sk
 export const register: Register = (on, options) => {
   // The forge_hosts option (plugin.json userConfig), read as the module loads.
   const forgeHosts = parseForgeHosts(options?.forge_hosts)
+  const checkHandoffs = options?.handoff_check !== false
   on('session.start', async ($, e, next) => {
     // Each registration stands alone: a host that refuses one still gets the rest and the queue.
     const quietly = (work: Promise<unknown>) => work.catch(() => undefined)
@@ -432,6 +438,33 @@ export const register: Register = (on, options) => {
     const text = reminder(await read($, items))
     if (!text) return result
     return { ...result, additionalContext: [...(result.additionalContext ?? []), text] }
+  })
+
+  // The hand-off check: a reply that hands the person work without queuing it gets a toast now,
+  // and the model a reminder with the person's next prompt. It never blocks the reply.
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const result = await next(e)
+    const now = await $.clock.now()
+    await update($, turnStarted, () => now)
+    const pending = await read($, handoffNudge)
+    if (!pending) return result
+    await update($, handoffNudge, () => '')
+    return { ...result, additionalContext: [...(result.additionalContext ?? []), pending] }
+  })
+
+  on('classic.Stop', async ($, e, next) => {
+    const result = await next(e)
+    if (!checkHandoffs || e.stop_hook_active || result.block !== undefined) return result
+    const reply = String(e.last_assistant_message ?? '')
+    if (!reply) return result
+    const since = await read($, turnStarted)
+    const queue = (await read($, items)).filter(item => isOpen(item) || (item.created ?? 0) >= since)
+    const found = handoffs(reply, queue)
+    if (found.length === 0) return result
+    await update($, handoffNudge, () => nudge(found))
+    const count = found.length === 1 ? 'A step' : `${found.length} steps`
+    $.ui.toast(`${count} handed to you but not in the decision queue: ${plainText(found[0] ?? '')}`)
+    return result
   })
 
   // What decision_close and decision_update need to know about a subagent: whether it was spawned

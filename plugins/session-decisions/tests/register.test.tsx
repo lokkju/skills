@@ -436,6 +436,76 @@ describe('queue', () => {
   })
 })
 
+describe('hand-off check', () => {
+  const HANDOFF = 'Both PRs are green.\n\nLeft for you:\n- Merge #41 and #42\n- Run the backfill on each host'
+
+  function classic(on: On) {
+    on('classic.Stop', () => ({}))
+    on('classic.UserPromptSubmit', () => ({}))
+  }
+  const prompt = ($: any, text = 'next') => $.classic.UserPromptSubmit({ prompt: text })
+  const stop = ($: any, message: string, active = false) =>
+    $.classic.Stop({ stop_hook_active: active, last_assistant_message: message })
+
+  test('an unqueued hand-off warns the person, never blocks, and reminds the model on the next prompt', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($, 'ship both fixes')
+    const stopped = await stop($, HANDOFF)
+    expect(stopped.block).toBeUndefined()
+    expect(toasts.at(-1)).toBe('2 steps handed to you but not in the decision queue: Merge #41 and #42')
+    const next = await prompt($)
+    const text = next.additionalContext?.join('\n') ?? ''
+    expect(text).toContain('- Merge #41 and #42')
+    expect(text).toContain('- Run the backfill on each host')
+    // Once only.
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  test('a reply whose hand-offs are queued, labelled or absent passes quietly', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await create($, 'ACTION: merge #41 and #42 [#41]')
+    await create($, 'ACTION: run the backfill on each host [no link]')
+    await stop($, HANDOFF)
+    await stop($, 'Left for you:\n- A3: rotate the key')
+    await stop($, 'Done: merged #41 and ran the backfill. If you need to roll back, run `git revert HEAD`.')
+    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  test('an item queued and settled in the same turn still covers its line', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'ACTION', text: 'run the backfill on each host [no link]' })
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
+    await stop($, 'Left for you:\n- Run the backfill on each host')
+    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+  })
+
+  test('a Stop hook continuation is left alone', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await stop($, HANDOFF, true)
+    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+  })
+
+  test('the handoff_check option turns it off', { options: { handoff_check: false } }, async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await stop($, HANDOFF)
+    expect(toasts.filter(toast => toast.includes('handed to you'))).toEqual([])
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+})
+
 const task = (subject: string, status = 'pending', description = 'context'): Task => ({ subject, description, status })
 const ledgerItem = (label: string, body: string, status = 'pending', description = '') => ({
   id: label,
