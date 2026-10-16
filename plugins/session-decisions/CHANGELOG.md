@@ -1,5 +1,16 @@
 # Changelog
 
+## [session-decisions--v2026.10.16.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.3...session-decisions--v2026.10.16.1) (2026-10-16)
+
+### Features
+
+- **session-decisions:** a forge_hosts option names the forge kind of a self-hosted host ([83b9bef](https://github.com/lokkju/skills/commit/83b9befa05a66fc1cf35990aa5f762aae4877377))
+- **session-decisions:** link issue and pull request references to the repository forge ([4630271](https://github.com/lokkju/skills/commit/46302711e66eec5f9113dfe878aa1ce1c60f4a1e))
+
+### Fixes
+
+- **session-decisions:** draw cards for TaskCreate calls folded into a tool group ([f284f3e](https://github.com/lokkju/skills/commit/f284f3eb895863ef29a09a54cfcfa82be2cba05e))
+
 ## [session-decisions--v2026.10.15.3](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.2...session-decisions--v2026.10.15.3) (2026-10-15)
 
 ### Fixes
