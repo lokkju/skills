@@ -1,5 +1,16 @@
 # Changelog
 
+## [forge-tracker--v2026.10.16.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.16.1...forge-tracker--v2026.10.16.2) (2026-10-16)
+
+### Features
+
+- **forge-tracker:** the /groom command asks before it writes anything ([6780b4f](https://github.com/lokkju/skills/commit/6780b4f06f317e126e62eca4df06973b8f4d0536))
+- **forge-tracker:** /groom finds tracker drift and applies approved fixes through a write layer ([9bdb107](https://github.com/lokkju/skills/commit/9bdb1073097b33101c7b68329a61289053aef29a))
+
+### Fixes
+
+- **forge-tracker:** /groom never proposes deleting release and dependency bot branches ([3b756a0](https://github.com/lokkju/skills/commit/3b756a0f8803b30309ae9e8414ea98bc013a09ed))
+
 ## [forge-tracker--v2026.10.16.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.3...forge-tracker--v2026.10.16.1) (2026-10-16)
 
 ### Features
