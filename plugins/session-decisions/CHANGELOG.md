@@ -1,5 +1,16 @@
 # Changelog
 
+## [session-decisions--v2026.10.16.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.1...session-decisions--v2026.10.16.2) (2026-10-16)
+
+### Features
+
+- **session-decisions:** fit the hand-off toast on one line ([1edf6c7](https://github.com/lokkju/skills/commit/1edf6c7c8c05fa0b0f9aa3f3b176c3542aa59fd6))
+- **session-decisions:** warn when a reply hands work to the user without queuing it ([debda95](https://github.com/lokkju/skills/commit/debda953bd997b2fed47f4f86b6d20410cdc8430))
+
+### Fixes
+
+- **session-decisions:** decision_close settles task-list items from a subagent without TaskUpdate ([4dcce7e](https://github.com/lokkju/skills/commit/4dcce7ee23e15c63215824238c590f6ac587ef54))
+
 ## [session-decisions--v2026.10.16.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.15.3...session-decisions--v2026.10.16.1) (2026-10-16)
 
 ### Features

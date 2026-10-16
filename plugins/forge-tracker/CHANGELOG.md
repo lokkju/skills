@@ -1,5 +1,16 @@
 # Changelog
 
+## [forge-tracker--v2026.10.16.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.3...forge-tracker--v2026.10.16.1) (2026-10-16)
+
+### Features
+
+- **forge-tracker:** offer label setup on first use ([5a219c0](https://github.com/lokkju/skills/commit/5a219c0cecf70914ecd38b386ec9acc2e66470c4))
+
+### Fixes
+
+- **forge-tracker:** list open PRs with no open issue in /next ([c066643](https://github.com/lokkju/skills/commit/c06664360d17e9c9ac18b9422e8d61fc9727528e))
+- **forge-tracker:** read an issue number from a branch only when it's clearly one ([d241da7](https://github.com/lokkju/skills/commit/d241da72123afe653d4258d9e92e2c719be8d2f9))
+
 ## [forge-tracker--v2026.10.15.3](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.15.2...forge-tracker--v2026.10.15.3) (2026-10-15)
 
 ### Features
