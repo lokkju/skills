@@ -3,8 +3,8 @@ already has, and remember a declined offer to set one up.
 
 `suggest` reads the forge and prints a proposal; it writes nothing. Writing the config file is the
 assistant's job, and only on the user's yes. `decline` writes one local cache file and reads no
-forge. Neither one creates a label: until the write layer exists, a missing label is a command
-printed for the user to run.
+forge. Neither one creates a label: creating one isn't a write operation yet, so a missing label
+is a command printed for the user to run.
 """
 
 from __future__ import annotations
