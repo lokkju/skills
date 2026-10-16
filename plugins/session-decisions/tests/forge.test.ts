@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { forgeOf, linkRefs, parseForgeHosts, refHref } from '../hooks/forge'
+import { forgeOf, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge, webForge } from '../hooks/forge'
 
 const GITHUB = { kind: 'github', host: 'github.com', repo: 'lokkju/skills' } as const
 const GITLAB = { kind: 'gitlab', host: 'gitlab.com', repo: 'group/sub/proj' } as const
@@ -70,6 +70,56 @@ describe('forge', () => {
       '"z.example=constructor": the kind is github, gitlab, forgejo or gitea',
     ])
     expect(forgeOf('https://constructor/a/b', parseForgeHosts('').hosts)).toBeNull()
+  })
+
+  test('the git config override is read from --get-regexp output, and values it cannot use get a note', () => {
+    expect(parseOverride('')).toEqual({ override: {}, notes: [] })
+    expect(parseOverride('tracker.forge Gitea\ntracker.web https://git.lab.lokkju.com/lokkju/demo\n')).toEqual({
+      override: { kind: 'forgejo', web: 'https://git.lab.lokkju.com/lokkju/demo' },
+      notes: [],
+    })
+    expect(parseOverride('tracker.forge gitlab\ntracker.forge github').override).toEqual({ kind: 'github' })
+    expect(parseOverride('tracker.forge bitbucket\ntracker.web http://git.example/a/b').notes).toEqual([
+      'tracker.forge "bitbucket": the kind is github, gitlab, forgejo or gitea',
+      'tracker.web "http://git.example/a/b" is not the https URL of a repository',
+    ])
+    for (const web of ['https://h.example/one', 'https://u:p@h.example/a/b', 'https://h.example/a/b?x=1', 'https://h.example/a/..', 'git@h.example:a/b', 'tracker']) {
+      expect(parseOverride(`tracker.web ${web}`).override).toEqual({})
+    }
+  })
+
+  test('a web URL names the repository and the forge root, subpath included', () => {
+    expect(webForge('https://git.lab.lokkju.com/lokkju/demo', 'forgejo')).toEqual({ kind: 'forgejo', host: 'git.lab.lokkju.com', repo: 'lokkju/demo' })
+    expect(webForge('https://GitHub.com/lokkju/skills.git/', 'github')).toEqual(GITHUB)
+    const sub = webForge('https://code.example.org/forge/me/tool', 'forgejo')
+    expect(sub).toEqual({ kind: 'forgejo', host: 'code.example.org', repo: 'me/tool', root: 'https://code.example.org/forge' })
+    expect(refHref('#12', sub)).toBe('https://code.example.org/forge/me/tool/issues/12')
+    expect(refHref('other/repo#7', sub)).toBe('https://code.example.org/forge/other/repo/issues/7')
+    const port = webForge('https://git.example:8443/me/tool', 'forgejo')
+    expect(refHref('!4', port)).toBe('https://git.example:8443/me/tool/pulls/4')
+    expect(webForge('https://gitlab.example/group/sub/proj', 'gitlab')).toEqual({ kind: 'gitlab', host: 'gitlab.example', repo: 'group/sub/proj' })
+    expect(webForge('https://h.example/only', 'github')).toBeNull()
+  })
+
+  test('the override wins over forge_hosts and the built-in rules; without one the remote decides as before', () => {
+    const hosts = parseForgeHosts('homelab-git=github, git.lab.lokkju.com=gitlab').hosts
+    const web = 'https://git.lab.lokkju.com/lokkju/demo'
+    // An SSH alias: the web base gives the real host.
+    expect(refHref('#12', resolveForge('homelab-git:lokkju/demo.git', hosts, { kind: 'forgejo', web }))).toBe(`${web}/issues/12`)
+    // Only the web base: its host's kind comes from forge_hosts or the built-in rules.
+    expect(resolveForge('', hosts, { web })?.kind).toBe('gitlab')
+    expect(resolveForge('', {}, { web: 'https://github.com/lokkju/skills' })).toEqual(GITHUB)
+    expect(resolveForge('', {}, { web })).toBeNull()
+    // A mirror on GitHub whose tracker is elsewhere.
+    expect(refHref('!4', resolveForge('git@github.com:lokkju/demo.git', {}, { kind: 'forgejo', web }))).toBe(`${web}/pulls/4`)
+    // Only the kind: the remote's host and path, on that kind of forge.
+    expect(resolveForge('git@github.com:lokkju/skills.git', hosts, { kind: 'forgejo' })).toEqual({ kind: 'forgejo', host: 'github.com', repo: 'lokkju/skills' })
+    expect(resolveForge('ssh://git@git.example.org/a/b', {}, { kind: 'forgejo' })?.kind).toBe('forgejo')
+    expect(resolveForge('', {}, { kind: 'forgejo' })).toBeNull()
+    // No override.
+    expect(resolveForge('git@github.com:lokkju/skills.git', {})).toEqual(GITHUB)
+    expect(resolveForge('git@github.com:lokkju/skills.git', {}, {})).toEqual(GITHUB)
+    expect(resolveForge('https://git.lab.example.org/a/b', {})).toBeNull()
   })
 
   test('references in prose become links; code, links and URLs keep theirs', () => {

@@ -70,7 +70,9 @@ write a recommendation isn't ready to ask yet, which is the point.
   request. It reads `origin` (or the only remote) once, at session start, and knows github.com,
   gitlab.com, codeberg.org, and hosts named `gitlab.*`, `forgejo.*` or `gitea.*`. A self-hosted
   forge's kind can't be told from any other name, so on any other host the references stay text
-  unless [`forge_hosts`](#forge-hosts) names it. On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
+  unless [`forge_hosts`](#forge-hosts) names it. A repository whose remote is an SSH alias, a
+  mirror, or otherwise not where its issues live can say where they do in its
+  [git config](#per-repository-forge). On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
   ctrl/cmd+click); one without OSC 8 support shows the text alone.
 - **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
   dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
@@ -170,6 +172,58 @@ Set it in `/config` (search for "Forge hosts"), or in `~/.claude/settings.json`:
 The plugin reads the remote at session start, so a change applies from the next session. An
 entry it can't use (no `=`, a URL instead of a host name, an unknown kind) is skipped, and a toast
 at session start names it; the other entries still apply.
+
+### Per-repository forge
+
+`forge_hosts` maps a host to one kind of forge for every repository. Some repositories need their
+own answer: the remote is an SSH host alias (`homelab-git:lokkju/demo.git`) whose name doesn't
+resolve on the web, the remote is a mirror or a push-only URL and the issues live on another
+forge, or the SSH host isn't the web host (`ssh.git.lab.example.com` against
+`git.lab.example.com`). Two git config keys in the clone say where its references link to, and
+win over `forge_hosts` and the built-in rules:
+
+| Key | Value |
+| --- | --- |
+| `tracker.web` | The repository's web URL, `https://` only: `https://git.lab.lokkju.com/lokkju/demo`. |
+| `tracker.forge` | `github`, `gitlab`, `forgejo` or `gitea`. |
+
+```bash
+git config tracker.forge forgejo
+git config tracker.web https://git.lab.lokkju.com/lokkju/demo
+```
+
+With both set, `#12` links to `https://git.lab.lokkju.com/lokkju/demo/issues/12` and `!4` to
+`.../pulls/4`, whatever `origin` says; the remote isn't read at all. Either key works alone:
+
+- `tracker.web` alone takes the kind from its host, as `forge_hosts` and the built-in rules name
+  it, so `git config tracker.web https://github.com/acme/tracker` is enough for a mirror whose
+  issues are on GitHub.
+- `tracker.forge` alone keeps the remote's host and path and names its kind, for a host
+  `forge_hosts` doesn't list when you'd rather not name it for every repository.
+
+A forge under a subpath works for GitHub and Forgejo, whose repositories are always the last two
+segments: `https://code.example.org/forge/me/tool` links `#12` to
+`https://code.example.org/forge/me/tool/issues/12` and `other/repo#7` to
+`https://code.example.org/forge/other/repo/issues/7`. GitLab's groups nest, so its whole path is
+the project and the instance is taken to sit at the host's root; `#12` and `!4` link correctly
+under a subpath, but `group/project#7` will miss the subpath.
+
+The keys are ordinary git config, so they're per clone (`.git/config`) and never committed. That
+suits an SSH alias, which belongs to one machine's `~/.ssh/config`. To set them for every clone
+that uses an alias, put them in a file that `~/.gitconfig` includes for remotes with that alias
+(git 2.36 or later), which works for `tracker.forge`; `tracker.web` names one repository, so it
+belongs in each clone:
+
+```ini
+[includeIf "hasconfig:remote.*.url:homelab-git:*/**"]
+    path = ~/.config/git/homelab.gitconfig
+```
+
+The names aren't this plugin's own: forge-tracker answers the same question for its reports, and
+the `tracker.*` keys are meant for both. The plugin reads them at session start, with the remote,
+so a change applies from the next session. A value it can't use (an unknown kind, a URL that
+isn't `https://` or has fewer than two path segments) is skipped, a toast at session start names
+it, and the plugin carries on as if that key weren't set.
 
 ## Requirements
 

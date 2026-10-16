@@ -960,7 +960,10 @@ describe('link and label forms', () => {
       return { value: { exitCode: origin ? 0 : 2, stdout: origin ? 'git@github.com:lokkju/skills.git\n' : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
     })
     await start($)
-    expect(ran[0]).toEqual(['git', 'remote', 'get-url', 'origin'])
+    expect(ran.slice(0, 2)).toEqual([
+      ['git', 'config', '--get-regexp', '^tracker\\.(forge|web)$'],
+      ['git', 'remote', 'get-url', 'origin'],
+    ])
     await create($, 'DECIDE: merge !4 before #9? (recommend yes) [#3]')
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     const link = await ui.find({ type: 'Link' })
@@ -982,6 +985,40 @@ describe('link and label forms', () => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://git.lab.lokkju.com/lokkju/demo/issues/12', label: '#12' })
     expect((await ui.find({ key: 'question-D1' }))?.text).toBe('merge [!4](https://git.lab.lokkju.com/lokkju/demo/pulls/4) first?')
+  })
+
+  test('the repo override in git config wins over the remote and forge_hosts, and notes values it skips', { options: { forge_hosts: 'homelab-git=github' } }, async ($, on) => {
+    const { toasts } = engine(on)
+    const ran: string[][] = []
+    on('process.run', (_$, e) => {
+      ran.push([...e.argv])
+      const config = e.argv[1] === 'config'
+      const stdout = config ? 'tracker.forge forgejo\ntracker.web https://git.lab.lokkju.com/lokkju/demo\n' : 'homelab-git:lokkju/demo.git\n'
+      return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    await start($)
+    // With the web base set, the remote isn't read at all.
+    expect(ran.filter(argv => argv[1] === 'remote')).toEqual([])
+    await create($, 'DECIDE: merge !4 first? (recommend yes) [#12]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://git.lab.lokkju.com/lokkju/demo/issues/12', label: '#12' })
+    expect((await ui.find({ key: 'question-D1' }))?.text).toBe('merge [!4](https://git.lab.lokkju.com/lokkju/demo/pulls/4) first?')
+    expect(toasts.filter(toast => toast.includes('git config'))).toEqual([])
+  })
+
+  test('a git config override it cannot use is named in a toast, and the remote still decides', async ($, on) => {
+    const { toasts } = engine(on)
+    on('process.run', (_$, e) => {
+      const stdout = e.argv[1] === 'config' ? 'tracker.forge bitbucket\ntracker.web git@x.example:a/b\n' : 'git@github.com:lokkju/skills.git\n'
+      return { value: { exitCode: 0, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+    })
+    await start($)
+    expect(toasts).toContain(
+      'session-decisions: git config ignores tracker.forge "bitbucket": the kind is github, gitlab, forgejo or gitea; tracker.web "git@x.example:a/b" is not the https URL of a repository',
+    )
+    await create($, 'DECIDE: ship it? (recommend yes) [#3]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://github.com/lokkju/skills/issues/3', label: '#3' })
   })
 
   test('with no remote a forge can be named for, references stay text', async ($, on) => {
