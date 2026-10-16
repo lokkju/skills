@@ -21,7 +21,7 @@ import {
   upsert,
 } from './queue'
 import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
-import { type Forge, forgeOf, linkRefs, refHref } from './forge'
+import { type Forge, type ForgeHosts, forgeOf, linkRefs, parseForgeHosts, refHref } from './forge'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -58,8 +58,11 @@ const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false
 // and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
 let forge: Forge | null = null
 
-/** The forge of the `origin` remote, or of the only remote when there's no `origin`. */
-async function remoteForge($: $): Promise<Forge | null> {
+/**
+ * The forge of the `origin` remote, or of the only remote when there's no `origin`; `hosts` names
+ * the kind of a host the built-in rules don't know, or of one they'd get wrong.
+ */
+async function remoteForge($: $, hosts: ForgeHosts): Promise<Forge | null> {
   const git = async (...args: string[]) => {
     const ran = await $.process.run(['git', ...args], { timeoutMs: 5000 })
     return ran.exitCode === 0 ? ran.stdout.trim() : ''
@@ -70,7 +73,7 @@ async function remoteForge($: $): Promise<Forge | null> {
       const names = (await git('remote')).split('\n').filter(Boolean)
       if (names.length === 1) url = await git('remote', 'get-url', names[0] ?? '')
     }
-    return url ? forgeOf(url) : null
+    return url ? forgeOf(url, hosts) : null
   } catch {
     return null
   }
@@ -337,7 +340,9 @@ async function announce($: $, item: Item): Promise<void> {
 
 const WRAP = `Wrap up this session's decision queue, as the session-decisions skill describes: for every open item below, ask me in one message whether to escalate it (create it in the project's tracker as a question for the right person, and link it), carry it forward (it stays open and goes in the handoff), or drop it. Then apply my answers, completing each settled item with a "Ruling (<YYYY-MM-DD>): ..." line, and report what changed.`
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // The forge_hosts option (plugin.json userConfig), read as the module loads.
+  const forgeHosts = parseForgeHosts(options?.forge_hosts)
   on('session.start', async ($, e, next) => {
     // Each registration stands alone: a host that refuses one still gets the rest and the queue.
     const quietly = (work: Promise<unknown>) => work.catch(() => undefined)
@@ -388,7 +393,8 @@ export const register: Register = on => {
         required: ['label', 'ruling'],
       },
     }))
-    forge = await remoteForge($)
+    if (forgeHosts.notes.length) $.ui.toast(`session-decisions: forge_hosts ignores ${forgeHosts.notes.join('; ')}`)
+    forge = await remoteForge($, forgeHosts.hosts)
     const term = await $.env.get('TERM')
     const noColor = await $.env.get('NO_COLOR')
     await update($, ascii, () => Boolean(noColor) || term === 'dumb')

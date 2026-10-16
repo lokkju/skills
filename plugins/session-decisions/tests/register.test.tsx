@@ -869,6 +869,17 @@ describe('link and label forms', () => {
     expect(asked.at(-1)?.options).toContain('Copy link')
   })
 
+  test('the forge_hosts option links a host the plugin cannot name, and notes the entries it skips', { options: { forge_hosts: 'git.lab.lokkju.com=forgejo, bad' } }, async ($, on) => {
+    const { toasts } = engine(on)
+    on('process.run', () => ({ value: { exitCode: 0, stdout: 'ssh://git@git.lab.lokkju.com/lokkju/demo.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))
+    await start($)
+    expect(toasts).toContain('session-decisions: forge_hosts ignores "bad" is not host=kind')
+    await create($, 'DECIDE: merge !4 first? (recommend yes) [#12]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://git.lab.lokkju.com/lokkju/demo/issues/12', label: '#12' })
+    expect((await ui.find({ key: 'question-D1' }))?.text).toBe('merge [!4](https://git.lab.lokkju.com/lokkju/demo/pulls/4) first?')
+  })
+
   test('with no remote a forge can be named for, references stay text', async ($, on) => {
     engine(on)
     on('process.run', () => ({ value: { exitCode: 0, stdout: 'https://git.lab.example.org/me/repo.git\n', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }))

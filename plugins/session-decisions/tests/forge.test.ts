@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { forgeOf, linkRefs, refHref } from '../hooks/forge'
+import { forgeOf, linkRefs, parseForgeHosts, refHref } from '../hooks/forge'
 
 const GITHUB = { kind: 'github', host: 'github.com', repo: 'lokkju/skills' } as const
 const GITLAB = { kind: 'gitlab', host: 'gitlab.com', repo: 'group/sub/proj' } as const
@@ -35,6 +35,41 @@ describe('forge', () => {
     expect(refHref('no link', GITHUB)).toBeNull()
     expect(refHref(null, GITHUB)).toBeNull()
     expect(refHref('a/b/c#3', GITHUB)).toBeNull()
+  })
+
+  test('the forge_hosts option names hosts the built-in rules do not, and overrides them', () => {
+    const { hosts, notes } = parseForgeHosts('git.lab.lokkju.com=forgejo, Code.Example.com = gitlab\ngit.example.net=gitea github.com=gitlab')
+    expect(hosts).toEqual({ 'git.lab.lokkju.com': 'forgejo', 'code.example.com': 'gitlab', 'git.example.net': 'forgejo', 'github.com': 'gitlab' })
+    expect(notes).toEqual([])
+    const lab = forgeOf('ssh://git@git.lab.lokkju.com/lokkju/demo.git', hosts)
+    expect(lab).toEqual({ kind: 'forgejo', host: 'git.lab.lokkju.com', repo: 'lokkju/demo' })
+    expect(refHref('#12', lab)).toBe('https://git.lab.lokkju.com/lokkju/demo/issues/12')
+    expect(refHref('!4', lab)).toBe('https://git.lab.lokkju.com/lokkju/demo/pulls/4')
+    const nested = forgeOf('git@code.example.com:group/sub/proj.git', hosts)
+    expect(refHref('#12', nested)).toBe('https://code.example.com/group/sub/proj/-/issues/12')
+    expect(refHref('!4', nested)).toBe('https://code.example.com/group/sub/proj/-/merge_requests/4')
+    expect(forgeOf('https://git.example.net/me/tool', hosts)?.kind).toBe('forgejo')
+    expect(forgeOf('https://github.com/group/sub/proj', hosts)).toEqual({ kind: 'gitlab', host: 'github.com', repo: 'group/sub/proj' })
+    expect(refHref('#12', forgeOf('git@github.com:lokkju/skills.git', parseForgeHosts('github.com=github').hosts))).toBe(
+      'https://github.com/lokkju/skills/issues/12',
+    )
+    expect(forgeOf('https://gitlab.corp.example/a/b', hosts)?.kind).toBe('gitlab')
+    expect(forgeOf('https://git.lab.example.org/a/b', hosts)).toBeNull()
+    expect(parseForgeHosts(['a.example=github', 'b.example=gitlab']).hosts).toEqual({ 'a.example': 'github', 'b.example': 'gitlab' })
+    expect(parseForgeHosts(undefined)).toEqual({ hosts: {}, notes: [] })
+    expect(parseForgeHosts('')).toEqual({ hosts: {}, notes: [] })
+  })
+
+  test('entries forge_hosts cannot use are skipped with a note, and the rest still apply', () => {
+    const { hosts, notes } = parseForgeHosts('git.lab.lokkju.com, https://x.example=github, y.example=bitbucket, z.example=constructor, ok.example=github')
+    expect(hosts).toEqual({ 'ok.example': 'github' })
+    expect(notes).toEqual([
+      '"git.lab.lokkju.com" is not host=kind',
+      '"https://x.example=github": "https://x.example" is not a host name',
+      '"y.example=bitbucket": the kind is github, gitlab, forgejo or gitea',
+      '"z.example=constructor": the kind is github, gitlab, forgejo or gitea',
+    ])
+    expect(forgeOf('https://constructor/a/b', parseForgeHosts('').hosts)).toBeNull()
   })
 
   test('references in prose become links; code, links and URLs keep theirs', () => {
