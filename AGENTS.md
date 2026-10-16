@@ -3,7 +3,10 @@
 ## Layout
 
 - `.claude-plugin/marketplace.json`: the marketplace manifest, named `lokkju`. Local plugins use a
-  `./plugins/<name>` source; a plugin that lives in its own repo uses a `github` source.
+  `./plugins/<name>` source; a plugin that lives in its own repo uses a `github` source (so far
+  only `session-history`, from lokkju/claude-session-index). Third-party plugin names can't start
+  with `claude-`, `anthropic-`, `anthropics-` or `cc-plugin-`; `claude plugin validate --strict`
+  rejects them.
 - `plugins/session-decisions/`: the in-session decision queue (a function-hooks module, a skill,
   `/decisions`). TypeScript, no dependencies; tests run with
   `claude plugin test plugins/session-decisions`. Its README covers type-checking and

@@ -24,7 +24,7 @@ jobs:
           node-version: 24
       # validate and test run without an Anthropic login or API key.
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code@2.1.286
+        run: npm install -g @anthropic-ai/claude-code@2.1.300
       - name: Validate marketplace and plugins
         run: |
           claude plugin validate --strict .
