@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, tzinfo
 from typing import Any, Callable, Optional
 
-from . import state
+from . import refs, state
 from .config import PATH as CONFIG_PATH
 from .config import Config
 from .detect import Remote
@@ -268,19 +268,6 @@ def load_facts(
 
 # --- classification -----------------------------------------------------------------------------
 
-_HASH_REF = re.compile(r"(?<![\w/])#(\d+)\b")
-_DATEISH = re.compile(r"\d{4}[-._]\d{1,2}[-._]\d{1,2}(?:[-._]\d+)?")
-
-
-def branch_numbers(branch: str) -> set[int]:
-    """All-digit segments of a branch name (`21-github-adapter`, `fix/21`). Date-shaped and
-    version-shaped runs (`2026-10-14`, `2026.10.15.1`) aren't issue numbers."""
-    out = set()
-    for segment in re.split(r"[/\-_. ]+", _DATEISH.sub(" ", branch)):
-        if segment.isdigit() and len(segment) <= 7:
-            out.add(int(segment))
-    return out
-
 
 def _word(marker: str) -> re.Pattern:
     return re.compile(r"(?<![\w])" + re.escape(marker) + r"(?![\w])", re.IGNORECASE)
@@ -419,9 +406,9 @@ def classify(
     for c in changes or []:
         for number in sorted(closes.get(c["number"], ())):
             fly(number, change_entry(c, "closing reference"))
-        for number in sorted({int(n) for n in _HASH_REF.findall(c["title"])} - {c["number"]}):
+        for number in sorted(refs.title_numbers(c["title"]) - {c["number"]}):
             fly(number, change_entry(c, "title"))
-        for number in sorted(branch_numbers(c["branch"]) - {c["number"]}):
+        for number in sorted(refs.branch_numbers(c["branch"]) - {c["number"]}):
             fly(number, change_entry(c, "branch name"))
     # An open change the changes read missed (it failed) still counts through its closing ref.
     if changes is None:
@@ -435,7 +422,7 @@ def classify(
     for b in branches or []:
         if b["has_change"]:
             continue
-        numbers = branch_numbers(b["name"])
+        numbers = refs.branch_numbers(b["name"])
         if b["name"] in pickups:
             numbers.add(pickups[b["name"]])
         matched = False

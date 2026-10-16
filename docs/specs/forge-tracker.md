@@ -274,7 +274,7 @@ the skill tells agents to always pass it when they run `/catchup` for their own 
    or updated in the window are listed in full; the standing backlog is one count line per list.
    An item on several lists is listed once and counted in each. `--all` lists everything.
 2. **Merged since:** changes merged in the window, grouped by the issue numbers in their titles
-   or branches (date-shaped branch segments such as `2026-10-14` are ignored), plus changelog
+   or branches (a branch names an issue as `/next`'s in-flight rule reads it), plus changelog
    entries added when `changelog:` is set.
 3. **Decisions made:** comments in the window matching `ruling_pattern`.
 4. **Board movement:** issues opened and closed, counted by tier.
@@ -350,8 +350,14 @@ reported as a cycle. The walk passes through every open blocked item and counts 
 aren't person-only; a blocker in another project blocks but isn't walked.
 
 **In flight:** an item is in flight when an open change has a closing reference to it or names it
-(`#N` in its title, or `N` as a segment of its branch), or a pushed branch with no change and at
-least one commit past the default branch has `N` as a segment. Phase 2's pickup record (branch
+(`#N` in its title, or `N` in its branch name), or a pushed branch with no change and at least
+one commit past the default branch names `N`. A branch names `N` only when it's clearly an issue
+number: a whole word at the start or end of a `/`-separated segment (`21-github-adapter`,
+`fix/21`, `sd-26`) or right after `issue`, `gh`, `fix` and similar words (`issue-21-x`). Digits
+inside a version (`cilium-1.20.2`, `v1`), a date (`plans-2026-10-08`), a run id or hash longer than
+six digits, a word with a leading zero, a number in the middle of a name (`phase-2-docs`) and `0`
+aren't issue numbers, and a `dependabot/` or `renovate/` branch names none. `/catchup` groups merged changes by the
+same rule (`forge_tracker/refs.py`). Phase 2's pickup record (branch
 to issue) is the other source; until phase 2 ships, `next.recorded_pickups` returns none and is
 the one place to read it.
 
@@ -463,8 +469,8 @@ None of it needs the commands.
 - **Closing references.** When the work was picked up from an issue, the PR or MR body carries
   `Closes #N` (or `Closes !N` / `group/project#N` as the forge writes it). Work counts as picked
   up from an issue when forge-tracker recorded the pickup for the branch, or when the branch name
-  has the issue number as a segment (`21-github-adapter`, `fix/21`; date-shaped segments such as
-  `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
+  names the issue number by `/next`'s in-flight rule (`21-github-adapter`, `fix/21`; versions
+  and dates such as `cilium-1.20.2` or `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
   confirm the issue closed; when it didn't (a merge to a non-default branch, say), close it with
   `write close`.
 - **Shared account.** Never infer that the user acted from the account that acted.

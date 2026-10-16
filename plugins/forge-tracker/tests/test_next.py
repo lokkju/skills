@@ -731,21 +731,6 @@ def test_no_pickups_are_recorded_before_phase_2(env):
     assert next_.recorded_pickups(Remote("github.com", "acme/widgets"), env["environ"]) == {}
 
 
-@pytest.mark.parametrize(
-    "branch, numbers",
-    [
-        ("21-github-adapter", {21}),
-        ("fix/21", {21}),
-        ("yeet/release-2026-10-14", set()),
-        ("release/2026.10.15.1", set()),
-        ("feat/forge-tracker-next", set()),
-        ("sd-26", {26}),
-    ],
-)
-def test_branch_numbers(branch, numbers):
-    assert next_.branch_numbers(branch) == numbers
-
-
 def test_source_tag_is_stable():
     assert next_.source_tag() == next_.source_tag()
     assert len(next_.source_tag()) == 16

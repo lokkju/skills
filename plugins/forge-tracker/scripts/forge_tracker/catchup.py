@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any, Callable, Optional
 
-from . import state
+from . import refs, state
 from .config import Config
 from .detect import Remote
 from .model import Change, ForgeError, Issue, Read, attempt, iso, parse_time
@@ -156,21 +156,15 @@ def gather(
 
 # --- building the report ----------------------------------------------------------------------
 
-_HASH_REF = re.compile(r"(?<![\w/])#(\d+)\b")
-_DATEISH = re.compile(r"\d{4}[-._]\d{1,2}[-._]\d{1,2}(?:[-._]\d+)?")
-
 
 def issue_numbers(change: Change) -> list[int]:
-    """Issue numbers a merged change names: its closing references, `#N` in its title, and
-    all-digit segments of its branch. Date-shaped and version-shaped runs in the branch
-    (`2026-10-14`, `2026.10.15.1`) aren't issue numbers."""
+    """Issue numbers a merged change names: its closing references, `#N` in its title, and the
+    numbers its branch clearly names (`refs.branch_numbers`)."""
     numbers = set(change.closing_issues)
-    numbers.update(int(n) for n in _HASH_REF.findall(change.title))
-    branch = _DATEISH.sub(" ", change.branch)
-    for segment in re.split(r"[/\-_. ]+", branch):
-        if segment.isdigit() and len(segment) <= 7:
-            numbers.add(int(segment))
+    numbers |= refs.title_numbers(change.title)
+    numbers |= refs.branch_numbers(change.branch)
     numbers.discard(change.number)
+    numbers.discard(0)
     return sorted(numbers)
 
 
