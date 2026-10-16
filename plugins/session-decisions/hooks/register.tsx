@@ -21,7 +21,7 @@ import {
   upsert,
 } from './queue'
 import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
-import { type Forge, type ForgeHosts, forgeOf, linkRefs, parseForgeHosts, refHref } from './forge'
+import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge } from './handoff'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
@@ -62,28 +62,33 @@ function measure(site: { viewport?: { rows: number; columns: number } }) {
   if (site.viewport && site.viewport.rows > 0 && site.viewport.columns > 0) screen = { rows: site.viewport.rows, columns: site.viewport.columns }
 }
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
-// The forge the session's repository is on, read from its git remote at session start, so `#12`
+// The forge the session's repository is on, read from its git config and remote at session start, so `#12`
 // and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
 let forge: Forge | null = null
 
 /**
- * The forge of the `origin` remote, or of the only remote when there's no `origin`; `hosts` names
- * the kind of a host the built-in rules don't know, or of one they'd get wrong.
+ * The repository's forge: its `tracker.forge` and `tracker.web` git config when set, then the
+ * `origin` remote, or the only remote when there's no `origin`; `hosts` names the kind of a host
+ * the built-in rules don't know, or of one they'd get wrong. Notes name override values it can't use.
  */
-async function remoteForge($: $, hosts: ForgeHosts): Promise<Forge | null> {
+async function repoForge($: $, hosts: ForgeHosts): Promise<{ forge: Forge | null; notes: string[] }> {
   const git = async (...args: string[]) => {
     const ran = await $.process.run(['git', ...args], { timeoutMs: 5000 })
     return ran.exitCode === 0 ? ran.stdout.trim() : ''
   }
   try {
-    let url = await git('remote', 'get-url', 'origin')
-    if (!url) {
-      const names = (await git('remote')).split('\n').filter(Boolean)
-      if (names.length === 1) url = await git('remote', 'get-url', names[0] ?? '')
+    const { override, notes } = parseOverride(await git('config', '--get-regexp', '^tracker\\.(forge|web)$'))
+    let url = ''
+    if (!override.web) {
+      url = await git('remote', 'get-url', 'origin')
+      if (!url) {
+        const names = (await git('remote')).split('\n').filter(Boolean)
+        if (names.length === 1) url = await git('remote', 'get-url', names[0] ?? '')
+      }
     }
-    return url ? forgeOf(url, hosts) : null
+    return { forge: resolveForge(url, hosts, override), notes }
   } catch {
-    return null
+    return { forge: null, notes: [] }
   }
 }
 
@@ -418,7 +423,9 @@ export const register: Register = (on, options) => {
       },
     }))
     if (forgeHosts.notes.length) $.ui.toast(`session-decisions: forge_hosts ignores ${forgeHosts.notes.join('; ')}`)
-    forge = await remoteForge($, forgeHosts.hosts)
+    const found = await repoForge($, forgeHosts.hosts)
+    if (found.notes.length) $.ui.toast(`session-decisions: git config ignores ${found.notes.join('; ')}`)
+    forge = found.forge
     const term = await $.env.get('TERM')
     const noColor = await $.env.get('NO_COLOR')
     await update($, ascii, () => Boolean(noColor) || term === 'dumb')
