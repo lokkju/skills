@@ -40,6 +40,7 @@ plugins/forge-tracker/
   scripts/forge_tracker/
     detect.py                     origin URL -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
+    labelsetup.py                 first use: a config proposed from the repo's labels, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
@@ -123,6 +124,7 @@ error, never an empty list standing in for a failure.
 | CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs with `include_retried=true` | Actions runs where the instance has the API, else commit status |
 | Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare` | `GET /branches`, `GET /compare` |
 | Tags and releases | name, sha, date | `GET /tags`, `GET /releases` | `GET /repository/tags`, `GET /releases` | `GET /tags`, `GET /releases` |
+| Labels (setup only) | name, description | `GET /labels` | `GET /labels` | `GET /labels` |
 
 Registry tags are read only when the config lists them. "(verify)" marks an endpoint I haven't
 confirmed against a live instance; each one becomes a fixture in phase 1 of that forge or is
@@ -214,8 +216,11 @@ The module gets it as `register(on, options)`. The CLI gets it as
 ### `.claude/forge-tracker.local.md`
 
 Per repo, frontmatter only matters; the body is free notes for the assistant. Unknown keys fail
-the load with the key named. Every key is optional; a report that needs an unset one says so and
-leaves that part out.
+the load with the key named. Every key is optional; a report that needs an unset one leaves that
+part out and says so in a single `setup:` line (#59), which names the missing keys, what the
+report can't do without them, and how to set them up. A label key or `ruling_pattern` set to `~`
+(or `null`) records that the repo has no such label or convention, and the reports say nothing
+about it; that's how a repo that genuinely lacks a label stops the line.
 
 ```markdown
 ---
@@ -244,6 +249,31 @@ Releases are cut by yeet; don't file issues for release PRs.
 
 The `.local.md` name follows the plugin-settings convention. Whether to commit it is the repo's
 call: committed, everyone shares the label names; gitignored, it's personal.
+
+### First use (#59)
+
+With no config, `/next`'s queue can only fill from marker words, so `Your queue: nothing
+person-only` would read as "nothing needs you" when it means "no label was configured to say so".
+The report says so on that line, and the commands turn the `setup:` line into an offer:
+
+- **`forge-tracker labels suggest`** reads the repo's labels (`GET /repos/{o}/{r}/labels`,
+  through the read transport) and prints a proposed file: each role mapped to the label that
+  matches its patterns first (`needs-human`, `human`, `needs-decision`, `decision`, `question`,
+  `decided`, `blocked`, `on-hold`, `agent-ready`, `agent` and similar, compared lowercased with
+  spaces, `_`, `:`, `/` and `.` as `-`), the largest priority family as tiers (`P0`..`P9`,
+  `priority:N`, `priority: high` and so on, ordered), `~` for each role nothing matched, and
+  `ruling_pattern: ~` when that's unset. Keys the existing file already sets, `~` included, are
+  kept and left out of the proposal. For each unmatched role it also prints a `gh label create`
+  command. It writes nothing, and `--json` prints the same.
+- **The command files** offer setup once, when the `setup:` line doesn't say it was declined and
+  the run isn't an agent's own. Claude shows the proposal and writes `.claude/forge-tracker.local.md`
+  only on the user's yes, with their corrections, adding to an existing file rather than
+  replacing it. That's the only write. Labels missing on the forge are an instruction for the
+  user (the printed `gh label create` commands) until the write layer exists; then creating them
+  becomes a named operation behind the write-wrapper like the others.
+- **`forge-tracker labels decline`** records a no in the local cache (see [State](#state)), reads
+  no forge and needs no token. The `setup:` line then says setup was declined, so the commands
+  don't offer it again; the line stays, one line, because the report still can't see the labels.
 
 ## Commands
 
@@ -520,6 +550,7 @@ All state is local to the machine, outside the repo, and safe to delete.
 | `/next` facts and slate | `.../forge-tracker/next/<host>_<project>/{facts,slate}.json` | until the fingerprint moves |
 | needs-human cache | `.../forge-tracker/needs-human/<host>_<project>_<user>.json` | 10 minutes |
 | forge probe | `.../forge-tracker/hosts.json` | a day |
+| declined setup | `.../forge-tracker/setup/<host>_<project>.json` | until deleted |
 | issue pickups | `.../forge-tracker/pickup/<host>_<project>.json` (branch to issue) | until the branch's change merges |
 
 Directories are created 0700 and files written 0600 by a temp file and `os.replace`. A

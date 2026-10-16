@@ -96,7 +96,22 @@ def test_spec_example_loads(repo_dir):
 
 def test_missing_file_and_no_frontmatter_are_defaults(repo_dir):
     assert config.load(repo_dir()) == config.Config()
-    assert config.load(repo_dir("just notes\n")) == config.Config()
+    assert config.load(repo_dir("just notes\n")) == config.Config(found=True)
+
+
+def test_tilde_and_null_record_none(repo_dir):
+    cfg = config.load(
+        repo_dir(
+            "---\nlabels:\n  needs_human: ~\n  decision: null\n  blocked: 'null'\n"
+            "ruling_pattern: ~\n---\n"
+        )
+    )
+    assert cfg.found
+    assert cfg.label("needs_human") is None and cfg.label("decision") is None
+    assert cfg.label("blocked") == "null"  # quoted, so a name
+    assert cfg.set_to_none == {"labels.needs_human", "labels.decision", "ruling_pattern"}
+    assert cfg.setup_note(("labels.needs_human", "labels.decision", "ruling_pattern")) is None
+    assert config.Config(found=True).setup_note(("labels.blocked",)) is not None
 
 
 def test_block_lists_and_quotes(repo_dir):

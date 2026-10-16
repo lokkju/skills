@@ -196,6 +196,14 @@ class ClosingRef:
     change_project: Optional[str] = None  # None when the change is in the issue's project
 
 
+@dataclass(frozen=True)
+class Label:
+    """A label defined on the project (not one on an item)."""
+
+    name: str
+    description: str = ""
+
+
 @dataclass
 class Repo:
     """What every report needs to know about the project before it reads anything else."""

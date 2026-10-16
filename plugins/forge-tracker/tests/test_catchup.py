@@ -442,9 +442,61 @@ def test_unset_labels_and_pattern_are_said_not_guessed(env, repo_dir):
     env["repo"] = repo_dir("---\n---\n")
     code, text = run_catchup(env)
     assert code == 0
-    assert "(labels.needs_human isn't set, so needs-human issues aren't listed)" in text
-    assert "(ruling_pattern isn't set, so rulings aren't picked out)" in text
+    # One setup line under Waiting on you says what's missing and how to set it up.
+    setup = [line for line in text.splitlines() if "setup:" in line]
+    assert setup == [
+        (
+            "  (setup: labels.needs_human, labels.decision and ruling_pattern unset in "
+            ".claude/forge-tracker.local.md, so no label marks needs-human or decision items and "
+            "rulings aren't picked out. Set them, or set them to ~ to record that this repo has none; "
+            "`forge-tracker labels suggest` proposes one from this repo's labels)"
+        )
+    ]
+    assert "Decisions made\n  (ruling_pattern isn't set; see setup above)" in text
     assert "Board movement\n  untiered +1 -1" in text
+
+
+def test_no_config_file_says_so_once(env, tmp_path):
+    env["repo"] = str(tmp_path / "bare")
+    os.mkdir(env["repo"])
+    code, text = run_catchup(env)
+    assert code == 0
+    setup = [line for line in text.splitlines() if "setup:" in line]
+    assert setup == [
+        (
+            "  (setup: no .claude/forge-tracker.local.md, so no label marks needs-human or decision "
+            "items and rulings aren't picked out. `forge-tracker labels suggest` proposes one from "
+            "this repo's labels)"
+        )
+    ]
+
+
+def test_a_declined_setup_is_said_in_the_line(env, tmp_path):
+    env["repo"] = str(tmp_path / "bare")
+    os.mkdir(env["repo"])
+    out = io.StringIO()
+    code = cli.main(
+        ["--repo", env["repo"], "labels", "decline"],
+        run=FakeRun(),
+        now=NOW,
+        environ=env["environ"],
+        out=out,
+    )
+    assert code == 0
+    assert "setup declined for acme/widgets" in out.getvalue()
+    code, text = run_catchup(env)
+    assert code == 0
+    assert "Setup was declined on 2026-10-15; `forge-tracker labels suggest` still" in text
+
+
+def test_keys_set_to_none_silence_the_notes(env, repo_dir):
+    env["repo"] = repo_dir(
+        "---\nlabels:\n  needs_human: ~\n  decision: ~\nruling_pattern: ~\n---\n"
+    )
+    code, text = run_catchup(env)
+    assert code == 0
+    assert "setup:" not in text
+    assert "ruling_pattern" not in text
 
 
 def test_usage_errors(env, capsys):

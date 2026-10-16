@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
-from . import catchup, config, detect, state
+from . import catchup, config, detect, labelsetup, state
 from . import next as next_
 from .forges import github
 from .model import ConfigError, ForgeError, attempt, iso
@@ -36,9 +36,10 @@ def open_forge(
     http: Optional[Http],
     run: Callable[..., Any],
     record: bool = False,
+    environ: Mapping[str, str] = os.environ,
 ) -> Context:
     remote = detect.parse_remote(detect.origin_url(repo_dir, run))
-    cfg = config.load(repo_dir)
+    cfg = labelsetup.with_decline(config.load(repo_dir), remote, environ)
     forge = detect.detect_forge(remote, cfg.forge)
     token = gh_token(remote.host, run)
     inner = http or urllib_http(cfg.ca_file)
@@ -201,6 +202,41 @@ def cmd_save_slate(
     return EXIT_OK
 
 
+def cmd_labels_suggest(args: argparse.Namespace, ctx: Context, now: datetime, out: TextIO) -> int:
+    """Propose a config from the repo's labels. Reads the label list; writes nothing."""
+    read = attempt(ctx.adapter.labels)
+    if not read.ok:
+        out.write(f"labels: FAILED ({read.error})\n")
+        return EXIT_FAILED
+    data = labelsetup.report(read.data, ctx.config, ctx.remote, now)
+    if args.json:
+        out.write(json.dumps(data, indent=1) + "\n")
+    else:
+        out.write(labelsetup.render(data))
+    return EXIT_OK
+
+
+def cmd_labels_decline(
+    repo_dir: str,
+    run: Callable[..., Any],
+    now: datetime,
+    environ: Mapping[str, str],
+    out: TextIO,
+) -> int:
+    """Remember that the user declined setup here. Reads no forge, so it needs no token."""
+    try:
+        remote = detect.parse_remote(detect.origin_url(repo_dir, run))
+    except ConfigError as error:
+        print(f"forge-tracker: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    path = labelsetup.record_decline(remote, environ, now)
+    out.write(
+        f"setup declined for {remote.project}: the reports still say what's unset, and the "
+        f"commands won't offer setup again (delete {path} to undo)\n"
+    )
+    return EXIT_OK
+
+
 def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
     """Every read once against the live forge, printing counts and any FAILED part."""
     a = ctx.adapter
@@ -330,6 +366,19 @@ def parser() -> argparse.ArgumentParser:
     )
     n.add_argument("--json", action="store_true", help="print the report as JSON")
 
+    lb = sub.add_parser(
+        "labels",
+        help="propose a config from the repo's labels, or remember a declined setup",
+        description=(
+            f"suggest: read the repo's labels and print a proposed {config.PATH} (labels, tiers, "
+            "ruling_pattern), plus a create command for each label it lacks. It writes nothing. "
+            "decline: remember, in the local cache, that the user declined setup here, so the "
+            "commands stop offering it."
+        ),
+    )
+    lb.add_argument("action", choices=("suggest", "decline"))
+    lb.add_argument("--json", action="store_true", help="print the proposal as JSON")
+
     sub.add_parser("smoke", help="run every read once and print counts (a live check)")
     return p
 
@@ -353,8 +402,12 @@ def main(
         return cmd_save_slate(
             os.path.abspath(args.repo), run, now, environ, stdin or sys.stdin, out
         )
+    if args.command == "labels" and args.action == "decline":
+        return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
     try:
-        ctx = open_forge(os.path.abspath(args.repo), http, run, record=bool(args.record))
+        ctx = open_forge(
+            os.path.abspath(args.repo), http, run, record=bool(args.record), environ=environ
+        )
     except (ConfigError, ForgeError) as error:
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE
@@ -363,6 +416,8 @@ def main(
             return cmd_catchup(args, ctx, now, environ, run, out, tz)
         if args.command == "next":
             return cmd_next(args, ctx, now, environ, out, tz)
+        if args.command == "labels":
+            return cmd_labels_suggest(args, ctx, now, out)
         return cmd_smoke(ctx, now, out)
     except BrokenPipeError:
         return EXIT_FAILED

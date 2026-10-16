@@ -280,11 +280,8 @@ def build(
     waiting_failed = _failed(reads, "mentions", "open_changes", "open_issues")
     if not login and not identity_error:
         waiting_failed.append({"part": "identity", "reason": "no login"})
-    notes = []
-    if not needs_human:
-        notes.append("labels.needs_human isn't set, so needs-human issues aren't listed")
-    if not decision:
-        notes.append("labels.decision isn't set, so decision issues aren't listed")
+    setup = config.setup_note(("labels.needs_human", "labels.decision", "ruling_pattern"))
+    notes = [setup] if setup else []
     report["waiting"] = {
         "items": sorted(items.values(), key=lambda e: e["updated"], reverse=True),
         "standing": standing,
@@ -324,7 +321,8 @@ def build(
     # 3. Decisions made.
     decisions: dict[str, Any] = {"items": [], "failed": [], "note": None}
     if config.ruling_pattern is None:
-        decisions["note"] = "ruling_pattern isn't set, so rulings aren't picked out"
+        if "ruling_pattern" not in config.set_to_none:
+            decisions["note"] = "ruling_pattern isn't set; see setup above"
     elif reads["comments"].ok:
         for c in reads["comments"].data:
             match = config.ruling_pattern.search(c.body)
