@@ -3,8 +3,8 @@
 Reads can't write. Every request goes through `check_read` before it's sent: GET is allowed, and
 so is a POST to the forge's GraphQL endpoint whose document's operations are all queries, which
 `graphql_operations` finds by tokenizing the document, not by matching strings. Anything else
-raises before the network is touched. Writes, when they exist, get a separate transport that
-only `writes.py` imports.
+raises before the network is touched. Writes go through a separate transport defined in
+`writes.py`, which no adapter or report imports.
 
 Lists are read to the end or fail: `get_all` and `graphql_all` follow pagination to the last
 page, and a page cap that is hit raises ForgeError with the cap in the reason.

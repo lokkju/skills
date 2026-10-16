@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
-from . import catchup, config, detect, labelsetup, state
+from . import catchup, config, detect, groom, labelsetup, state, writes
 from . import next as next_
 from .forges import github
 from .model import ConfigError, ForgeError, attempt, iso
@@ -29,6 +29,9 @@ class Context:
     forge: str
     adapter: Any
     recorder: Optional[RecordingHttp]
+    # The unrecorded transport and the token, for the write layer only.
+    http: Optional[Http] = None
+    token: Optional[str] = None
 
 
 def open_forge(
@@ -53,7 +56,7 @@ def open_forge(
         extra_headers=github.headers(),
     )
     adapter = github.GitHub(transport, remote.project)
-    return Context(repo_dir, remote, cfg, forge, adapter, recorder)
+    return Context(repo_dir, remote, cfg, forge, adapter, recorder, inner, token)
 
 
 def _json_default(value: Any) -> Any:
@@ -202,6 +205,104 @@ def cmd_save_slate(
     return EXIT_OK
 
 
+def cmd_groom(args: argparse.Namespace, ctx: Context, now: datetime, out: TextIO) -> int:
+    """Find tracker drift and print the proposed fixes with their evidence. Writes nothing."""
+    reads = groom.gather(ctx.adapter, ctx.config, now)
+    report = groom.build(reads, ctx.config, ctx.remote, ctx.forge, now)
+    if args.json:
+        out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
+    else:
+        out.write(groom.render(report))
+    out.flush()
+    return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def make_writer(
+    ctx: Context, now: datetime, environ: Mapping[str, str], run: Callable[..., Any]
+) -> writes.Writer:
+    """The write layer for this repo: the write-wrapper when the config sets one, and otherwise
+    GitHub's REST API through the write transport, which nothing but writes.py builds on."""
+    forge = None
+    if not ctx.config.write_wrapper:
+        api_base, _ = github.endpoints(ctx.remote.host, ctx.config.api_base)
+        transport = writes.WriteTransport(
+            api_base=api_base,
+            repo_path=ctx.adapter.repo_path,
+            http=ctx.http,  # type: ignore[arg-type]
+            token=ctx.token,
+            extra_headers=github.headers(),
+        )
+        forge = writes.GitHubWrites(ctx.adapter.t, transport, ctx.remote.project)
+    return writes.Writer(
+        project=ctx.remote.project,
+        repo_dir=ctx.repo_dir,
+        log_path=writes.log_path(ctx.remote.key, environ),
+        forge=forge,
+        wrapper=ctx.config.write_wrapper,
+        run=run,
+        now=lambda: now,
+    )
+
+
+def _stdin_json(stdin: TextIO, what: str) -> tuple[Any, Optional[str]]:
+    try:
+        return json.loads(stdin.read()), None
+    except ValueError as error:
+        return None, f"forge-tracker: the {what} on stdin isn't JSON: {error}"
+
+
+def cmd_groom_apply(
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    stdin: TextIO,
+    out: TextIO,
+) -> int:
+    """Write the proposals the user approved ({"approved": [ids]} on stdin), one at a time,
+    after re-running the checks: an id that isn't a current proposal refuses the whole list."""
+    payload, problem = _stdin_json(stdin, "approval")
+    if problem:
+        print(problem, file=sys.stderr)
+        return EXIT_USAGE
+    reads = groom.gather(ctx.adapter, ctx.config, now)
+    report = groom.build(reads, ctx.config, ctx.remote, ctx.forge, now)
+    try:
+        chosen = groom.approved(payload, report)
+    except groom.ApplyError as error:
+        print(f"forge-tracker: nothing written: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    writer = make_writer(ctx, now, environ, run)
+    ok = True
+    for proposal in chosen:
+        result = writer.apply(proposal["op"], proposal["payload"])
+        ok = ok and result.ok
+        out.write(writes.render(result, proposal["id"]) + "\n")
+        out.flush()
+    return EXIT_OK if ok else EXIT_FAILED
+
+
+def cmd_write(
+    args: argparse.Namespace,
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    stdin: TextIO,
+    out: TextIO,
+) -> int:
+    """One named write operation, its JSON payload on stdin. Exits 2 when it's refused."""
+    payload, problem = _stdin_json(stdin, "payload")
+    if problem:
+        print(problem, file=sys.stderr)
+        return EXIT_USAGE
+    result = make_writer(ctx, now, environ, run).apply(args.op, payload)
+    out.write(writes.render(result) + "\n")
+    if result.status == "refused":
+        return EXIT_USAGE
+    return EXIT_OK if result.ok else EXIT_FAILED
+
+
 def cmd_labels_suggest(args: argparse.Namespace, ctx: Context, now: datetime, out: TextIO) -> int:
     """Propose a config from the repo's labels. Reads the label list; writes nothing."""
     read = attempt(ctx.adapter.labels)
@@ -313,7 +414,10 @@ def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forge-tracker",
-        description="Read a repo's forge (GitHub so far) and report on it. Read-only.",
+        description=(
+            "Read a repo's forge (GitHub so far) and report on it. Every command only reads, "
+            "except `write` and `groom apply`, which run named write operations."
+        ),
     )
     p.add_argument("--repo", default=".", help="the git checkout to report on (default: .)")
     p.add_argument(
@@ -379,6 +483,33 @@ def parser() -> argparse.ArgumentParser:
     lb.add_argument("action", choices=("suggest", "decline"))
     lb.add_argument("--json", action="store_true", help="print the proposal as JSON")
 
+    g = sub.add_parser(
+        "groom",
+        help="find tracker drift and propose fixes; apply only the approved ones",
+        description=(
+            "Find where the tracker drifted (merged but open issues, tier labels and milestones, "
+            "blocked labels and links, rulings left waiting, stale branches, conflicted or stale "
+            "PRs, likely duplicates, placeholder due dates) and print the proposals with their "
+            "evidence, the unclear bucket and a list for you. It writes nothing. `groom apply` "
+            'reads {"approved": [ids]} on stdin, re-runs the checks, and writes each approved '
+            "proposal that is still current. Exits 1 when any read or write failed."
+        ),
+    )
+    g.add_argument(
+        "action", nargs="?", choices=("apply",), help="apply: write the approved proposals"
+    )
+    g.add_argument("--json", action="store_true", help="print the report as JSON")
+
+    w = sub.add_parser(
+        "write",
+        help="run one named write operation (JSON payload on stdin)",
+        description=(
+            "Run one named write operation with its JSON payload on stdin, through the "
+            "write-wrapper when the config sets one. Exits 2 when it's refused."
+        ),
+    )
+    w.add_argument("op", choices=writes.OPS)
+
     sub.add_parser("smoke", help="run every read once and print counts (a live check)")
     return p
 
@@ -404,6 +535,10 @@ def main(
         )
     if args.command == "labels" and args.action == "decline":
         return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
+    writing = args.command == "write" or (args.command == "groom" and args.action == "apply")
+    if writing and args.record:
+        print("forge-tracker: --record is for reads; it doesn't record writes", file=sys.stderr)
+        return EXIT_USAGE
     try:
         ctx = open_forge(
             os.path.abspath(args.repo), http, run, record=bool(args.record), environ=environ
@@ -418,6 +553,12 @@ def main(
             return cmd_next(args, ctx, now, environ, out, tz)
         if args.command == "labels":
             return cmd_labels_suggest(args, ctx, now, out)
+        if args.command == "groom" and args.action == "apply":
+            return cmd_groom_apply(ctx, now, environ, run, stdin or sys.stdin, out)
+        if args.command == "groom":
+            return cmd_groom(args, ctx, now, out)
+        if args.command == "write":
+            return cmd_write(args, ctx, now, environ, run, stdin or sys.stdin, out)
         return cmd_smoke(ctx, now, out)
     except BrokenPipeError:
         return EXIT_FAILED

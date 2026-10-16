@@ -19,9 +19,11 @@ from ..model import (
     Issue,
     Job,
     Label,
+    LabelEvent,
     Link,
     Mention,
     Milestone,
+    MilestoneRef,
     Repo,
     Run,
     Tag,
@@ -140,7 +142,7 @@ query BlockingLinks($owner: String!, $name: String!, $cursor: String) {
       nodes {
         number
         blockedBy(first: 50) {
-          nodes { number state repository { nameWithOwner } }
+          nodes { number state closedAt repository { nameWithOwner } }
         }
       }
     }
@@ -402,11 +404,71 @@ class GitHub:
             if name == default_branch:
                 continue
             ahead = None
+            head_date = None
             if name not in with_change:
                 compare = self.t.get(f"{self.repo_path}/compare/{default_branch}...{name}")
                 ahead = int(compare.get("ahead_by", 0)) if isinstance(compare, dict) else None
-            out.append(Branch(name, raw["commit"]["sha"], name in with_change, ahead))
+                commits = (compare.get("commits") or []) if isinstance(compare, dict) else []
+                if commits:
+                    committer = (commits[-1].get("commit") or {}).get("committer") or {}
+                    head_date = parse_time(committer.get("date"))
+            out.append(
+                Branch(
+                    name,
+                    raw["commit"]["sha"],
+                    name in with_change,
+                    ahead,
+                    protected=bool(raw.get("protected")),
+                    head_date=head_date,
+                )
+            )
         return out
+
+    # --- /groom: milestones, label history, per-issue comments, reachability ---------------------
+
+    def milestones(self) -> list[MilestoneRef]:
+        """The open milestones, with the numbers a milestone write needs."""
+        raw = self.t.get_all(f"{self.repo_path}/milestones", {"state": "open"})
+        return [
+            MilestoneRef(int(m["number"]), m.get("title") or "", m.get("due_on") or None)
+            for m in raw
+        ]
+
+    def label_events(self, number: int) -> list[LabelEvent]:
+        """When labels were added to and removed from one issue, oldest first."""
+        raw = self.t.get_all(f"{self.repo_path}/issues/{number}/events")
+        return [
+            LabelEvent(
+                event=e["event"],
+                label=(e.get("label") or {}).get("name") or "",
+                created=parse_time(e["created_at"]),  # type: ignore[arg-type]
+            )
+            for e in raw
+            if e.get("event") in ("labeled", "unlabeled")
+        ]
+
+    def issue_comments(self, number: int) -> list[Comment]:
+        """Every comment on one issue, oldest first."""
+        raw = self.t.get_all(f"{self.repo_path}/issues/{number}/comments")
+        return [
+            Comment(
+                issue=number,
+                author=(item.get("user") or {}).get("login") or "",
+                author_is_bot=_is_bot(item.get("user")),
+                created=parse_time(item["created_at"]),  # type: ignore[arg-type]
+                body=item.get("body") or "",
+                url=item.get("html_url") or "",
+            )
+            for item in raw
+        ]
+
+    def on_branch(self, branch: str, sha: str) -> bool:
+        """Whether commit `sha` is reachable from `branch`: comparing `branch...sha` says the
+        commit is behind the branch or identical to it."""
+        compare = self.t.get(f"{self.repo_path}/compare/{branch}...{sha}")
+        if not isinstance(compare, dict) or "status" not in compare:
+            raise ForgeError(f"compare {branch}...{sha[:7]} returned no status")
+        return compare["status"] in ("behind", "identical")
 
     def blocking_links(self) -> list[Link]:
         nodes = self.t.graphql_all(
@@ -425,6 +487,7 @@ class GitHub:
                         blocker_open=blocker.get("state") == "OPEN",
                         kind="native",
                         blocker_project=None if project == self.project else project,
+                        blocker_closed=parse_time(blocker.get("closedAt")),
                     )
                 )
         return out
@@ -508,6 +571,8 @@ class GitHub:
                         base=change.get("baseRefName") or "",
                         merged_at=parse_time(change.get("mergedAt")),
                         change_project=None if project in (None, self.project) else project,
+                        title=change.get("title") or "",
+                        merge_sha=(change.get("mergeCommit") or {}).get("oid"),
                     )
                 )
         return out
@@ -582,7 +647,8 @@ query ClosingRefs($owner: String!, $name: String!, $cursor: String) {
         closedByPullRequestsReferences(first: 25, includeClosedPrs: true) {
           totalCount
           nodes {
-            number state mergedAt headRefName baseRefName
+            number title state mergedAt headRefName baseRefName
+            mergeCommit { oid }
             repository { nameWithOwner }
           }
         }
