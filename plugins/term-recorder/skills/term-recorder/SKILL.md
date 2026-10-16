@@ -64,8 +64,10 @@ that opens the question dialog and snaps it.
   matters, and `--env DISABLE_AUTOUPDATER=1` so no update notice lands in the frame.
 - To try a plugin from a checkout, add `--plugin-dir <path>`, and pass `--settings <file>` to
   switch the installed copy off (`"enabledPlugins": {"<name>@<marketplace>": false}`).
-- The task tools (TaskCreate and the rest) are off in an interactive session on Claude 5 models
-  unless `--env CLAUDE_CODE_ENABLE_TODO_TOOLS=1`.
+- The task tools (TaskCreate and the rest) are off on Claude 5 models, interactive or `-p`,
+  unless `--env CLAUDE_CODE_ENABLE_TODO_TOOLS=1`. Since Claude Code 2.1.300, `--model haiku` is
+  Haiku 5.5, so that includes haiku. Even then they're deferred tools: they show up in the
+  deferred-tool list and load through ToolSearch, not in the initial tool list.
 - Your prompt is echoed on screen, so wait on text only the result shows (a dialog's numbered
   option such as `'[0-9]\. Accept'`), never on a word from the prompt itself.
 - Its busy marker, for `idle`: `'\([0-9]+m? ?[0-9]*s · |esc to interrupt'`.
