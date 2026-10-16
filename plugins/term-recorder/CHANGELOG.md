@@ -1,5 +1,11 @@
 # Changelog
 
+## [term-recorder--v2026.10.16.1](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.15.2...term-recorder--v2026.10.16.1) (2026-10-16)
+
+### Fixes
+
+- **term-recorder:** the task-tool note covers -p, haiku 5.5 and deferred loading ([ba9b4fb](https://github.com/lokkju/skills/commit/ba9b4fbe8026d95f7264da78348e93cb5c482dbd))
+
 ## [term-recorder--v2026.10.15.2](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.15.1...term-recorder--v2026.10.15.2) (2026-10-15)
 
 ### Fixes
