@@ -580,6 +580,54 @@ def test_issue_numbers(c, numbers):
     assert catchup.issue_numbers(c) == numbers
 
 
+def _own(**kw):
+    t = parse_time("2026-10-14T00:00:00Z")
+    fields = dict(
+        number=7,
+        title="t",
+        branch="b",
+        draft=False,
+        author="me",
+        assignees=(),
+        reviewers=(),
+        conflicts="no",
+        pipeline="success",
+        created=t,
+        updated=t,
+    )
+    fields.update(kw)
+    return Change(**fields)
+
+
+@pytest.mark.parametrize(
+    "kw, expected",
+    [
+        ({}, True),
+        ({"pipeline": None}, True),  # no checks at all
+        ({"conflicts": "unknown"}, True),  # listed with conflicts: unknown, never as clean
+        ({"author": "someone"}, False),
+        ({"draft": True}, False),
+        ({"reviewers": ("alice",)}, False),
+        ({"review": "changes_requested"}, False),
+        ({"conflicts": "yes"}, False),
+        ({"pipeline": "failure"}, False),
+        ({"pipeline": "pending"}, False),
+    ],
+)
+def test_yours_to_merge(kw, expected):
+    assert catchup.yours_to_merge(_own(**kw), "me") is expected
+
+
+def test_your_own_green_pr_waits_on_you(env):
+    w = world()
+    w.op("OpenChanges", gql_conn([change(50, title="feat: mine, green, nobody asked")]))
+    code, text = run_catchup(env, "--no-mark", http=w)
+    assert code == 0
+    assert (
+        "  #50 yours to merge: feat: mine, green, nobody asked (draft no, conflicts: no)\n" in text
+    )
+
+
 @pytest.mark.parametrize(
     "value, expected",
     [
