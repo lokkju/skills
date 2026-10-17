@@ -40,7 +40,8 @@ plugins/forge-tracker/
   scripts/forge_tracker/
     detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
-    labelsetup.py                 first use: a config proposed from the repo's labels, a declined offer
+    labelsetup.py                 first use: a config proposed from the repo's labels, the approved
+                                  labels created, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
@@ -220,6 +221,7 @@ one an approved `/groom` change or a working-rule action:
 | `milestone` (set or clear) | `/groom` |
 | `unlink` (remove a blocked label, or a link to a closed blocker) | `/groom` |
 | `delete-branch` | `/groom` |
+| `label-create` (name, color, description) | first-use setup, for the labels the user approved |
 
 Each runs as `forge-tracker write <op>` with a JSON payload on stdin and prints what it did.
 
@@ -236,6 +238,13 @@ before anything is sent (a payload naming another `repo` is refused), and the op
 can go stale check first through the read transport: `close` refuses an issue that's already
 closed, `unlink` a blocker that reopened, and `delete-branch` a branch that moved off the
 payload's `sha` or is protected. The payload the wrapper gets carries `repo` (`owner/repo`).
+
+`label-create` ([#76](https://github.com/lokkju/skills/issues/76)) checks that the name is at
+most 50 characters with no outer spaces, the color six hex digits and the description at most
+100 characters, then reads the repo's labels through the read transport and refuses a name that
+already exists compared without case, since GitHub treats label names that way. That check runs
+before the wrapper too, so a wrapper never gets a clashing name. On GitHub it's one `POST
+/repos/{o}/{r}/labels`.
 Every operation, written, refused or failed, is appended to
 `.../forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
@@ -307,15 +316,26 @@ The report says so on that line, lists the rest as unclassified rather than agen
   spaces, `_`, `:`, `/` and `.` as `-`), the largest priority family as tiers (`P0`..`P9`,
   `priority:N`, `priority: high` and so on, ordered), `~` for each role nothing matched, and
   `ruling_pattern: ~` when that's unset. Keys the existing file already sets, `~` included, are
-  kept and left out of the proposal. For each unmatched role it also prints a `gh label create`
-  command. It writes nothing, and `--json` prints the same.
+  kept and left out of the proposal. For each unmatched role it also lists the label it would
+  create (the default name, description and a fixed color per role: `needs-human` d93f0b,
+  `decision` fbca04, `decided` 0e8a16, `blocked` b60205, `agent-ready` 1d76db), as a
+  `forge-tracker labels create` line and as `gh label create` commands. It writes nothing, and
+  `--json` prints the same.
 - **The command files** offer setup once, when the `setup:` line doesn't say it was declined and
   the run isn't an agent's own. Claude shows the proposal and writes `.claude/forge-tracker.local.md`
   only on the user's yes, with their corrections, adding to an existing file rather than
-  replacing it. That's the only write. Labels missing on the forge are an instruction for the
-  user (the printed `gh label create` commands) until creating them becomes a named operation
-  behind the write-wrapper like the others; the write layer exists, but that operation doesn't
-  yet.
+  replacing it. When labels are missing on the forge, Claude then asks a second, separate
+  question, and only on an explicit yes runs `forge-tracker labels create` with the approved
+  names; the yes to the config file doesn't cover it. On a no, the `gh label create` commands
+  stay an instruction for the user, and the roles stay `~`.
+- **`forge-tracker labels create <names>`** ([#76](https://github.com/lokkju/skills/issues/76))
+  takes each approved label as a default name (`needs-human`), a role (`needs_human`) or
+  `role=name` for a name of the user's own. Before anything is written it refuses the whole list,
+  exit 2, for no names at all, a role the config already maps to a label, a role or name given
+  twice, or a name the repo already has compared without case. Then it runs `label-create` for
+  each, through the write-wrapper when one is set, prints a result line per label and the
+  `labels.<role>: <name>` lines that replace the `~` (`--json` reports the same), and Claude
+  writes those into the config file.
 - **`forge-tracker labels decline`** records a no in the local cache (see [State](#state)), reads
   no forge and needs no token. The `setup:` line then says setup was declined, so the commands
   don't offer it again; the line stays, one line, because the report still can't see the labels.

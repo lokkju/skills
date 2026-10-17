@@ -210,6 +210,7 @@ are named, and each takes a JSON payload:
 | `milestone` | `issue`, `milestone` (`{number, title}` or `null`) | set or clear |
 | `unlink` | `issue` and either `label` or `blocker` (+ `blocker_project`) | remove the label, or the blocked-by link; refused if the blocker reopened |
 | `delete-branch` | `branch`, `sha` | delete the ref; refused if the branch moved off `sha` or is protected |
+| `label-create` | `name`, `color` (six hex digits), `description` | create the label; refused, with or without a wrapper, if the repo has the name in any case |
 
 `forge-tracker write <op>` runs one with its payload on stdin. When the config sets
 `write_wrapper:`, forge-tracker sends no write of its own: it runs `<wrapper> <op>` in the repo
@@ -282,9 +283,15 @@ mapped to the label that looks like it (`needs-human`, `human`, `decision`, `que
 shows you the proposal and writes `.claude/forge-tracker.local.md` only when you say so, with
 your corrections. That file is the only thing it writes; it doesn't commit it.
 
-For each role no label matched, the suggestion also prints a `gh label create` command.
-Creating a label isn't one of forge-tracker's write operations yet, so Claude gives you those
-commands to run and doesn't create labels itself; once you have, it puts their names in the file.
+For each role no label matched, the suggestion also lists the label it would create:
+`needs-human`, `decision`, `decided`, `blocked` or `agent-ready`, with a description and a fixed
+color per role. After you accept the config, Claude asks separately whether to create them, and
+only on that second yes runs `forge-tracker labels create` with the names you approved (`role=name`
+picks a name of your own, such as `agent=ready-for-agent`). Each goes through the `label-create`
+write operation, so through your write-wrapper when one is set. It refuses the whole list,
+creating nothing, when a name already exists in any case or the config already maps the role.
+Claude then puts the created names in the file in place of their `~`. On a no, you get the
+equivalent `gh label create` commands to run yourself.
 
 On a no, Claude runs `forge-tracker labels decline`, which records the decline in
 `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/setup/<host>_<project>.json` (never in the repo or on
@@ -294,6 +301,7 @@ Deleting the file brings the offer back.
 ```bash
 plugins/forge-tracker/scripts/forge-tracker labels suggest          # the proposal, as text
 plugins/forge-tracker/scripts/forge-tracker labels suggest --json   # the same, for scripts
+plugins/forge-tracker/scripts/forge-tracker labels create needs-human blocked   # approved only
 plugins/forge-tracker/scripts/forge-tracker labels decline          # stop offering setup here
 ```
 

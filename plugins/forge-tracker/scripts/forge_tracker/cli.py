@@ -365,6 +365,7 @@ def make_writer(
         wrapper=ctx.config.write_wrapper,
         run=run,
         now=lambda: now,
+        existing_labels=lambda: [label.name for label in ctx.adapter.labels()],
     )
 
 
@@ -439,6 +440,30 @@ def cmd_labels_suggest(args: argparse.Namespace, ctx: Context, now: datetime, ou
     else:
         out.write(labelsetup.render(data))
     return EXIT_OK
+
+
+def cmd_labels_create(
+    args: argparse.Namespace,
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    out: TextIO,
+) -> int:
+    """Create the labels the user approved, by name, through the write layer. Exits 2, having
+    written nothing, when any name doesn't fit."""
+    read = attempt(ctx.adapter.labels)
+    if not read.ok:
+        out.write(f"labels: FAILED ({read.error}); nothing created\n")
+        return EXIT_FAILED
+    try:
+        plan = labelsetup.plan_create(args.names, read.data, ctx.config)
+    except labelsetup.CreateError as error:
+        print(f"forge-tracker: nothing created: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    data = labelsetup.create(plan, make_writer(ctx, now, environ, run).apply)
+    out.write(json.dumps(data, indent=1) + "\n" if args.json else labelsetup.render_create(data))
+    return EXIT_OK if data["ok"] else EXIT_FAILED
 
 
 def cmd_labels_decline(
@@ -540,7 +565,7 @@ def parser() -> argparse.ArgumentParser:
         prog="forge-tracker",
         description=(
             "Read a repo's forge (GitHub so far) and report on it. Every command only reads, "
-            "except `write` and `groom apply`, which run named write operations."
+            "except `write`, `groom apply` and `labels create`, which run named write operations."
         ),
     )
     p.add_argument("--repo", default=".", help="the git checkout to report on (default: .)")
@@ -604,16 +629,20 @@ def parser() -> argparse.ArgumentParser:
 
     lb = sub.add_parser(
         "labels",
-        help="propose a config from the repo's labels, or remember a declined setup",
+        help="propose a config from the repo's labels, create approved ones, or decline setup",
         description=(
             f"suggest: read the repo's labels and print a proposed {config.PATH} (labels, tiers, "
             "ruling_pattern), plus a create command for each label it lacks. It writes nothing. "
+            "create: create the labels named (a default name such as needs-human, a role such "
+            "as needs_human, or role=name), each through the label-create write operation, and "
+            "print the config lines that replace their ~. "
             "decline: remember, in the local cache, that the user declined setup here, so the "
             "commands stop offering it."
         ),
     )
-    lb.add_argument("action", choices=("suggest", "decline"))
-    lb.add_argument("--json", action="store_true", help="print the proposal as JSON")
+    lb.add_argument("action", choices=("suggest", "create", "decline"))
+    lb.add_argument("names", nargs="*", help="create: the approved labels")
+    lb.add_argument("--json", action="store_true", help="print the proposal or result as JSON")
 
     g = sub.add_parser(
         "groom",
@@ -667,7 +696,14 @@ def main(
         )
     if args.command == "labels" and args.action == "decline":
         return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
-    writing = args.command == "write" or (args.command == "groom" and args.action == "apply")
+    if args.command == "labels" and args.action != "create" and args.names:
+        print(f"forge-tracker: labels {args.action} takes no names", file=sys.stderr)
+        return EXIT_USAGE
+    writing = (
+        args.command == "write"
+        or (args.command == "groom" and args.action == "apply")
+        or (args.command == "labels" and args.action == "create")
+    )
     if writing and args.record:
         print("forge-tracker: --record is for reads; it doesn't record writes", file=sys.stderr)
         return EXIT_USAGE
@@ -696,6 +732,8 @@ def main(
             return cmd_catchup(args, ctx, now, environ, run, out, tz)
         if args.command == "next":
             return cmd_next(args, ctx, now, environ, out, tz)
+        if args.command == "labels" and args.action == "create":
+            return cmd_labels_create(args, ctx, now, environ, run, out)
         if args.command == "labels":
             return cmd_labels_suggest(args, ctx, now, out)
         if args.command == "groom" and args.action == "apply":

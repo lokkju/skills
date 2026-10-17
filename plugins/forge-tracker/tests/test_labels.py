@@ -148,8 +148,11 @@ def test_create_commands_name_the_repo():
     data = labelsetup.report(labels("bug"), config.Config(), REMOTE, NOW)
     commands = [m["command"] for m in data["proposal"]["missing"]]
     assert commands[0] == (
-        'gh label create needs-human -R acme/widgets --description "Needs a person to act; '
-        'agents leave it alone"'
+        'gh label create needs-human -R acme/widgets --color d93f0b --description "Needs a '
+        'person to act; agents leave it alone"'
+    )
+    assert "  forge-tracker labels create needs-human decision decided blocked agent-ready" in (
+        labelsetup.render(data)
     )
     enterprise = labelsetup.report(labels(), config.Config(), Remote("ghe.example", "a/b"), NOW)
     assert "-R ghe.example/a/b " in enterprise["proposal"]["missing"][0]["command"]
@@ -229,3 +232,232 @@ def test_decline_writes_one_private_cache_file_and_reads_no_forge(tmp_path):
     cfg = labelsetup.with_decline(config.Config(), REMOTE, environ)
     assert cfg.setup_declined == "2026-10-16"
     assert "Setup was declined on 2026-10-16" in cfg.setup_note(("labels.needs_human",))
+
+
+# --- labels create (#76) ------------------------------------------------------------------------
+
+SETUP = """---
+labels:
+  needs_human: ~
+  decision: question
+  decision_made: ~
+  blocked: ~
+  agent: ~
+---
+"""
+
+
+def wrapped(text):
+    return text.replace("---\n", "---\nwrite_wrapper: ./w\n", 1)
+
+
+class LabelForge:
+    """The label list for reads, and a recorder for writes, which never reach the World."""
+
+    def __init__(self, names):
+        self.world = label_world(names)
+        self.writes = []
+
+    @property
+    def calls(self):
+        return self.world.calls
+
+    def __call__(self, method, url, headers, body=None):
+        if method in ("POST", "PATCH", "DELETE"):
+            path = url.split("api.github.com", 1)[1]
+            self.writes.append((method, path, json.loads(body) if body else None))
+            return response({})
+        return self.world(method, url, headers, body)
+
+
+@pytest.fixture
+def setup_env(tmp_path, repo_dir):
+    return {
+        "repo": repo_dir(SETUP),
+        "environ": {"HOME": str(tmp_path), "XDG_CACHE_HOME": str(tmp_path / "cache")},
+        "log": tmp_path / "cache" / "forge-tracker" / "writes" / "github.com_acme__widgets.jsonl",
+    }
+
+
+def create(env, *names, forge=None, fake=None, json_out=False):
+    forge = forge or LabelForge(["bug", "question"])
+    argv = ["labels", "create", *names] + (["--json"] if json_out else [])
+    code, text = run(argv, env["repo"], http=forge, environ=env["environ"], fake=fake)
+    return code, text, forge
+
+
+def write_op(env, payload, forge, fake=None):
+    out = io.StringIO()
+    code = cli.main(
+        ["--repo", env["repo"], "write", "label-create"],
+        http=forge,
+        run=fake or FakeRun(),
+        now=NOW,
+        environ=env["environ"],
+        out=out,
+        stdin=io.StringIO(json.dumps(payload)),
+    )
+    return code, out.getvalue()
+
+
+def test_create_makes_each_approved_label_and_prints_the_config_lines(setup_env):
+    code, text, forge = create(setup_env, "needs-human", "agent=ready-for-agent", "blocked")
+    assert code == 0, text
+    assert forge.writes == [
+        (
+            "POST",
+            "/repos/acme/widgets/labels",
+            {
+                "name": "needs-human",
+                "color": "d93f0b",
+                "description": "Needs a person to act; agents leave it alone",
+            },
+        ),
+        (
+            "POST",
+            "/repos/acme/widgets/labels",
+            {
+                "name": "ready-for-agent",
+                "color": "1d76db",
+                "description": "Ready for an agent to pick up",
+            },
+        ),
+        (
+            "POST",
+            "/repos/acme/widgets/labels",
+            {
+                "name": "blocked",
+                "color": "b60205",
+                "description": "Can't start until something else lands",
+            },
+        ),
+    ]
+    assert text == (
+        "needs-human: created label needs-human (#d93f0b)\n"
+        "ready-for-agent: created label ready-for-agent (#1d76db)\n"
+        "blocked: created label blocked (#b60205)\n"
+        "Put these in .claude/forge-tracker.local.md in place of their ~:\n"
+        "  labels.needs_human: needs-human\n"
+        "  labels.agent: ready-for-agent\n"
+        "  labels.blocked: blocked\n"
+    )
+    entries = [json.loads(line) for line in setup_env["log"].read_text().splitlines()]
+    assert [(e["op"], e["status"], e["via"]) for e in entries] == [
+        ("label-create", "written", "forge")
+    ] * 3
+    assert stat.S_IMODE(setup_env["log"].stat().st_mode) == 0o600
+
+
+def test_create_json_reports_what_was_created(setup_env):
+    code, text, _ = create(setup_env, "decided", json_out=True)
+    assert code == 0
+    data = json.loads(text)
+    assert data["config"] == {"decision_made": "decided"}
+    assert data["results"][0]["status"] == "written"
+    assert data["results"][0]["color"] == "0e8a16"
+
+
+def test_with_a_wrapper_create_runs_it_and_sends_nothing(setup_env, repo_dir):
+    env = dict(setup_env, repo=repo_dir(wrapped(SETUP)))
+    fake = FakeRun()
+    fake.answer(["./w"], 0, "made by policy\n", "")
+    code, text, forge = create(env, "needs-human", fake=fake)
+    assert code == 0, text
+    assert forge.writes == []
+    assert text.startswith("needs-human: write-wrapper did it: made by policy\n")
+    assert "  labels.needs_human: needs-human\n" in text
+    calls = [(argv, kw) for argv, kw in zip(fake.calls, fake.kwargs) if argv[0] == "./w"]
+    assert [argv for argv, _ in calls] == [["./w", "label-create"]]
+    assert json.loads(calls[0][1]["input"]) == {
+        "name": "needs-human",
+        "color": "d93f0b",
+        "description": "Needs a person to act; agents leave it alone",
+        "repo": "acme/widgets",
+    }
+
+
+def test_a_wrapper_refusal_creates_nothing_and_sets_no_config(setup_env, repo_dir):
+    env = dict(setup_env, repo=repo_dir(wrapped(SETUP)))
+    fake = FakeRun()
+    fake.answer(["./w"], 1, "", "labels are managed in terraform")
+    code, text, forge = create(env, "blocked", fake=fake)
+    assert code == 1
+    assert text == "blocked: REFUSED (write-wrapper refused: labels are managed in terraform)\n"
+    assert forge.writes == []
+
+
+def test_nothing_is_created_without_the_approved_names(setup_env):
+    """Setup reads; only `labels create` with names given writes, and nothing else does."""
+    forge = LabelForge(["bug", "question"])
+    bare = os.path.join(os.path.dirname(setup_env["repo"]), "bare")
+    os.mkdir(bare)
+    code, text = run(["labels", "suggest"], bare, http=forge, environ=setup_env["environ"])
+    assert code == 0
+    assert "  forge-tracker labels create needs-human decided blocked agent-ready\n" in text
+    code, _, _ = create(setup_env, forge=forge)
+    assert code == 2
+    assert forge.writes == []
+    assert {c[0] for c in forge.calls} == {"GET"}
+    assert not setup_env["log"].exists()
+
+
+@pytest.mark.parametrize(
+    "names, message",
+    [
+        (["Needs-Human"], "the repo already has 'needs-human'"),
+        (["decision"], "labels.decision is already 'question'"),
+        (["blocked", "blocked=other"], "labels.blocked is named twice"),
+        (["needs-human", "agent=NEEDS-HUMAN"], "'NEEDS-HUMAN' is named twice"),
+        (["triage"], "'triage': not a default name"),
+        (["owner=x"], "'owner=x': not a default name"),
+        (["agent="], "'agent=': the name is empty"),
+    ],
+)
+def test_create_refuses_names_that_dont_fit_and_writes_nothing(setup_env, capsys, names, message):
+    forge = LabelForge(["bug", "question", "needs-human"])
+    code, _, forge = create(setup_env, *names, forge=forge)
+    assert code == 2
+    assert message in capsys.readouterr().err
+    assert forge.writes == []
+
+
+def test_the_write_op_refuses_an_existing_name_without_regard_to_case(setup_env, repo_dir):
+    for config_text in (SETUP, wrapped(SETUP)):
+        env = dict(setup_env, repo=repo_dir(config_text))
+        forge = LabelForge(["Bug"])
+        # FakeRun has no answer for ./w, so running the wrapper would fail the test.
+        code, text = write_op(env, {"name": "bug", "color": "ededed"}, forge)
+        assert code == 2
+        assert "a label named 'Bug' already exists (names compare without case)" in text
+        assert forge.writes == []
+
+
+@pytest.mark.parametrize(
+    "payload, message",
+    [
+        ({"name": "x", "color": "red"}, "color must be six hex digits"),
+        ({"name": " x", "color": "ededed"}, "no outer spaces"),
+        ({"name": "x" * 51, "color": "ededed"}, "at most 50 characters"),
+        ({"name": "x", "color": "ededed", "description": "d" * 101}, "at most 100"),
+        ({"color": "ededed"}, "name must be a non-empty string"),
+    ],
+)
+def test_the_write_op_validates_before_reading_or_sending(setup_env, payload, message):
+    forge = LabelForge([])
+    code, text = write_op(setup_env, payload, forge)
+    assert code == 2
+    assert message in text
+    assert forge.writes == []
+    assert not any("/labels" in c[1] for c in forge.calls)
+
+
+def test_record_is_refused_for_labels_create(setup_env):
+    forge = LabelForge([])
+    code, _ = run(
+        ["--record", str(setup_env["log"]) + ".rec", "labels", "create", "blocked"],
+        setup_env["repo"],
+        http=forge,
+        environ=setup_env["environ"],
+    )
+    assert code == 2
+    assert forge.writes == []
