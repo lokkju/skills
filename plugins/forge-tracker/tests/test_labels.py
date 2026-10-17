@@ -2,6 +2,7 @@ import io
 import json
 import os
 import stat
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -102,7 +103,8 @@ def test_existing_config_wins_and_tilde_stays():
     assert roles(p)["agent"] is None and p["roles"]["agent"]["source"] == "config"
     assert roles(p)["blocked"] == "blocked"
     assert p["tiers"]["labels"] == ["hi", "lo"]
-    assert "agent" not in [m["key"] for m in p["missing"]]
+    # ~ means no such label yet, so it's still one to create; a mapped role never is.
+    assert [m["key"] for m in p["missing"]] == ["decision", "decision_made", "agent"]
 
 
 # --- the proposed file --------------------------------------------------------------------------
@@ -130,7 +132,11 @@ def test_proposed_file_loads_and_silences_the_setup_notes(repo_dir):
     assert cfg.label("needs_human") == "needs-human" and cfg.label("decision") == "question"
     assert cfg.tier_labels == ("P1", "P2")
     keys = ("labels.needs_human", "labels.decision", "labels.blocked", "ruling_pattern")
-    assert cfg.setup_note(keys) is None
+    # Nothing is unset; the roles at ~ are offered for creation until setup is declined.
+    assert cfg.setup_note(keys).startswith(
+        "setup: labels.decision_made, labels.blocked and labels.agent set to ~ in "
+    )
+    assert replace(cfg, setup_declined="2026-10-16").setup_note(keys) is None
 
 
 def test_existing_file_gets_only_the_missing_keys():
@@ -449,6 +455,65 @@ def test_the_write_op_validates_before_reading_or_sending(setup_env, payload, me
     assert message in text
     assert forge.writes == []
     assert not any("/labels" in c[1] for c in forge.calls)
+
+
+SKILLS = ["bug", "documentation", "enhancement", "question", "no-release"]
+
+SUGGEST_ON_TILDES = """\
+acme/widgets on github.com: 5 labels
+
+.claude/forge-tracker.local.md already sets every key this proposes; nothing to add.
+
+Not on the forge (labels.needs_human, labels.decision_made, labels.blocked, labels.agent at ~). With the user's approval, create them with
+  forge-tracker labels create needs-human decided blocked agent-ready
+(through the write-wrapper when one is set), or the user can run:
+  gh label create needs-human -R acme/widgets --color d93f0b --description "Needs a person to act; agents leave it alone"
+  gh label create decided -R acme/widgets --color 0e8a16 --description "The decision is recorded in a comment"
+  gh label create blocked -R acme/widgets --color b60205 --description "Can't start until something else lands"
+  gh label create agent-ready -R acme/widgets --color 1d76db --description "Ready for an agent to pick up"
+and then put each name in place of its ~.
+"""
+
+
+def test_an_existing_config_with_tilde_roles_is_still_offered_creation(setup_env, repo_dir):
+    """A config written from an earlier suggest, with the unmatched roles at ~ (#76)."""
+    setup_env = dict(
+        setup_env, repo=repo_dir(SETUP.replace("---\n", "---\nruling_pattern: ~\n", 1))
+    )
+    forge = LabelForge(SKILLS)
+    code, text = run(
+        ["labels", "suggest"], setup_env["repo"], http=forge, environ=setup_env["environ"]
+    )
+    assert code == 0
+    assert text == SUGGEST_ON_TILDES
+    code, text, forge = create(
+        setup_env, "needs-human", "decided", "blocked", "agent-ready", forge=forge
+    )
+    assert code == 0, text
+    assert [w[2]["name"] for w in forge.writes] == [
+        "needs-human",
+        "decided",
+        "blocked",
+        "agent-ready",
+    ]
+    assert text.endswith(
+        "Put these in .claude/forge-tracker.local.md in place of their ~:\n"
+        "  labels.needs_human: needs-human\n"
+        "  labels.decision_made: decided\n"
+        "  labels.blocked: blocked\n"
+        "  labels.agent: agent-ready\n"
+    )
+
+
+def test_tilde_roles_get_a_setup_line_until_declined(setup_env):
+    cfg = config.load(setup_env["repo"])
+    note = cfg.setup_note(("labels.needs_human", "labels.decision"))
+    assert note == (
+        "setup: labels.needs_human, labels.decision_made, labels.blocked and labels.agent set to "
+        "~ in .claude/forge-tracker.local.md, so no label marks those roles yet. `forge-tracker "
+        "labels suggest` lists the labels it can create for them"
+    )
+    assert replace(cfg, setup_declined="2026-10-16").setup_note(("labels.needs_human",)) is None
 
 
 def test_record_is_refused_for_labels_create(setup_env):

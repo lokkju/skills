@@ -1042,7 +1042,9 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
             "unclassified issues below may still need you"
         )
     elif not queue:
-        unlabelled = any(n.startswith(SETUP_PREFIX) for n in report["notes"])
+        unlabelled = not report.get("labelled", True) and any(
+            n.startswith(SETUP_PREFIX) for n in report["notes"]
+        )
         lines.append(
             "  nothing person-only"
             + (" (but labels aren't configured to mark any; see setup)" if unlabelled else "")

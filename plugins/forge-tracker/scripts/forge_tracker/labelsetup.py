@@ -130,7 +130,8 @@ def suggest(labels: Sequence[Label], cfg: Config) -> dict[str, Any]:
     existing = {name.lower() for name in names}
     missing = []
     for role, entry in roles.items():
-        if entry["source"] != "none":
+        # A role nothing matched, or one the config sets to ~ (no such label yet).
+        if entry["label"] is not None:
             continue
         name, description = DEFAULT_NAMES[role]
         if name.lower() in existing:  # taken by another role; don't propose a clash
@@ -231,19 +232,23 @@ def render(data: Mapping[str, Any]) -> str:
     count = len(data["labels_read"])
     head = f"{data['project']} on {data['host']}: {count} label{'s' if count != 1 else ''}"
     out = [head, ""]
-    if data["config_exists"]:
-        if not data["content"]:
-            out.append(f"{data['path']} already sets every key this proposes; nothing to add.")
-            return "\n".join(out) + "\n"
-        out.append(f"{data['path']} exists. Add these keys to its frontmatter (merge into its")
-        out.append("labels: and tiers: blocks where it has them):")
-    else:
-        out.append(f"Proposed {data['path']} (nothing written):")
-    out += ["", data["content"].rstrip("\n"), ""]
     missing = data["proposal"]["missing"]
+    if data["config_exists"] and not data["content"]:
+        out.append(f"{data['path']} already sets every key this proposes; nothing to add.")
+        if not missing:
+            return "\n".join(out) + "\n"
+        out.append("")
+    else:
+        if data["config_exists"]:
+            out.append(f"{data['path']} exists. Add these keys to its frontmatter (merge into its")
+            out.append("labels: and tiers: blocks where it has them):")
+        else:
+            out.append(f"Proposed {data['path']} (nothing written):")
+        out += ["", data["content"].rstrip("\n"), ""]
     if missing:
         names = " ".join(item["name"] for item in missing)
-        out.append("Not on the forge (set to ~ above). With the user's approval, create them with")
+        roles = ", ".join(f"labels.{item['key']}" for item in missing)
+        out.append(f"Not on the forge ({roles} at ~). With the user's approval, create them with")
         out.append(f"  forge-tracker labels create {names}")
         out.append("(through the write-wrapper when one is set), or the user can run:")
         out += [f"  {item['command']}" for item in missing]
