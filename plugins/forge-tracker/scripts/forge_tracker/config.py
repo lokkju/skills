@@ -38,6 +38,7 @@ KEYS = (
     "stale_days",
     "write_wrapper",
     "groom",
+    "repos",
 )
 GROOM_KEYS = ("keep_branches",)
 
@@ -59,6 +60,8 @@ class Config:
     write_wrapper: Optional[str] = None
     # Globs of branch names /groom never proposes deleting, on top of its built-in ones.
     keep_branches: tuple[str, ...] = ()
+    # At a workspace root only: the repos /catchup reads, as paths relative to it.
+    repos: tuple[str, ...] = ()
     # Whether the file exists, and the keys it sets to `~` ("labels.needs_human", "ruling_pattern").
     found: bool = False
     set_to_none: frozenset[str] = frozenset()
@@ -343,5 +346,6 @@ def from_mapping(data: dict[str, Any], source: str = PATH) -> Config:
         stale_days=stale,
         write_wrapper=_string(data.get("write_wrapper"), "write_wrapper"),
         keep_branches=_strings(groom.get("keep_branches"), "groom.keep_branches"),
+        repos=_strings(data.get("repos"), "repos"),
         set_to_none=frozenset(none),
     )

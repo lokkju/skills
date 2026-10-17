@@ -45,6 +45,7 @@ plugins/forge-tracker/
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
     catchup.py next.py groom.py   the three reports
+    workspace.py                  /catchup over a folder of repos: discovery, one combined report
     state.py                      XDG cache files: 0700 dirs, 0600 files, atomic replace
     writes.py                     the named write operations and the write-wrapper
   commands/catchup.md next.md groom.md
@@ -286,6 +287,9 @@ groom:
 Releases are cut by yeet; don't file issues for release PRs.
 ```
 
+At a workspace root (a folder of repos, see [`/catchup`](#catchup-23)) the same file may set
+`repos: [citare, stare]`, the repos `/catchup` reads there; it's the only key read at a root.
+
 The `.local.md` name follows the plugin-settings convention. Whether to commit it is the repo's
 call: committed, everyone shares the label names; gitignored, it's personal.
 
@@ -340,9 +344,14 @@ the skill tells agents to always pass it when they run `/catchup` for their own 
 **Sections, in order:**
 
 1. **Waiting on you:** mentions in the window, open changes where you're reviewer or assignee,
-   issues assigned to you, and issues carrying the needs-human or decision labels. Items created
-   or updated in the window are listed in full; the standing backlog is one count line per list.
-   An item on several lists is listed once and counted in each. `--all` lists everything.
+   open changes that are **yours to merge** (#75), issues assigned to you, and issues carrying
+   the needs-human or decision labels. Items created or updated in the window are listed in full;
+   the standing backlog is one count line per list. An item on several lists is listed once and
+   counted in each. `--all` lists everything. Yours to merge is a change you opened that isn't a
+   draft, has no review requested of anyone and no changes requested, has no known conflict
+   (`unknown` is listed, and shown as unknown), and whose checks passed or that has none. On a
+   solo repo nobody requests your review of your own PR, so without this list the PRs waiting
+   for you to merge them showed nowhere. Agents share your account, so their PRs count too.
 2. **Merged since:** changes merged in the window, grouped by the issue numbers in their titles
    or branches (a branch names an issue as `/next`'s in-flight rule reads it), plus changelog
    entries added when `changelog:` is set.
@@ -374,6 +383,66 @@ Health
   flaky: plugins (passed on retry 3 times)
   tags: session-decisions--v2026.10.15.1
 ```
+
+**Workspace (#75).** A session started in a folder of checkouts (`~/projects/codexpublicus/`,
+no `.git` of its own) reads every repo in it and prints one report, instead of failing for want
+of an `origin`. The repos are, in this order of preference:
+
+1. `--workspace DIR`, which names the folder from anywhere;
+2. `repos:` in the folder's own `.claude/forge-tracker.local.md` (paths relative to it; the only
+   key read at a workspace root), taken as given, so a listed path that isn't a readable repo is
+   a FAILED line rather than a silent omission;
+3. otherwise the folder's immediate, non-hidden children that are git repos with an `origin`
+   remote or a `tracker.web` key. A child repo with neither is listed once under `Not read:`.
+
+A folder is a workspace only when it isn't inside a git work tree and has at least one such
+repo; otherwise the original error stands. Each repo is read exactly as on its own, with its own
+config, window, `tracker.*` keys and marker, four repos at a time. The report:
+
+```text
+Workspace /home/me/projects/acme: 3 repos (each repo's marker moves when all its reads succeeded)
+
+Waiting on you
+  acme/widgets#41 review requested: feat: GitHub adapter (draft no, conflicts: unknown)
+  acme/stare#152 yours to merge: feat: citation export (draft no, conflicts: no)
+  standing: acme/widgets 2 assigned, 1 needs-human (not updated in the window)
+  (setup: no .claude/forge-tracker.local.md, so ...) in acme/exemplar and acme/stare
+
+acme/exemplar: nothing since 2026-10-10 09:00; main push: none
+
+acme/stare on github.com, 2026-10-10 09:00 to 2026-10-17 10:00 (since your last catchup; ...)
+Merged since
+  ...
+Board movement
+  ...
+Health
+  ...
+
+lab: FAILED (gitlab.com is gitlab, and forge-tracker reads only GitHub so far ...)
+```
+
+- **Waiting on you** comes first and covers every repo, newest first, each reference as
+  `owner/repo#N`. The standing counts are one line, per repo. A failed read is
+  `<repo> <part>: FAILED (...)`.
+- Notes the repos share (the `setup:` line) are said once, followed by the repos they apply to,
+  or `all N repos` when that's every one of three or more.
+  The per-repo `ruling_pattern isn't set` pointer, and a Decisions made section that would hold
+  only it, are left out, since that line already says rulings aren't picked out.
+- Each repo then gets its sections as on its own, without Waiting on you. A repo with nothing
+  merged, ruled or moved, no failed read and no failed run collapses to one line with its window
+  start and its push run's state.
+- A repo that can't be opened at all (an unsupported forge, a bad config, no token) is one
+  `<dir>: FAILED (...)` line.
+- **Markers stay per repo.** Each repo whose reads all succeeded moves its own marker after the
+  report prints; a repo with a failed read keeps its marker, and the first line names it. Exit 1
+  when any repo failed, 0 otherwise, 2 only for the folder itself (no repo found, a bad root
+  config). `--json` prints every repo's own report, the shared notes and the skipped children.
+  `--record` takes one repo, so it refuses a workspace.
+
+The other commands read one repo; in a workspace they exit 2 naming the repos found and asking
+for `--repo <dir>`, and `/next`'s command text has Claude pick the repo instead of stopping.
+Reading an org's repos from the forge (`org:` at the root) is left for later: catchup reads local
+clones, and a repo with no clone has no config file or changelog to read.
 
 ### `/next` (#24)
 

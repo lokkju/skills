@@ -582,19 +582,19 @@ def test_issue_numbers(c, numbers):
 
 def _own(**kw):
     t = parse_time("2026-10-14T00:00:00Z")
-    fields = dict(
-        number=7,
-        title="t",
-        branch="b",
-        draft=False,
-        author="me",
-        assignees=(),
-        reviewers=(),
-        conflicts="no",
-        pipeline="success",
-        created=t,
-        updated=t,
-    )
+    fields = {
+        "number": 7,
+        "title": "t",
+        "branch": "b",
+        "draft": False,
+        "author": "me",
+        "assignees": (),
+        "reviewers": (),
+        "conflicts": "no",
+        "pipeline": "success",
+        "created": t,
+        "updated": t,
+    }
     fields.update(kw)
     return Change(**fields)
 

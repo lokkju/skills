@@ -92,6 +92,7 @@ class FakeRun:
             ("gh", "auth", "token"): (0, token + "\n", ""),
             # `git config --get` exits 1 for an unset key.
             ("config", "--get"): (1, "", ""),
+            ("rev-parse", "--is-inside-work-tree"): (0, "true\n", ""),
         }
         for key, value in (git_config or {}).items():
             self.answers[("config", "--get", key)] = (0, value + "\n", "")

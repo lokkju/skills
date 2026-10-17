@@ -23,11 +23,12 @@ successful `/catchup` (seven days the first time). It's read-only.
 /catchup --no-mark       read the marker but don't move it (agents always pass this)
 /catchup --all           list the standing backlog in full instead of as counts
 /catchup --json          the same data as JSON
+/catchup --workspace DIR every repo in a folder of checkouts, in one report
 ```
 
 The report has five sections, in order: **Waiting on you** (mentions, review requests and
-assignments, and issues carrying the needs-human or decision label; the standing backlog is one
-count line), **Merged since** (grouped by the issues each PR closes or names), **Decisions
+assignments, PRs that are yours to merge, and issues carrying the needs-human or decision label;
+the standing backlog is one count line), **Merged since** (grouped by the issues each PR closes or names), **Decisions
 made** (comments matching your ruling pattern), **Board movement** (issues opened and closed by
 tier) and **Health** (the default branch's newest push and scheduled runs, jobs that passed only
 on retry more than once, and the tags you list).
@@ -37,11 +38,40 @@ would be, the command exits 1, and the marker doesn't move, so the next catchup 
 window again. A pull request whose mergeability GitHub hasn't computed yet shows `conflicts:
 unknown`, never clean.
 
+**Yours to merge** is a PR you opened that waits only for you: not a draft, no review requested
+of anyone, no changes requested, no known conflict, and checks that passed (or none). On a solo
+repo nobody asks you to review your own PR, so this is where those show up. Agents working on
+your account open PRs as you, so theirs count too.
+
+### A folder of repos
+
+Started in a folder that isn't a git repo but holds several (say `~/projects/acme/`, with a
+checkout per repo), `/catchup` reads every child repo that has an `origin` remote and prints one
+report. **Waiting on you** comes first and covers them all, each item as `owner/repo#N`; then
+each repo's own sections. A repo where nothing happened is one line (`acme/exemplar: nothing
+since 2026-10-10 09:00; main push: passed`), and a `setup:` line the repos share is said once,
+with the repos it applies to.
+
+Each repo keeps its own config, window and marker. If one repo's read fails, that repo's marker
+stays, the others move, and the command exits 1; a repo that can't be read at all (an
+unsupported forge, a bad config file) is one `FAILED` line. To pick the repos yourself, list them
+in the folder's own `.claude/forge-tracker.local.md`:
+
+```markdown
+---
+repos: [citare, stare, infra]   # paths relative to the folder; the only key read there
+---
+```
+
+`--workspace DIR` reads a folder from anywhere. The other commands read one repo; in a folder of
+repos they name the repos they found and ask for `--repo <dir>`.
+
 The CLI behind the command runs on its own too, which is how agents use it:
 
 ```bash
 plugins/forge-tracker/scripts/forge-tracker catchup --no-mark
 plugins/forge-tracker/scripts/forge-tracker --repo ~/src/widgets catchup --since 2d --json
+plugins/forge-tracker/scripts/forge-tracker catchup --workspace ~/src --no-mark
 plugins/forge-tracker/scripts/forge-tracker smoke     # every read once, counts and failures
 ```
 

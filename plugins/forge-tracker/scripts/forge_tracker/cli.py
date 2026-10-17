@@ -8,11 +8,12 @@ import os
 import subprocess
 import sys
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
-from . import catchup, config, detect, groom, labelsetup, state, writes
+from . import catchup, config, detect, groom, labelsetup, state, workspace, writes
 from . import next as next_
 from .forges import github
 from .model import ConfigError, ForgeError, attempt, iso
@@ -65,26 +66,29 @@ def _json_default(value: Any) -> Any:
     raise TypeError(f"{type(value).__name__} isn't JSON")
 
 
-def cmd_catchup(
+@dataclass
+class CatchupRun:
+    """One repo's catchup report, and the marker to write once it has printed (None to keep)."""
+
+    report: dict[str, Any]
+    marker_file: Optional[str] = None
+    marker: Optional[dict[str, Any]] = None
+
+
+def catchup_one(
     args: argparse.Namespace,
     ctx: Context,
     now: datetime,
     environ: Mapping[str, str],
     run: Callable[..., Any],
-    out: TextIO,
-    tz: Optional[tzinfo],
-) -> int:
+) -> CatchupRun:
+    """Read and build one repo's report. `args.since` is already known to parse."""
     ident = attempt(ctx.adapter.identity)
     login = ident.data.login if ident.ok else None
 
     marker_file: Optional[str] = None
     if args.since:
-        try:
-            start = catchup.parse_since(args.since, now)
-        except ValueError as error:
-            print(f"forge-tracker: {error}", file=sys.stderr)
-            return EXIT_USAGE
-        window = catchup.Window(start, now, "since")
+        window = catchup.Window(catchup.parse_since(args.since, now), now, "since")
     elif login is None:
         window = catchup.Window(now - catchup.FIRST_WINDOW, now, "no-identity")
     else:
@@ -107,35 +111,155 @@ def cmd_catchup(
     if not report["ok"] and moving:
         moving = False
         report["marker"] = "held"
+    if not (moving and marker_file):
+        return CatchupRun(report)
+    payload = {
+        "end": iso(now),
+        "host": ctx.remote.host,
+        "project": ctx.remote.project,
+        "user": login,
+    }
+    return CatchupRun(report, marker_file, payload)
 
+
+def _print_then_mark(text: str, runs: list[CatchupRun], out: TextIO) -> None:
+    """The new markers are written beside the old ones first and renamed into place only after
+    the report has printed; a failed print discards them and the old markers stay."""
+    pending: list[state.PendingWrite] = []
+    try:
+        for r in runs:
+            if r.marker_file and r.marker:
+                pending.append(state.PendingWrite(r.marker_file, r.marker))
+        out.write(text)
+        out.flush()
+    except BaseException:
+        for p in pending:
+            p.discard()
+        raise
+    for p in pending:
+        p.commit()
+
+
+def _since_ok(args: argparse.Namespace, now: datetime) -> bool:
+    if args.since:
+        try:
+            catchup.parse_since(args.since, now)
+        except ValueError as error:
+            print(f"forge-tracker: {error}", file=sys.stderr)
+            return False
+    return True
+
+
+def cmd_catchup(
+    args: argparse.Namespace,
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    out: TextIO,
+    tz: Optional[tzinfo],
+) -> int:
+    if not _since_ok(args, now):
+        return EXIT_USAGE
+    result = catchup_one(args, ctx, now, environ, run)
+    report = result.report
     text = (
         json.dumps(report, indent=1, default=_json_default) + "\n"
         if args.json
         else catchup.render(report, tz)
     )
-    # The new marker is written beside the old one first and renamed into place only after the
-    # report has printed; a failed print discards it and the old marker stays.
-    pending = None
-    if moving and marker_file:
-        pending = state.PendingWrite(
-            marker_file,
-            {
-                "end": iso(now),
-                "host": ctx.remote.host,
-                "project": ctx.remote.project,
-                "user": login,
-            },
-        )
-    try:
-        out.write(text)
-        out.flush()
-    except BaseException:
-        if pending:
-            pending.discard()
-        raise
-    if pending:
-        pending.commit()
+    _print_then_mark(text, [result], out)
     return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def cmd_catchup_workspace(
+    args: argparse.Namespace,
+    ws: workspace.Workspace,
+    http: Optional[Http],
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    out: TextIO,
+    tz: Optional[tzinfo],
+) -> int:
+    """Catch up on every repo in the workspace, each with its own config, window and marker, and
+    print one report. A repo that can't be read is a FAILED line, and exit 1, like a failed read;
+    the other repos' markers still move."""
+    if not _since_ok(args, now):
+        return EXIT_USAGE
+
+    def one(path: str) -> tuple[workspace.Entry, Optional[CatchupRun]]:
+        try:
+            ctx = open_forge(path, http, run, environ=environ)
+        except (ConfigError, ForgeError) as error:
+            return workspace.Entry(path, error=str(error)), None
+        result = catchup_one(args, ctx, now, environ, run)
+        return workspace.Entry(path, report=result.report), result
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        done = list(pool.map(one, ws.repos))
+    marker = "since" if args.since else "keep" if args.no_mark else "move"
+    report = workspace.build(ws, [entry for entry, _ in done], marker)
+    text = (
+        json.dumps(report, indent=1, default=_json_default) + "\n"
+        if args.json
+        else workspace.render(report, tz)
+    )
+    _print_then_mark(text, [r for _, r in done if r is not None], out)
+    return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def _workspace_at(
+    path: str, run: Callable[..., Any], explicit: bool
+) -> Optional[workspace.Workspace]:
+    """The workspace at `path` when it is one: named by --workspace, or a folder that isn't a git
+    repo and holds some (or lists them in `repos:`). None otherwise."""
+    if not explicit and workspace.is_repo(path, run):
+        return None
+    ws = workspace.discover(path, run)
+    return ws if ws.repos or explicit else None
+
+
+def _run_workspace(
+    args: argparse.Namespace,
+    path: str,
+    explicit: bool,
+    http: Optional[Http],
+    run: Callable[..., Any],
+    now: datetime,
+    environ: Mapping[str, str],
+    out: TextIO,
+    tz: Optional[tzinfo],
+) -> Optional[int]:
+    """Run catchup over the workspace at `path`, or for any other command say that it reads one
+    repo. None when `path` isn't a workspace, so the caller's own error stands."""
+    try:
+        ws = _workspace_at(path, run, explicit)
+    except ConfigError as error:
+        print(f"forge-tracker: {error}", file=sys.stderr)
+        return EXIT_USAGE
+    if ws is None:
+        return None
+    if not ws.repos:
+        print(
+            f"forge-tracker: {path} holds no git repo with an origin remote, and its "
+            f"{config.PATH} lists none in repos:",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    names = ", ".join(os.path.relpath(p, path) for p in ws.repos)
+    if args.command != "catchup":
+        print(
+            f"forge-tracker: {path} isn't a git repo; it's a workspace of {len(ws.repos)} "
+            f"({names}). `{args.command}` reads one repo: pass --repo <dir>. "
+            "Only catchup reads a whole workspace.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    if args.record:
+        print("forge-tracker: --record takes one repo, not a workspace", file=sys.stderr)
+        return EXIT_USAGE
+    return cmd_catchup_workspace(args, ws, http, now, environ, run, out, tz)
 
 
 def cmd_next(
@@ -445,6 +569,14 @@ def parser() -> argparse.ArgumentParser:
         "--all", action="store_true", help="list the standing backlog in full, not as counts"
     )
     c.add_argument("--json", action="store_true", help="print the report as JSON")
+    c.add_argument(
+        "--workspace",
+        metavar="DIR",
+        help=(
+            "catch up on every repo in DIR (its repos: list, else its child repos) in one "
+            "report; a --repo that isn't a git repo but holds some is read this way too"
+        ),
+    )
 
     n = sub.add_parser(
         "next",
@@ -539,11 +671,24 @@ def main(
     if writing and args.record:
         print("forge-tracker: --record is for reads; it doesn't record writes", file=sys.stderr)
         return EXIT_USAGE
+    explicit = args.command == "catchup" and args.workspace is not None
+    if explicit:
+        return _run_workspace(
+            args, os.path.abspath(args.workspace), True, http, run, now, environ, out, tz
+        )
     try:
         ctx = open_forge(
             os.path.abspath(args.repo), http, run, record=bool(args.record), environ=environ
         )
     except (ConfigError, ForgeError) as error:
+        if isinstance(error, ConfigError):
+            # A folder of repos rather than a repo: catchup reads them all; the others say how
+            # to name one.
+            code = _run_workspace(
+                args, os.path.abspath(args.repo), False, http, run, now, environ, out, tz
+            )
+            if code is not None:
+                return code
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE
     try:
