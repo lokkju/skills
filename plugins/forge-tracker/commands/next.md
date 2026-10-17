@@ -16,8 +16,9 @@ and, on a second yes, the missing labels, as set out under setup below.
 
 ## When the report has a `setup:` line
 
-That line means `.claude/forge-tracker.local.md` is missing or leaves labels unset, so the report
-can't see what those labels would mark. With no needs-human or decision label configured, open
+That line means `.claude/forge-tracker.local.md` is missing, leaves labels unset, or sets label
+roles to `~` (no such label on the forge yet), so the report can't see what those labels would
+mark. With no needs-human or decision label configured, open
 issues that aren't blocked come out `unclassified` rather than agent-ready, and an empty queue
 means no label could put anything there, not that nothing needs the user; say so. Handle setup
 before ranking a slate:
@@ -27,14 +28,17 @@ before ranking a slate:
 - Otherwise offer to set it up, once. Run
   `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
   and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
-  has no such label, plus the labels it would create for each role no label matched. Show the
-  user the proposal and ask whether to write it, as is or with their corrections.
+  has no such label, plus the labels it would create for each role no label matched or the
+  config sets to `~`. Show the user the proposal and ask whether to write it, as is or with
+  their corrections. When it says the file `already sets every key this proposes; nothing to
+  add`, there's no config question; go straight to the labels question below.
 - **Yes:** write `.claude/forge-tracker.local.md` with the proposed content and the user's
   corrections. When the file already exists, add only the keys the suggestion printed and keep
   everything else in it. Don't commit it unless the user asks (committing it shares the label
   names, and whether to is the repo's call).
-- **Labels that don't exist yet:** when the suggestion listed any, ask a second, separate
-  question: whether to create them on the forge, naming each label, its color and description,
+- **Labels that don't exist yet:** whenever the suggestion lists any (`Not on the forge ...`),
+  whether or not the config file already exists, ask a second, separate question: whether to
+  create them on the forge, naming each label, its color and description,
   and saying that it goes through the repo's write-wrapper when one is set. The yes to the config
   isn't a yes to this. Only on an explicit yes, run
   `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels create <names>` with exactly the names
@@ -47,7 +51,9 @@ before ranking a slate:
   create labels yourself any other way, even through `gh`; those commands are the user's.
 - **No:** run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`. It writes one file
   in the local cache (never the repo or the forge), so this command won't offer setup again
-  here; the report's line keeps saying what's unset. Tell the user they can ask for it any time.
+  here; the report's line keeps saying what's unset, and a line about roles at `~` goes quiet.
+  Tell the user they can ask for it any time. Use this for a no to the labels question too, when
+  the user wants those roles left at `~`.
 
 After writing the file, run the report command again from the top: the config is part of the
 facts' fingerprint, so the classification and any slate start over.

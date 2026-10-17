@@ -223,8 +223,10 @@ appended to `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/writes/<host>_<project>.j
 Per repo, in `.claude/forge-tracker.local.md`. Only the YAML frontmatter is read, every key is
 optional, and an unknown key fails the load with its name. A report that needs an unset key
 leaves that part out and says so in one `setup:` line, which names what's missing and how to set
-it up. Set a label or `ruling_pattern` to `~` to record that the repo has none; the reports then
-say nothing about it. The keys the commands use:
+it up. Set a label or `ruling_pattern` to `~` to record that the repo has none. For
+`ruling_pattern` that silences the line; a label at `~` is one setup can still create, so the
+line offers that until you create it or run `forge-tracker labels decline`. The keys the
+commands use:
 
 ```markdown
 ---

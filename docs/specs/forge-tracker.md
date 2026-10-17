@@ -266,8 +266,10 @@ Per repo, frontmatter only matters; the body is free notes for the assistant. Un
 the load with the key named. Every key is optional; a report that needs an unset one leaves that
 part out and says so in a single `setup:` line (#59), which names the missing keys, what the
 report can't do without them, and how to set them up. A label key or `ruling_pattern` set to `~`
-(or `null`) records that the repo has no such label or convention, and the reports say nothing
-about it; that's how a repo that genuinely lacks a label stops the line.
+(or `null`) records that the repo has no such label or convention. `ruling_pattern: ~` silences
+the line. A label role at `~` means no such label exists on the forge yet, which setup can
+create, so the line names those roles and points at `labels suggest` until they're created or
+setup is declined (`labels decline`); that's how a repo that genuinely lacks a label stops it.
 
 ```markdown
 ---
@@ -316,7 +318,8 @@ The report says so on that line, lists the rest as unclassified rather than agen
   spaces, `_`, `:`, `/` and `.` as `-`), the largest priority family as tiers (`P0`..`P9`,
   `priority:N`, `priority: high` and so on, ordered), `~` for each role nothing matched, and
   `ruling_pattern: ~` when that's unset. Keys the existing file already sets, `~` included, are
-  kept and left out of the proposal. For each unmatched role it also lists the label it would
+  kept and left out of the proposal. For each role nothing matched, and each role the file sets
+  to `~` (no such label yet), it also lists the label it would
   create (the default name, description and a fixed color per role: `needs-human` d93f0b,
   `decision` fbca04, `decided` 0e8a16, `blocked` b60205, `agent-ready` 1d76db), as a
   `forge-tracker labels create` line and as `gh label create` commands. It writes nothing, and
