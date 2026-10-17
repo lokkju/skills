@@ -694,11 +694,11 @@ def main(
         return cmd_save_slate(
             os.path.abspath(args.repo), run, now, environ, stdin or sys.stdin, out
         )
-    if args.command == "labels" and args.action == "decline":
-        return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
     if args.command == "labels" and args.action != "create" and args.names:
         print(f"forge-tracker: labels {args.action} takes no names", file=sys.stderr)
         return EXIT_USAGE
+    if args.command == "labels" and args.action == "decline":
+        return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
     writing = (
         args.command == "write"
         or (args.command == "groom" and args.action == "apply")

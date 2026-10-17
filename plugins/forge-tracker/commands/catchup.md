@@ -100,7 +100,8 @@ one line. A `setup:` line is said once, with the repos it applies to after it.
   and the first line names the repos whose marker stayed.
 - A `Not read:` line lists child repos left out for having no `origin` remote. Pass it on.
 - Setup is per repo. Don't run the setup flow from the workspace: pass the `setup:` line on
-  once, and if the user wants a repo set up, run `labels suggest` and `labels decline` for it with
+  once, and if the user wants a repo set up, run `labels suggest`, `labels create` (after the
+  second yes) and `labels decline` for it with
   `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" --repo <dir> labels ...` and write that repo's
   own `.claude/forge-tracker.local.md`.
 

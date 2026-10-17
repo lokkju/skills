@@ -329,7 +329,10 @@ def test_replay_of_a_recorded_repo_in_a_workspace(tmp_path):
         'report_tags: ["session-decisions--v*", "forge-release--v*", "registry:app"]\n---\n'
     )
     git_repo(root / "skills", "https://github.com/lokkju/skills.git", config_text)
-    quiet_config = "---\nlabels:\n  needs_human: ~\n  decision: ~\nruling_pattern: ~\n---\n"
+    # Fully set up, so no setup line: a label at ~ would get the offer to create it.
+    quiet_config = (
+        "---\nlabels:\n  needs_human: needs-human\n  decision: decision\nruling_pattern: ~\n---\n"
+    )
     git_repo(root / "gadgets", f"https://github.com/{QUIET}.git", quiet_config)
     out = io.StringIO()
     code = cli.main(
