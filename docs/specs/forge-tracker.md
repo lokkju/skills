@@ -297,7 +297,8 @@ call: committed, everyone shares the label names; gitignored, it's personal.
 
 With no config, `/next`'s queue can only fill from marker words, so `Your queue: nothing
 person-only` would read as "nothing needs you" when it means "no label was configured to say so".
-The report says so on that line, and the commands turn the `setup:` line into an offer:
+The report says so on that line, lists the rest as unclassified rather than agent-ready (see
+[Classification](#next-24)), and the commands turn the `setup:` line into an offer:
 
 - **`forge-tracker labels suggest`** reads the repo's labels (`GET /repos/{o}/{r}/labels`,
   through the read transport) and prints a proposed file: each role mapped to the label that
@@ -480,6 +481,12 @@ ranking) and `forge-tracker next save-slate` (JSON on stdin; reads no forge).
   that's neither person-only nor labelled blocked is "not classified", never agent-ready.
 - **Agent-ready:** open, not person-only, not blocked. The agent label isn't required; when it's
   configured, it only sorts labelled items first within their tier.
+- **Unclassified** ([#69](https://github.com/lokkju/skills/issues/69)): with neither the
+  needs-human nor the decision label configured (missing or `~`), nothing could have marked an
+  item person-only, so "not person-only" says nothing. An item that's neither blocked nor marked
+  by a `person_only_markers` word is then `unclassified`, never agent-ready, and the report's
+  second line says how many there are. The CLI can't judge prose; the slate places each one.
+  Repos with either label configured classify exactly as above.
 - **Merged but open:** flagged on the item when a merged change has a real closing reference to
   it (the same rule `/groom` uses), since it inflates the ready list badly; `/groom` fixes it.
 
@@ -506,18 +513,27 @@ facts with their fingerprint. While the fingerprint holds, `/next` shows the sav
 age and doesn't re-rank; `/next --rerank` forces a new one.
 
 The slate is `{"queue": [refs], "lanes": [{"area", "items": [refs], "why"}], "overrules":
-{ref: reason}, "note"}`. Blocked items come from the facts, not the slate. `save-slate` refuses
-(exit 2, every problem named) a ref that isn't an open issue, an item listed twice, a queue item
-that isn't person-only, a lane item that isn't agent-ready, and an overrule of anything but a
-marker hint; it saves only over complete facts whose fingerprint still matches the current config
-and code. Person-only items the slate leaves out are appended to the queue as not ranked, and
-agent-ready items it leaves out are listed as not in a lane.
+{ref: reason}, "person_only": {ref: reason}, "note"}`. Blocked items come from the facts, not the
+slate. `person_only` is Claude's judgement, from an unclassified item's title and body, that the
+user has to act (physical work, a device or test window, research waiting on a decision, an
+external event, a parked item), with the reason; each such item goes in the queue, and the report
+shows it as `judged person-only: <reason>`. An unclassified item Claude judges agent work goes in
+a lane with no extra key. `save-slate` refuses (exit 2, every problem named) a ref that isn't an
+open issue, an item listed twice, a queue item that isn't person-only or judged person-only, a
+lane item that isn't agent-ready or unclassified, an overrule of anything but a marker hint, a
+`person_only` entry for an item that isn't unclassified, without a reason, or missing from the
+queue; it saves only over complete facts whose fingerprint still matches the current config and
+code. Person-only items the slate leaves out are appended to the queue as not ranked, agent-ready
+items it leaves out are listed as not in a lane, and unclassified items it leaves out are listed
+as not placed.
 
 - **Your queue:** person-only items, most agent-ready items unblocked first.
 - **Agent lanes:** agent-ready items by tier and due date, grouped into lanes that shouldn't touch
   the same files. The grouping is Claude's stated judgement from titles, bodies and labels, and
   the output says so. A lane with an open change or a pushed branch is marked in flight.
-- **Blocked:** each blocked item and what it waits on.
+- **Blocked:** each blocked item and what it waits on. With none it says `no blocking links
+  recorded` (or `no blocking links or blocked labels recorded`), since an issue whose text says
+  it waits isn't counted.
 - **Open PRs with no open issue:** every open change that has no open issue in flight, with its
   draft, conflict, CI and review state, its branch, and any issue numbers it names that aren't
   open. It's the mirror of the branch-with-no-PR flag: work in flight that no issue accounts for,
