@@ -17,9 +17,10 @@ file, as set out under setup below, and only on the user's yes.
 ## When the report has a `setup:` line
 
 That line means `.claude/forge-tracker.local.md` is missing or leaves labels unset, so the report
-can't see what those labels would mark. With no needs-human or decision label configured, `Your
-queue: nothing person-only` means no label could put anything there, not that nothing needs the
-user; say so. Handle setup before ranking a slate:
+can't see what those labels would mark. With no needs-human or decision label configured, open
+issues that aren't blocked come out `unclassified` rather than agent-ready, and an empty queue
+means no label could put anything there, not that nothing needs the user; say so. Handle setup
+before ranking a slate:
 
 - If the line says `Setup was declined`, or you are running this for your own purposes, don't
   offer anything; pass the line on once, as it is.
@@ -49,8 +50,10 @@ The facts changed since the last ranking (or there is none, or the user passed `
 rank them before presenting anything:
 
 1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" next facts --json`. Each item has its class
-   (`person-only`, `agent-ready`, `blocked`, `unknown`), tier, due date, labels, owners, blockers,
-   what it unblocks, what has it in flight, and its body.
+   (`person-only`, `agent-ready`, `blocked`, `unknown`, `unclassified`), tier, due date, labels,
+   owners, blockers, what it unblocks, what has it in flight, and its body. `unclassified` means
+   the repo configures no needs-human or decision label (`labelled: false`), so no label could
+   say the item needs a person, and the CLI doesn't claim it's agent-ready.
 2. Build the slate as JSON:
 
    ```json
@@ -61,6 +64,7 @@ rank them before presenting anything:
         "why": "both change the GitHub adapter"}
      ],
      "overrules": {"#40": "design work an agent can build from the spec"},
+     "person_only": {"#15": "physical work: repaste the GPU"},
      "note": "optional, one line"
    }
    ```
@@ -68,12 +72,20 @@ rank them before presenting anything:
    - **queue**: the `person-only` items in the order the user should take them. Start from the
      facts' order (most agent-ready items unblocked first) and move items only for a reason you
      can state (a due date, a tier).
-   - **lanes**: the `agent-ready` items, by tier and due date, grouped so that no two lanes are
+   - **lanes**: the `agent-ready` items (and the `unclassified` ones you judge agent work), by
+     tier and due date, grouped so that no two lanes are
      likely to touch the same files. Judge that from titles, bodies and labels; `area` names the
      files or part of the repo the lane touches. An item with something in flight stays in its
      lane; the report marks it. Items you leave out are listed as not in a lane.
    - **overrules**: an item that's person-only only by a marker word (`marker: legal`, say), never
      by a label, may go in a lane when you give the reason here.
+   - **person_only** (only for `unclassified` items): read each unclassified item's title and
+     body and decide where it goes. Put it in the queue, with a one-line reason here, when its
+     text says the user has to act: physical work, a device or a test window only they have,
+     research that's done and waits on their decision, waiting on an external event or another
+     repo, or explicitly parked. Put it in a lane when an agent can do it from what's written.
+     Leave it out when you can't tell; the report lists it as not placed. Never put a classified
+     item here: a configured label already decided it, and save-slate refuses that.
 3. Save it: pipe the JSON to `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" next save-slate`. A
    refusal (exit 2) names every problem; fix them and save again. It writes only to the local
    cache, never to the forge.
@@ -84,11 +96,15 @@ A later `/next` shows the saved slate, with its age, until the facts move.
 ## Presenting the report
 
 1. **Your queue** first, numbered, keeping each item's number, why it's person-only (the label or
-   marker) and what it unblocks.
+   marker) and what it unblocks. An item marked `judged person-only: <reason>` is there by your
+   judgement of its text, not by a label; say so, with the reason. When the report opens with an
+   `Unlabelled:` line, say once that the queue and lanes are your reading of the issues because
+   the repo has no person-only label, and pass on any `not placed` items.
 2. **Agent lanes** next. Say plainly that the grouping is your judgement, not a measurement.
    Keep each item's in-flight marks (an open PR with its draft, conflict and CI state, or a pushed
    branch) and never call a lane with `conflicts: unknown` ready to merge.
-3. **Blocked**: each item and what it waits on.
+3. **Blocked**: each item and what it waits on. `no blocking links recorded` means the forge
+   records none; an issue whose text says it waits on something isn't counted here.
 4. **Open PRs with no open issue**: each with its draft, conflict, CI and review state. These are
    in flight too; never drop them, and never call one with `conflicts: unknown` ready to merge.
 5. **Flags** last: merged-but-open issues, links to closed blockers and blocked labels with

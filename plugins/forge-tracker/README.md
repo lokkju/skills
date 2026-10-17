@@ -86,6 +86,10 @@ The CLI classifies every open issue, deterministically:
   person-only item that's blocked is listed under Blocked.
 - **Agent-ready:** open, not person-only and not blocked. The agent label isn't required; when
   it's configured, labelled items sort first within their tier.
+- **Unclassified:** when the repo configures neither the needs-human nor the decision label,
+  nothing could have marked an item person-only, so an item that's neither blocked nor marked by
+  a marker word isn't called agent-ready. It's listed under Not classified, the report's second
+  line says how many there are, and the slate places each one.
 
 Each item also gets how many items it unblocks, counted transitively through open links (each
 item once, so a cycle can't loop; cycles are flagged), what has it **in flight** (an open PR that
@@ -100,6 +104,13 @@ bodies and labels, and the report says so. Claude saves it with `forge-tracker n
 (JSON on stdin), which checks it against the facts (every item open, the queue person-only, the
 lanes agent-ready unless a marker hint is overruled with a reason) and stores it beside them. It's
 shown, with its age, until the fingerprint moves.
+
+On a repo without the labels, Claude reads each unclassified item's title and body. One whose
+text says you have to act (physical work, a device or test window, research waiting on your
+decision, an external event, a parked item) goes in your queue through the slate's
+`person_only` map, with the reason, and the report shows it as `judged person-only: <reason>`.
+One an agent can do goes in a lane. One Claude can't call is listed as not placed. save-slate
+refuses a `person_only` entry for any item a label already classified.
 
 ```bash
 plugins/forge-tracker/scripts/forge-tracker next                  # the report

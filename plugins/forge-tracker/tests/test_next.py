@@ -657,6 +657,142 @@ def test_reads_are_get_or_graphql_queries_only(env):
     assert all(c[1] == "https://api.github.com/graphql" for c in world.calls if c[0] == "POST")
 
 
+# --- a repo with no person-only label (#69) ---------------------------------------------------
+
+UNLABELLED = """---
+labels:
+  needs_human: ~
+  decision: ~
+  blocked: blocked
+tiers:
+  labels: [P1, P2]
+---
+"""
+
+
+@pytest.fixture
+def bare(env, repo_dir):
+    return dict(env, repo=repo_dir(UNLABELLED))
+
+
+def test_without_a_person_only_label_nothing_is_called_agent_ready(bare):
+    code, text = run_next(bare, "--json")
+    assert code == 0
+    report = json.loads(text)
+    assert report["labelled"] is False
+    assert report["agent_ready"] == [] and report["queue"] == []
+    unclassified = [i["ref"] for i in report["unclassified"]]
+    assert {"#10", "#13", "#15", "#21", "#27"} <= set(unclassified)
+    # Blocking still comes from the forge: a link or the blocked label.
+    assert {i["ref"] for i in report["blocked"]} >= {"#22", "#25"}
+
+    _, text = run_next(bare)
+    lines = text.splitlines()
+    assert lines[1].startswith(
+        "Unlabelled: no needs-human or decision label is configured, so 9 open issues are "
+        "unclassified until a slate places them"
+    )
+    assert "  nothing marked person-only: no label is configured to mark any" in text
+    assert "nothing agent-ready" not in text
+    assert "Not classified (no needs-human or decision label is configured" in text
+    assert "  #15 buy the test hardware\n" in text
+
+
+def test_with_labels_configured_classification_is_unchanged(env):
+    report = json.loads(run_next(env, "--json")[1])
+    assert report["labelled"] is True
+    assert report["unclassified"] == []
+    assert "Unlabelled" not in run_next(env)[1]
+
+
+def test_nothing_blocked_says_only_what_the_forge_records(bare, repo_dir):
+    repo = Repo()
+    repo.links = []
+    repo.issues = [i for i in repo.issues if i["number"] != 25]
+    for config_text, line in (
+        (UNLABELLED, "  no blocking links or blocked labels recorded"),
+        ("---\n---\n", "  no blocking links recorded (no blocked label is configured)"),
+    ):
+        env = dict(bare, repo=repo_dir(config_text))
+        _, text = run_next(env, "--refresh", http=repo.world())
+        assert text.split("Blocked\n", 1)[1].startswith(line + "\n"), text
+
+
+JUDGED = {
+    "queue": ["#15", "#10"],
+    "person_only": {
+        "#15": "physical work: buying hardware",
+        "#10": "research done, waits on the owner's decision",
+    },
+    "lanes": [{"area": "forges/github.py", "items": ["#21"]}],
+}
+
+
+def test_the_slate_puts_unclassified_items_in_the_queue_with_its_reason(bare):
+    run_next(bare)
+    code, text = save(bare, JUDGED)
+    assert code == 0, text
+    assert text.startswith("slate saved: 2 in your queue, 1 lane")
+    _, text = run_next(bare)
+    assert (
+        "Unlabelled: no needs-human or decision label is configured, so the queue and lanes "
+        "place 9 open issues by Claude's judgement from their text, not by a label"
+    ) in text
+    assert (
+        "  1. #15 buy the test hardware  unblocks 1: #20  judged person-only: physical work: "
+        "buying hardware\n"
+    ) in text
+    assert "  2. #10 pick the storage format  unblocks 3: #22, #23, #24  judged person-only" in text
+    assert "     #21 GitHub adapter (P1, due 2026-10-20)" in text
+    assert "  not placed (unclassified, in neither the queue nor a lane): " in text
+    assert "Not classified" not in text
+    report = json.loads(run_next(bare, "--json")[1])
+    assert report["slate"]["person_only"]["#15"] == "physical work: buying hardware"
+
+
+@pytest.mark.parametrize(
+    "slate, message",
+    [
+        (
+            {"queue": ["#15"], "lanes": []},
+            "queue item 1: #15 is unclassified; add it to person_only with the reason",
+        ),
+        (
+            {"queue": [], "lanes": [], "person_only": {"#15": "hardware"}},
+            "person_only: #15 is judged person-only but isn't in the queue",
+        ),
+        (
+            {"queue": ["#15"], "lanes": [], "person_only": {"#15": " "}},
+            "person_only: #15 needs a stated reason",
+        ),
+        (
+            {"queue": ["#22"], "lanes": [], "person_only": {"#22": "waits"}},
+            "person_only: #22 is blocked; only unclassified items",
+        ),
+        (
+            {
+                "queue": ["#15"],
+                "lanes": [{"area": "x", "items": ["#15"]}],
+                "person_only": {"#15": "hardware"},
+            },
+            "lane 1: #15 appears more than once",
+        ),
+    ],
+)
+def test_save_slate_checks_the_judged_queue(bare, capsys, slate, message):
+    run_next(bare)
+    code, _ = save(bare, slate)
+    assert code == 2
+    assert message in capsys.readouterr().err
+
+
+def test_a_labelled_repo_cant_judge_an_item_into_the_queue(env, capsys):
+    run_next(env)
+    code, _ = save(env, {"queue": ["#21"], "lanes": [], "person_only": {"#21": "hardware"}})
+    assert code == 2
+    assert "person_only: #21 is agent-ready; only unclassified items" in capsys.readouterr().err
+
+
 # --- classification units -------------------------------------------------------------------
 
 
@@ -731,7 +867,9 @@ def test_markers_match_whole_words_in_titles_and_labels():
     ]
     items = {i["number"]: i for i in next_.classify(facts(issues), cfg)["items"]}
     assert items[1]["person_only"]["markers"] == ["legal"]
-    assert items[2]["class"] == "agent-ready"
+    assert items[2]["person_only"]["markers"] == []
+    # Markers alone configure no person-only label, so an unmarked item is unclassified.
+    assert items[1]["class"] == "person-only" and items[2]["class"] == "unclassified"
     assert items[3]["person_only"]["markers"] == ["hardware"]
 
 
