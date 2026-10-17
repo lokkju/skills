@@ -168,6 +168,21 @@ def issue_numbers(change: Change) -> list[int]:
     return sorted(numbers)
 
 
+def yours_to_merge(change: Change, login: str) -> bool:
+    """A change you opened that waits only for you to merge it: not a draft, no
+    review requested of anyone, no changes requested, no conflict known, and its checks passed
+    (or it has none). On a solo repo that's what waiting on you looks like, since nobody asks
+    you to review your own PR. Agents share your account, so their PRs count too."""
+    return (
+        change.author == login
+        and not change.draft
+        and not change.reviewers
+        and change.review != "changes_requested"
+        and change.conflicts != "yes"
+        and change.pipeline in (None, "success")
+    )
+
+
 def _failed(reads: Mapping[str, Read], *names: str) -> list[dict[str, str]]:
     return [
         {"part": name, "reason": reads[name].error or ""}
@@ -260,6 +275,8 @@ def build(
                 add(f"#{c.number}", change_entry(c), "review requested", recent)
             if login in c.assignees:
                 add(f"#{c.number}", change_entry(c), "assigned", recent)
+            if yours_to_merge(c, login):
+                add(f"#{c.number}", change_entry(c), "yours to merge", recent)
     needs_human, decision = config.label("needs_human"), config.label("decision")
     if reads["open_issues"].ok:
         for i in reads["open_issues"].data:

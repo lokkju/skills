@@ -1,7 +1,7 @@
 lokkju/skills on github.com, 2026-10-14 04:19 to 2026-10-15 04:19 (--since; the marker isn't read or moved)
 
 Waiting on you
-  nothing
+  #38 yours to merge: docs(forge-tracker): draft the design (draft no, conflicts: no)
   standing: none (not updated in the window)
 Merged since
   #4  1 PR: #31 fix(session-decisions): treat the fallback ledger as a normal path

@@ -1,6 +1,6 @@
 ---
 description: What changed on this repo's forge and what's waiting on you since your last catchup (read-only)
-argument-hint: "[--since 3d|ISO] [--no-mark] [--all] [--json]"
+argument-hint: "[--since 3d|ISO] [--no-mark] [--all] [--json] [--workspace DIR]"
 ---
 
 Run these two commands with the Bash tool, from the repo root, and wait for both:
@@ -20,7 +20,9 @@ config file, as set out under setup below, and only on the user's yes.
 Present it like this:
 
 1. **Waiting on you** first. Keep every item's number, and say which list put it there (review
-   requested, assigned, mentioned, the needs-human or decision label). Keep the standing-backlog
+   requested, assigned, mentioned, yours to merge, the needs-human or decision label). `yours to
+   merge` is a PR the user opened (or an agent on their account did) that waits only for them to
+   merge it; it is still never "clean" when it says `conflicts: unknown`. Keep the standing-backlog
    count line as it is, `standing: none` included. When the section has a `setup:` line, an empty
    list there means no label is configured, not that nothing waits on the user; say so.
 2. Then **Merged since**, **Decisions made**, **Board movement** and **Health**, shortened where
@@ -58,7 +60,35 @@ the report command again with `--since` and the window's start; that leaves the 
 
 Exit status 1 means at least one read failed; the report still printed, and the catchup marker
 did not move, so the next catchup covers this window again. Exit status 2 is a setup problem
-(no origin remote, a forge it can't read yet, a bad `.claude/forge-tracker.local.md`, or `gh`
-not logged in): show the message and stop.
+(no origin remote and no `tracker.web`, a forge it can't read yet, a bad
+`.claude/forge-tracker.local.md`, or `gh` not logged in): show the message and stop.
 
 The first line of the report says which window it covers and whether the marker moved.
+
+## In a workspace folder
+
+When the start directory isn't a git repo but holds several (a folder of checkouts), the same
+report command reads them all and prints one report: its first line starts `Workspace <dir>: N
+repos`. `git fetch` fails in such a folder; that's expected, so don't stop at it. The repos are
+the folder's child repos with an `origin` remote (or a `tracker.web` key), or the `repos:` list
+in the folder's own `.claude/forge-tracker.local.md`; `--workspace DIR` names a folder from
+anywhere. Changelog entries come from each repo's last fetch, so when a repo's config sets
+`changelog:`, run `git -C <dir> fetch --quiet origin` for it first.
+
+Present it in the same order. **Waiting on you** covers every repo, each item as
+`owner/repo#N`; keep the repo in every reference. Then each repo's own sections. A repo where
+nothing happened is one line (`owner/repo: nothing since ...; main push: passed`); keep it as
+one line. A `setup:` line is said once, with the repos it applies to after it.
+
+- A line `<dir>: FAILED (...)` is a repo that couldn't be read at all (a forge it can't read yet,
+  a bad config file, no token). Say it, with its reason, like any failed read.
+- Exit status 1 means some repo's read failed. Only that repo's marker stays; the others moved,
+  and the first line names the repos whose marker stayed.
+- A `Not read:` line lists child repos left out for having no `origin` remote. Pass it on.
+- Setup is per repo. Don't run the setup flow from the workspace: pass the `setup:` line on
+  once, and if the user wants a repo set up, run `labels suggest` and `labels decline` for it with
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" --repo <dir> labels ...` and write that repo's
+  own `.claude/forge-tracker.local.md`.
+
+Exit status 2 in a workspace is a problem with the folder itself (no repo found, or a bad config
+file at its root): show the message and stop.

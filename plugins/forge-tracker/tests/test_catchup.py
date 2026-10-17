@@ -512,6 +512,31 @@ def test_detection_failure_is_a_usage_error(env, capsys):
     assert "only GitHub so far" in capsys.readouterr().err
 
 
+def test_tracker_web_fixes_a_remote_detection_cant_read(env, capsys):
+    """An SSH alias as origin fails detection; `git config tracker.web` makes it the repo."""
+    alias = FakeRun(origin="work-gh:acme/widgets-mirror.git")
+    code = cli.main(["--repo", env["repo"], "catchup"], http=world(), run=alias, now=NOW)
+    assert code == 2
+    assert "can't tell which forge work-gh runs" in capsys.readouterr().err
+    out = io.StringIO()
+    run = FakeRun(
+        origin="work-gh:acme/widgets-mirror.git",
+        git_config={"tracker.web": "https://github.com/acme/widgets"},
+    )
+    code = cli.main(
+        ["--repo", env["repo"], "catchup", "--no-mark"],
+        http=world(),
+        run=run,
+        now=NOW,
+        environ=env["environ"],
+        out=out,
+        tz=timezone.utc,
+    )
+    assert code == 0
+    assert out.getvalue().startswith("acme/widgets on github.com, ")
+    assert ["gh", "auth", "token", "--hostname", "github.com"] in run.calls
+
+
 # --- pieces ------------------------------------------------------------------------------------
 
 
@@ -553,6 +578,54 @@ def mk(number, title="", branch="", closing=()):
 )
 def test_issue_numbers(c, numbers):
     assert catchup.issue_numbers(c) == numbers
+
+
+def _own(**kw):
+    t = parse_time("2026-10-14T00:00:00Z")
+    fields = {
+        "number": 7,
+        "title": "t",
+        "branch": "b",
+        "draft": False,
+        "author": "me",
+        "assignees": (),
+        "reviewers": (),
+        "conflicts": "no",
+        "pipeline": "success",
+        "created": t,
+        "updated": t,
+    }
+    fields.update(kw)
+    return Change(**fields)
+
+
+@pytest.mark.parametrize(
+    "kw, expected",
+    [
+        ({}, True),
+        ({"pipeline": None}, True),  # no checks at all
+        ({"conflicts": "unknown"}, True),  # listed with conflicts: unknown, never as clean
+        ({"author": "someone"}, False),
+        ({"draft": True}, False),
+        ({"reviewers": ("alice",)}, False),
+        ({"review": "changes_requested"}, False),
+        ({"conflicts": "yes"}, False),
+        ({"pipeline": "failure"}, False),
+        ({"pipeline": "pending"}, False),
+    ],
+)
+def test_yours_to_merge(kw, expected):
+    assert catchup.yours_to_merge(_own(**kw), "me") is expected
+
+
+def test_your_own_green_pr_waits_on_you(env):
+    w = world()
+    w.op("OpenChanges", gql_conn([change(50, title="feat: mine, green, nobody asked")]))
+    code, text = run_catchup(env, "--no-mark", http=w)
+    assert code == 0
+    assert (
+        "  #50 yours to merge: feat: mine, green, nobody asked (draft no, conflicts: no)\n" in text
+    )
 
 
 @pytest.mark.parametrize(

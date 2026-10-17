@@ -104,3 +104,14 @@ Exit status 1 means at least one read failed; the report still printed, nothing 
 reuse, and no slate is shown or saved until a run reads everything. Exit status 2 is a setup
 problem (no origin remote, a forge it can't read yet, a bad `.claude/forge-tracker.local.md`, or
 `gh` not logged in): show the message and stop.
+
+## In a workspace folder
+
+When the start directory isn't a git repo but holds several, `git fetch` fails there and the
+report command exits 2 with `... isn't a git repo; it's a workspace of N (a, b, c)`. That isn't a
+setup problem to stop at: `/next` ranks one repo at a time, because each slate belongs to one
+repo's facts. Ask the user which of the listed repos to look at, or take the one the conversation
+is about, and run both commands for it with `git -C <dir> fetch --quiet origin` and
+`"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" --repo <dir> next $ARGUMENTS`. Every later command
+for that repo (`next facts`, `next save-slate`, `labels suggest`) takes the same `--repo <dir>`.
+For what changed across all of them, `/catchup` reads the whole workspace in one report.
