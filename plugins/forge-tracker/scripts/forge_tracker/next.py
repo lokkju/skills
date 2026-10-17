@@ -16,6 +16,11 @@ Classification is the spec's: person-only is the needs-human or decision label (
 blocked is an open blocker by link, or the blocked label; agent-ready is open, not person-only
 and not blocked. An assignee is never a reason for anything; it's shown as owner.
 
+Agent-ready needs a label that could have said otherwise. With neither the needs-human nor the
+decision label configured, an item that's neither blocked nor marked is `unclassified`, not
+agent-ready: the CLI can't judge prose, so the slate places each one, in the queue with a stated
+reason (`person_only`) or in a lane.
+
 It recommends only: nothing here claims, assigns, comments or branches.
 """
 
@@ -344,9 +349,15 @@ def classify(
         "other_branches": [],
         "other_changes": [],
         "notes": [],
+        "labelled": False,
+        "blocked_label": False,
     }
     needs_human, decision = config.label("needs_human"), config.label("decision")
+    # Without a person-only label, "no label says a person must act" says nothing.
+    labelled = bool(needs_human or decision)
+    result["labelled"] = labelled
     blocked_label, agent_label = config.label("blocked"), config.label("agent")
+    result["blocked_label"] = bool(blocked_label)
     setup = config.setup_note(("labels.needs_human", "labels.decision"))
     if setup:
         result["notes"].append(setup)
@@ -508,6 +519,8 @@ def classify(
             kind = "person-only"
         elif blocked is None:
             kind = "unknown"
+        elif not labelled:
+            kind = "unclassified"
         else:
             kind = "agent-ready"
         tier = config.tier(tuple(labels), milestone.get("title"))
@@ -586,7 +599,19 @@ def sections(classified: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
     blocked.sort(key=lambda i: (i["tier_rank"], _due_key(i), i["number"]))
     unknown = [i for i in items if i["class"] == "unknown"]
     unknown.sort(key=lambda i: (i["tier_rank"], _due_key(i), i["number"]))
-    return {"queue": person, "agent_ready": ready, "blocked": blocked, "unknown": unknown}
+    unclassified = [i for i in items if i["class"] == "unclassified"]
+    unclassified.sort(key=lambda i: (i["tier_rank"], _due_key(i), i["number"]))
+    return {
+        "queue": person,
+        "agent_ready": ready,
+        "blocked": blocked,
+        "unknown": unknown,
+        "unclassified": unclassified,
+    }
+
+
+# Every section an item can be listed in, in report order.
+SECTIONS = ("queue", "agent_ready", "blocked", "unknown", "unclassified")
 
 
 # --- the slate ----------------------------------------------------------------------------------
@@ -606,11 +631,12 @@ def _ref_number(value: Any) -> Optional[int]:
 
 def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any]:
     """Check Claude's slate against the facts and return it normalized. The rules: every ref is
-    an open issue; an item appears once; the queue holds person-only items; a lane holds
-    agent-ready items, or items person-only only by a marker hint, with an overrule reason."""
+    an open issue; an item appears once; the queue holds person-only items, and unclassified
+    items judged person-only with a reason in `person_only`; a lane holds agent-ready items,
+    unclassified items, or items person-only only by a marker hint, with an overrule reason."""
     if not isinstance(payload, dict):
         raise SlateError("the slate must be a JSON object with queue and lanes")
-    unknown_keys = sorted(set(payload) - {"queue", "lanes", "overrules", "note"})
+    unknown_keys = sorted(set(payload) - {"queue", "lanes", "overrules", "person_only", "note"})
     errors = [f"unknown key {k}" for k in unknown_keys]
     items = {i["number"]: i for i in classified["items"]}
     seen: set[int] = set()
@@ -652,6 +678,29 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
         else:
             overrules[number] = reason.strip()
 
+    # Unclassified items the slate judged person-only, each with the reason that put it in the
+    # queue. Only an unclassified item qualifies: a configured label decided every other one.
+    judged: dict[int, str] = {}
+    raw_judged = payload.get("person_only") or {}
+    if not isinstance(raw_judged, dict):
+        errors.append("person_only must be an object of {ref: reason}")
+        raw_judged = {}
+    for key, reason in raw_judged.items():
+        number = _ref_number(key)
+        if number is None or number not in items:
+            errors.append(f"person_only: {key!r} isn't an open issue in the facts")
+            continue
+        item = items[number]
+        if not isinstance(reason, str) or not reason.strip():
+            errors.append(f"person_only: #{number} needs a stated reason")
+        elif item["class"] != "unclassified":
+            errors.append(
+                f"person_only: #{number} is {item['class']}; only unclassified items (no "
+                "needs-human or decision label is configured) go in the queue by judgement"
+            )
+        else:
+            judged[number] = reason.strip()
+
     queue: list[str] = []
     raw_queue = payload.get("queue")
     if not isinstance(raw_queue, list):
@@ -662,6 +711,15 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
         if number is None:
             continue
         item = items[number]
+        if number in judged:
+            queue.append(f"#{number}")
+            continue
+        if item["class"] == "unclassified":
+            errors.append(
+                f"queue item {position}: #{number} is unclassified; add it to person_only with "
+                "the reason it needs a person"
+            )
+            continue
         if item["class"] != "person-only" or number in overrules:
             errors.append(
                 f"queue item {position}: #{number} is {item['class']}"
@@ -698,7 +756,7 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
             if number is None:
                 continue
             item = items[number]
-            if item["class"] == "agent-ready" or (
+            if item["class"] in ("agent-ready", "unclassified") or (
                 item["class"] == "person-only" and number in overrules
             ):
                 kept.append(f"#{number}")
@@ -718,6 +776,9 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
     for number in overrules:
         if f"#{number}" not in {ref for lane in lanes for ref in lane["items"]}:
             errors.append(f"overrules: #{number} is overruled but in no lane")
+    for number in judged:
+        if f"#{number}" not in queue:
+            errors.append(f"person_only: #{number} is judged person-only but isn't in the queue")
     note = payload.get("note")
     if note is not None and not isinstance(note, str):
         errors.append("note must be a string")
@@ -727,6 +788,7 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
         "queue": queue,
         "lanes": lanes,
         "overrules": {f"#{n}": reason for n, reason in overrules.items()},
+        "person_only": {f"#{n}": reason for n, reason in judged.items()},
         "note": note,
     }
 
@@ -807,6 +869,8 @@ def build(
         },
         "slate": {"status": status, "reason": reason},
         "notes": classified["notes"],
+        "labelled": classified["labelled"],
+        "blocked_label": classified["blocked_label"],
         "cycles": classified["cycles"],
         "other_branches": classified["other_branches"],
         "other_changes": classified["other_changes"],
@@ -821,6 +885,7 @@ def build(
                 "queue": slate["queue"],
                 "lanes": slate["lanes"],
                 "overrules": slate.get("overrules") or {},
+                "person_only": slate.get("person_only") or {},
                 "note": slate.get("note"),
             }
         )
@@ -921,11 +986,25 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
     else:
         lines = [f"{head}, facts from {_when(report['facts']['read_at'], tz)} ({origin})", ""]
 
-    items = {
-        i["ref"]: i for key in ("queue", "agent_ready", "blocked", "unknown") for i in report[key]
-    }
+    items = {i["ref"]: i for key in SECTIONS for i in report.get(key, [])}
     current = slate["status"] == "current"
     overrules = slate.get("overrules") or {}
+    judged = slate.get("person_only") or {}
+    unclassified = report.get("unclassified", [])
+    if unclassified:
+        count = len(unclassified)
+        issues = f"{count} open issue{'s' if count != 1 else ''}"
+        lines.insert(
+            1,
+            "Unlabelled: no needs-human or decision label is configured, so "
+            + (
+                f"the queue and lanes place {issues} by Claude's judgement from their text, "
+                "not by a label"
+                if current
+                else f"{issues} {'are' if count != 1 else 'is'} unclassified until a slate "
+                "places them"
+            ),
+        )
     failed = {f["part"]: f["reason"] for f in report["failed"]}
     names = {
         "issues": "open issues",
@@ -951,13 +1030,21 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         queue = ranked + rest
     for n, item in enumerate(queue, 1):
         unranked = "  (not ranked)" if current and item["ref"] not in slate["queue"] else ""
+        why = f"  judged person-only: {judged[item['ref']]}" if item["ref"] in judged else ""
         lines.append(
-            f"  {n}. {item['ref']} {item['title']}{_details(item)}{_unblocks(item)}{unranked}"
+            f"  {n}. {item['ref']} {item['title']}{_details(item)}{_unblocks(item)}{why}{unranked}"
         )
     if issues_failed:
         lines += issues_failed
+    elif not queue and unclassified and not current:
+        lines.append(
+            "  nothing marked person-only: no label is configured to mark any, so the "
+            "unclassified issues below may still need you"
+        )
     elif not queue:
-        unlabelled = any(n.startswith(SETUP_PREFIX) for n in report["notes"])
+        unlabelled = not report.get("labelled", True) and any(
+            n.startswith(SETUP_PREFIX) for n in report["notes"]
+        )
         lines.append(
             "  nothing person-only"
             + (" (but labels aren't configured to mark any; see setup)" if unlabelled else "")
@@ -980,16 +1067,35 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         rest = [i["ref"] for i in report["agent_ready"] if i["ref"] not in laned]
         if rest:
             lines.append(f"  not in a lane: {', '.join(rest)}")
-        if not slate["lanes"] and not rest:
+        unplaced = [
+            i["ref"] for i in unclassified if i["ref"] not in laned and i["ref"] not in judged
+        ]
+        if unplaced:
+            lines.append(
+                "  not placed (unclassified, in neither the queue nor a lane): "
+                + ", ".join(unplaced)
+            )
+        if not slate["lanes"] and not rest and not unplaced:
             lines.append("  nothing agent-ready")
     else:
         lines.append("Agent-ready (no slate: by tier, agent label first, then due date)")
         for item in report["agent_ready"]:
             lines.append(f"  {item['ref']} {item['title']}{_details(item)}{_flight(item)}")
-        if not report["agent_ready"] and not issues_failed and "links" not in failed:
+        if not report["agent_ready"] and unclassified:
+            lines.append(
+                "  none: without a needs-human or decision label nothing can be called "
+                "agent-ready (see Not classified)"
+            )
+        elif not report["agent_ready"] and not issues_failed and "links" not in failed:
             lines.append("  nothing agent-ready")
     if issues_failed:
         lines += issues_failed
+    if unclassified and not current:
+        lines.append(
+            "Not classified (no needs-human or decision label is configured; a slate places these)"
+        )
+        for item in unclassified:
+            lines.append(f"  {item['ref']} {item['title']}{_details(item)}{_flight(item)}")
     if report["unknown"]:
         lines.append(
             "  not classified (blocking links FAILED, so these can't be called agent-ready): "
@@ -1011,7 +1117,12 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
     else:
         lines += failure("links")
         if not report["blocked"] and "links" not in failed:
-            lines.append("  nothing blocked")
+            # Only what the forge records: an issue whose text says it waits isn't counted.
+            lines.append(
+                "  no blocking links or blocked labels recorded"
+                if report.get("blocked_label")
+                else "  no blocking links recorded (no blocked label is configured)"
+            )
 
     # Open changes no open issue has in flight: still work in flight, so they get their own list.
     if report["other_changes"]:
@@ -1028,8 +1139,8 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
 
     # Flags.
     flags = []
-    for key in ("queue", "agent_ready", "blocked", "unknown"):
-        for item in report[key]:
+    for key in SECTIONS:
+        for item in report.get(key, []):
             for m in item["merged_by"] or []:
                 base = (
                     f" into {m['base']}"

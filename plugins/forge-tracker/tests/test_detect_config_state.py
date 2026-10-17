@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import stat
 
@@ -110,7 +111,13 @@ def test_tilde_and_null_record_none(repo_dir):
     assert cfg.label("needs_human") is None and cfg.label("decision") is None
     assert cfg.label("blocked") == "null"  # quoted, so a name
     assert cfg.set_to_none == {"labels.needs_human", "labels.decision", "ruling_pattern"}
-    assert cfg.setup_note(("labels.needs_human", "labels.decision", "ruling_pattern")) is None
+    keys = ("labels.needs_human", "labels.decision", "ruling_pattern")
+    # Labels at ~ don't exist yet, so the line offers to create them until setup is declined.
+    note = cfg.setup_note(keys)
+    assert note.startswith("setup: labels.needs_human and labels.decision set to ~ in ")
+    assert "ruling_pattern" not in note
+    assert dataclasses.replace(cfg, setup_declined="2026-10-16").setup_note(keys) is None
+    assert config.from_mapping({"ruling_pattern": None}).setup_note(("ruling_pattern",)) is None
     assert config.Config(found=True).setup_note(("labels.blocked",)) is not None
 
 
