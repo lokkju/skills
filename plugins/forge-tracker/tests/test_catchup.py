@@ -512,6 +512,31 @@ def test_detection_failure_is_a_usage_error(env, capsys):
     assert "only GitHub so far" in capsys.readouterr().err
 
 
+def test_tracker_web_fixes_a_remote_detection_cant_read(env, capsys):
+    """An SSH alias as origin fails detection; `git config tracker.web` makes it the repo."""
+    alias = FakeRun(origin="work-gh:acme/widgets-mirror.git")
+    code = cli.main(["--repo", env["repo"], "catchup"], http=world(), run=alias, now=NOW)
+    assert code == 2
+    assert "can't tell which forge work-gh runs" in capsys.readouterr().err
+    out = io.StringIO()
+    run = FakeRun(
+        origin="work-gh:acme/widgets-mirror.git",
+        git_config={"tracker.web": "https://github.com/acme/widgets"},
+    )
+    code = cli.main(
+        ["--repo", env["repo"], "catchup", "--no-mark"],
+        http=world(),
+        run=run,
+        now=NOW,
+        environ=env["environ"],
+        out=out,
+        tz=timezone.utc,
+    )
+    assert code == 0
+    assert out.getvalue().startswith("acme/widgets on github.com, ")
+    assert ["gh", "auth", "token", "--hostname", "github.com"] in run.calls
+
+
 # --- pieces ------------------------------------------------------------------------------------
 
 

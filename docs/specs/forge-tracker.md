@@ -38,7 +38,7 @@ plugins/forge-tracker/
   .claude-plugin/plugin.json      userConfig: crossProjectTracker
   scripts/forge-tracker           entry point (python3, standard library only)
   scripts/forge_tracker/
-    detect.py                     origin URL -> forge, host, project
+    detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
     labelsetup.py                 first use: a config proposed from the repo's labels, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
@@ -76,14 +76,41 @@ reasons above outweigh.
 
 ### Detection
 
-`git remote get-url origin` gives the host and project path. The forge is decided in this order:
+`git remote get-url origin` gives the host and project path, unless the clone sets
+`tracker.web` (#71). Two git config keys, read with `git config --get`, are the per-clone
+override; they're the keys session-decisions reads for its links (#70), so one setting fixes both
+plugins for a remote that is an SSH alias, a mirror or a push-only URL:
 
-1. `forge:` in `.claude/forge-tracker.local.md`, when set (`github`, `gitlab` or `forgejo`).
-2. The host: `github.com` is GitHub and `gitlab.com` is GitLab.
-3. A host that `glab` knows (`glab config get host --host <host>` succeeds) is GitLab.
-4. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
+```bash
+git config tracker.web https://git.lab.example/acme/widgets   # the repo's web page
+git config tracker.forge forgejo                              # github, gitlab, forgejo or gitea
+```
+
+- `tracker.web` replaces the remote's host and path, and the clone then needs no `origin` at all.
+  It must be an https URL with no user, port, query or fragment. On GitLab the whole path is the
+  project; on GitHub and Forgejo the last two segments are the repo and anything before them is
+  the forge's subpath, as session-decisions reads it.
+- `tracker.forge` names the kind (`gitea` is read as `forgejo`).
+- A value that can't be used stops the command with the key named. It never falls back to the
+  remote the key was set to replace.
+
+The forge is decided in this order:
+
+1. `tracker.forge` in git config, when set.
+2. `forge:` in `.claude/forge-tracker.local.md`, when set (`github`, `gitlab` or `forgejo`).
+3. The host (from `tracker.web`, else the remote): `github.com` is GitHub and `gitlab.com` is
+   GitLab.
+4. A host that `glab` knows (`glab config get host --host <host>` succeeds) is GitLab.
+5. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
    Forgejo or Gitea. The result is cached per host for a day.
-5. Otherwise the command stops and asks for `forge:` in the config file. It never guesses.
+6. Otherwise the command stops and asks for `forge:` in the config file, or `tracker.forge` for
+   the one clone. It never guesses.
+
+`forge:` is the per-repo default, and `tracker.forge` the per-clone override that wins over it:
+the config file may be committed and shared, while one clone (a mirror, a fork pushed elsewhere)
+can still say what it is without editing a file everyone uses. The API base for a self-hosted
+forge (`api_base:`) and a pinned CA (`ca_file:`) come only from the config file, since git config
+holds the web address and not the API's.
 
 A GitLab project path keeps its subgroups (`group/sub/project`). A self-hosted instance under a
 subpath (`https://code.example.org/gitlab/group/project`) needs `api_base:` in the config, since
@@ -234,7 +261,7 @@ about it; that's how a repo that genuinely lacks a label stops the line.
 
 ```markdown
 ---
-forge: gitlab                       # only when detection can't tell
+forge: gitlab                       # only when detection can't tell; git config tracker.forge wins
 api_base: https://code.example.org/gitlab/api/v4
 ca_file: /etc/ssl/example-root.pem  # Forgejo; GitLab uses glab's ca_cert
 labels:

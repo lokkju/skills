@@ -41,9 +41,9 @@ def open_forge(
     record: bool = False,
     environ: Mapping[str, str] = os.environ,
 ) -> Context:
-    remote = detect.parse_remote(detect.origin_url(repo_dir, run))
-    cfg = labelsetup.with_decline(config.load(repo_dir), remote, environ)
-    forge = detect.detect_forge(remote, cfg.forge)
+    loaded = config.load(repo_dir)
+    remote, forge = detect.resolve(repo_dir, loaded.forge, run)
+    cfg = labelsetup.with_decline(loaded, remote, environ)
     token = gh_token(remote.host, run)
     inner = http or urllib_http(cfg.ca_file)
     recorder = RecordingHttp(inner, [token]) if record else None
@@ -182,8 +182,8 @@ def cmd_save_slate(
 ) -> int:
     """Store Claude's slate beside the cached facts. Reads no forge, so it needs no token."""
     try:
-        remote = detect.parse_remote(detect.origin_url(repo_dir, run))
         cfg = config.load(repo_dir)
+        remote, _, _ = detect.locate(repo_dir, cfg.forge, run)
     except ConfigError as error:
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE
@@ -326,7 +326,7 @@ def cmd_labels_decline(
 ) -> int:
     """Remember that the user declined setup here. Reads no forge, so it needs no token."""
     try:
-        remote = detect.parse_remote(detect.origin_url(repo_dir, run))
+        remote, _, _ = detect.locate(repo_dir, config.load(repo_dir).forge, run)
     except ConfigError as error:
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE

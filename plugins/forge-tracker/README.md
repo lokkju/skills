@@ -186,7 +186,7 @@ say nothing about it. The keys the commands use:
 
 ```markdown
 ---
-forge: github                 # only for a GitHub Enterprise host; github.com is detected
+forge: github                 # only for a GitHub Enterprise host; git config tracker.forge wins
 api_base: https://git.corp.example/api/v3   # only when the host's API isn't at /api/v3
 labels:
   needs_human: needs-human     # person-only (firm)
@@ -210,7 +210,24 @@ Free notes for the assistant.
 ```
 
 The file also accepts the keys later phases read (`ca_file`, `blocking`); the design doc
-describes them. The standard library has no YAML parser, so the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
+describes them.
+
+### Per clone: `tracker.web` and `tracker.forge`
+
+forge-tracker finds the repo from its `origin` remote. When that remote is an SSH alias, a mirror
+or a push-only URL, tell this one clone where the repo really is with git config. These are the
+keys session-decisions reads for its links, so one setting fixes both:
+
+```bash
+git config tracker.web https://github.com/acme/widgets   # replaces the remote's host and path
+git config tracker.forge github                          # github, gitlab, forgejo or gitea
+```
+
+`tracker.forge` wins over `forge:` in the config file, and both win over the built-in host rules
+(`github.com`, `gitlab.com`). Put `forge:` in the file when it holds for every clone, which matters
+when the file is committed; use `tracker.forge` for what is true only of this clone. `api_base:`
+and `ca_file:` still come only from the config file, since git config holds the web address and
+not the API's. A value forge-tracker can't use stops the command with the key named. The standard library has no YAML parser, so the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
 lists, quoted strings, integers, `~` or `null` for none, and `#` comments.
 
 ### Setting it up
