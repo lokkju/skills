@@ -87,10 +87,15 @@ class World:
 class FakeRun:
     """subprocess.run for gh and git: canned answers keyed by argv prefix."""
 
-    def __init__(self, origin="https://github.com/acme/widgets.git", token=TOKEN):
+    def __init__(self, origin="https://github.com/acme/widgets.git", token=TOKEN, git_config=None):
         self.answers = {
             ("gh", "auth", "token"): (0, token + "\n", ""),
+            # `git config --get` exits 1 for an unset key.
+            ("config", "--get"): (1, "", ""),
+            ("rev-parse", "--is-inside-work-tree"): (0, "true\n", ""),
         }
+        for key, value in (git_config or {}).items():
+            self.answers[("config", "--get", key)] = (0, value + "\n", "")
         self.origin = origin
         self.calls = []
         self.kwargs = []
@@ -105,16 +110,15 @@ class FakeRun:
             if self.origin is None:
                 return subprocess.CompletedProcess(argv, 2, "", "fatal: not a git repository")
             return subprocess.CompletedProcess(argv, 0, self.origin + "\n", "")
-        if argv[:1] == ["git"]:
-            rest = tuple(argv[3:])
-            for prefix, (code, out, err) in self.answers.items():
-                if rest[: len(prefix)] == prefix:
-                    return subprocess.CompletedProcess(argv, code, out, err)
-            raise AssertionError(f"unexpected git call {argv}")
-        for prefix, (code, out, err) in self.answers.items():
-            if tuple(argv[: len(prefix)]) == prefix:
-                return subprocess.CompletedProcess(argv, code, out, err)
-        raise AssertionError(f"unexpected command {argv}")
+        rest = tuple(argv[3:]) if argv[:1] == ["git"] else tuple(argv)
+        # The longest matching prefix wins, so a specific answer overrides a default one.
+        matches = [p for p in self.answers if rest[: len(p)] == p]
+        if not matches:
+            raise AssertionError(
+                f"unexpected {'git call' if argv[:1] == ['git'] else 'command'} {argv}"
+            )
+        code, out, err = self.answers[max(matches, key=len)]
+        return subprocess.CompletedProcess(argv, code, out, err)
 
 
 @pytest.fixture

@@ -2,6 +2,7 @@ import os
 import stat
 
 import pytest
+from conftest import FakeRun
 from forge_tracker import config, detect, state
 from forge_tracker.model import ConfigError
 
@@ -50,6 +51,83 @@ def test_detect_forge_order():
         detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None)
     with pytest.raises(ConfigError, match="only GitHub so far"):
         detect.detect_forge(ghe, "forgejo")
+
+
+# --- per-clone git config keys (tracker.forge, tracker.web) -------------------------------------
+
+
+def _locate(configured=None, origin="git@github.com:acme/widgets.git", **keys):
+    run = FakeRun(origin=origin, git_config=keys)
+    return detect.locate("/repo", configured, run)
+
+
+def test_no_keys_reads_the_origin_remote():
+    remote, named, _ = _locate()
+    assert (remote.host, remote.project, named) == ("github.com", "acme/widgets", None)
+
+
+def test_tracker_web_replaces_the_remotes_host_and_path():
+    # An SSH alias the built-in rules can't read, and a mirror's path.
+    remote, named, _ = _locate(
+        origin="gh-work:mirrors/widgets.git", **{"tracker.web": "https://github.com/acme/widgets"}
+    )
+    assert (remote.host, remote.project, named) == ("github.com", "acme/widgets", None)
+
+
+def test_tracker_web_needs_no_origin_remote():
+    remote, _, _ = _locate(origin=None, **{"tracker.web": "https://github.com/acme/widgets.git/"})
+    assert remote.project == "acme/widgets"
+
+
+def test_tracker_forge_wins_over_the_config_and_the_host():
+    remote, named, source = _locate(
+        "gitlab", origin="https://git.corp.example/a/b.git", **{"tracker.forge": "GitHub"}
+    )
+    assert named == "github" and source == "git config tracker.forge"
+    assert detect.detect_forge(remote, named, source) == "github"
+    # Without the git key, the config file's forge: is the default.
+    _, named, source = _locate("github", origin="https://git.corp.example/a/b.git")
+    assert named == "github" and source.startswith("forge: in ")
+
+
+def test_tracker_forge_names_its_source_when_unsupported():
+    remote, named, source = _locate(**{"tracker.forge": "gitea"})
+    assert named == "forgejo"
+    with pytest.raises(ConfigError, match=r"is forgejo \(by git config tracker.forge\)"):
+        detect.detect_forge(remote, named, source)
+
+
+def test_tracker_web_path_is_split_by_kind():
+    web = "https://code.example.org/forge/group/sub/project"
+    # GitLab: the whole path; GitHub and Forgejo: the last two segments, the rest a subpath.
+    assert detect.web_remote(web, "gitlab").project == "forge/group/sub/project"
+    assert detect.web_remote(web, "forgejo").project == "sub/project"
+    remote, _, _ = _locate(**{"tracker.web": web, "tracker.forge": "gitlab"})
+    assert remote.project == "forge/group/sub/project"
+
+
+def test_tracker_web_on_an_unknown_host_needs_a_kind():
+    with pytest.raises(ConfigError, match="git config tracker.forge <kind>"):
+        _locate(**{"tracker.web": "https://git.corp.example/a/b"})
+    remote, named, _ = _locate("github", **{"tracker.web": "https://git.corp.example/a/b"})
+    assert (remote.host, named) == ("git.corp.example", "github")
+
+
+@pytest.mark.parametrize(
+    "keys, message",
+    [
+        ({"tracker.forge": "bitbucket"}, "tracker.forge is 'bitbucket'"),
+        ({"tracker.web": "http://github.com/a/b"}, "isn't the https URL"),
+        ({"tracker.web": "https://github.com/a"}, "isn't the https URL"),
+        ({"tracker.web": "https://user@github.com/a/b"}, "isn't the https URL"),
+        ({"tracker.web": "https://github.com/a/b?tab=issues"}, "isn't the https URL"),
+        ({"tracker.web": "https://github.com/a/../b"}, "isn't the https URL"),
+        ({"tracker.web": "git@github.com:a/b.git"}, "isn't the https URL"),
+    ],
+)
+def test_unusable_keys_fail_naming_the_key(keys, message):
+    with pytest.raises(ConfigError, match=message):
+        _locate(**keys)
 
 
 # --- config ------------------------------------------------------------------------------------

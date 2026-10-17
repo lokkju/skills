@@ -38,13 +38,14 @@ plugins/forge-tracker/
   .claude-plugin/plugin.json      userConfig: crossProjectTracker
   scripts/forge-tracker           entry point (python3, standard library only)
   scripts/forge_tracker/
-    detect.py                     origin URL -> forge, host, project
+    detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
     labelsetup.py                 first use: a config proposed from the repo's labels, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
     catchup.py next.py groom.py   the three reports
+    workspace.py                  /catchup over a folder of repos: discovery, one combined report
     state.py                      XDG cache files: 0700 dirs, 0600 files, atomic replace
     writes.py                     the named write operations and the write-wrapper
   commands/catchup.md next.md groom.md
@@ -76,14 +77,41 @@ reasons above outweigh.
 
 ### Detection
 
-`git remote get-url origin` gives the host and project path. The forge is decided in this order:
+`git remote get-url origin` gives the host and project path, unless the clone sets
+`tracker.web` (#71). Two git config keys, read with `git config --get`, are the per-clone
+override; they're the keys session-decisions reads for its links (#70), so one setting fixes both
+plugins for a remote that is an SSH alias, a mirror or a push-only URL:
 
-1. `forge:` in `.claude/forge-tracker.local.md`, when set (`github`, `gitlab` or `forgejo`).
-2. The host: `github.com` is GitHub and `gitlab.com` is GitLab.
-3. A host that `glab` knows (`glab config get host --host <host>` succeeds) is GitLab.
-4. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
+```bash
+git config tracker.web https://git.lab.example/acme/widgets   # the repo's web page
+git config tracker.forge forgejo                              # github, gitlab, forgejo or gitea
+```
+
+- `tracker.web` replaces the remote's host and path, and the clone then needs no `origin` at all.
+  It must be an https URL with no user, port, query or fragment. On GitLab the whole path is the
+  project; on GitHub and Forgejo the last two segments are the repo and anything before them is
+  the forge's subpath, as session-decisions reads it.
+- `tracker.forge` names the kind (`gitea` is read as `forgejo`).
+- A value that can't be used stops the command with the key named. It never falls back to the
+  remote the key was set to replace.
+
+The forge is decided in this order:
+
+1. `tracker.forge` in git config, when set.
+2. `forge:` in `.claude/forge-tracker.local.md`, when set (`github`, `gitlab` or `forgejo`).
+3. The host (from `tracker.web`, else the remote): `github.com` is GitHub and `gitlab.com` is
+   GitLab.
+4. A host that `glab` knows (`glab config get host --host <host>` succeeds) is GitLab.
+5. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
    Forgejo or Gitea. The result is cached per host for a day.
-5. Otherwise the command stops and asks for `forge:` in the config file. It never guesses.
+6. Otherwise the command stops and asks for `forge:` in the config file, or `tracker.forge` for
+   the one clone. It never guesses.
+
+`forge:` is the per-repo default, and `tracker.forge` the per-clone override that wins over it:
+the config file may be committed and shared, while one clone (a mirror, a fork pushed elsewhere)
+can still say what it is without editing a file everyone uses. The API base for a self-hosted
+forge (`api_base:`) and a pinned CA (`ca_file:`) come only from the config file, since git config
+holds the web address and not the API's.
 
 A GitLab project path keeps its subgroups (`group/sub/project`). A self-hosted instance under a
 subpath (`https://code.example.org/gitlab/group/project`) needs `api_base:` in the config, since
@@ -234,7 +262,7 @@ about it; that's how a repo that genuinely lacks a label stops the line.
 
 ```markdown
 ---
-forge: gitlab                       # only when detection can't tell
+forge: gitlab                       # only when detection can't tell; git config tracker.forge wins
 api_base: https://code.example.org/gitlab/api/v4
 ca_file: /etc/ssl/example-root.pem  # Forgejo; GitLab uses glab's ca_cert
 labels:
@@ -258,6 +286,9 @@ groom:
 ---
 Releases are cut by yeet; don't file issues for release PRs.
 ```
+
+At a workspace root (a folder of repos, see [`/catchup`](#catchup-23)) the same file may set
+`repos: [citare, stare]`, the repos `/catchup` reads there; it's the only key read at a root.
 
 The `.local.md` name follows the plugin-settings convention. Whether to commit it is the repo's
 call: committed, everyone shares the label names; gitignored, it's personal.
@@ -313,9 +344,14 @@ the skill tells agents to always pass it when they run `/catchup` for their own 
 **Sections, in order:**
 
 1. **Waiting on you:** mentions in the window, open changes where you're reviewer or assignee,
-   issues assigned to you, and issues carrying the needs-human or decision labels. Items created
-   or updated in the window are listed in full; the standing backlog is one count line per list.
-   An item on several lists is listed once and counted in each. `--all` lists everything.
+   open changes that are **yours to merge** (#75), issues assigned to you, and issues carrying
+   the needs-human or decision labels. Items created or updated in the window are listed in full;
+   the standing backlog is one count line per list. An item on several lists is listed once and
+   counted in each. `--all` lists everything. Yours to merge is a change you opened that isn't a
+   draft, has no review requested of anyone and no changes requested, has no known conflict
+   (`unknown` is listed, and shown as unknown), and whose checks passed or that has none. On a
+   solo repo nobody requests your review of your own PR, so without this list the PRs waiting
+   for you to merge them showed nowhere. Agents share your account, so their PRs count too.
 2. **Merged since:** changes merged in the window, grouped by the issue numbers in their titles
    or branches (a branch names an issue as `/next`'s in-flight rule reads it), plus changelog
    entries added when `changelog:` is set.
@@ -347,6 +383,66 @@ Health
   flaky: plugins (passed on retry 3 times)
   tags: session-decisions--v2026.10.15.1
 ```
+
+**Workspace (#75).** A session started in a folder of checkouts (`~/projects/codexpublicus/`,
+no `.git` of its own) reads every repo in it and prints one report, instead of failing for want
+of an `origin`. The repos are, in this order of preference:
+
+1. `--workspace DIR`, which names the folder from anywhere;
+2. `repos:` in the folder's own `.claude/forge-tracker.local.md` (paths relative to it; the only
+   key read at a workspace root), taken as given, so a listed path that isn't a readable repo is
+   a FAILED line rather than a silent omission;
+3. otherwise the folder's immediate, non-hidden children that are git repos with an `origin`
+   remote or a `tracker.web` key. A child repo with neither is listed once under `Not read:`.
+
+A folder is a workspace only when it isn't inside a git work tree and has at least one such
+repo; otherwise the original error stands. Each repo is read exactly as on its own, with its own
+config, window, `tracker.*` keys and marker, four repos at a time. The report:
+
+```text
+Workspace /home/me/projects/acme: 3 repos (each repo's marker moves when all its reads succeeded)
+
+Waiting on you
+  acme/widgets#41 review requested: feat: GitHub adapter (draft no, conflicts: unknown)
+  acme/stare#152 yours to merge: feat: citation export (draft no, conflicts: no)
+  standing: acme/widgets 2 assigned, 1 needs-human (not updated in the window)
+  (setup: no .claude/forge-tracker.local.md, so ...) in acme/exemplar and acme/stare
+
+acme/exemplar: nothing since 2026-10-10 09:00; main push: none
+
+acme/stare on github.com, 2026-10-10 09:00 to 2026-10-17 10:00 (since your last catchup; ...)
+Merged since
+  ...
+Board movement
+  ...
+Health
+  ...
+
+lab: FAILED (gitlab.com is gitlab, and forge-tracker reads only GitHub so far ...)
+```
+
+- **Waiting on you** comes first and covers every repo, newest first, each reference as
+  `owner/repo#N`. The standing counts are one line, per repo. A failed read is
+  `<repo> <part>: FAILED (...)`.
+- Notes the repos share (the `setup:` line) are said once, followed by the repos they apply to,
+  or `all N repos` when that's every one of three or more.
+  The per-repo `ruling_pattern isn't set` pointer, and a Decisions made section that would hold
+  only it, are left out, since that line already says rulings aren't picked out.
+- Each repo then gets its sections as on its own, without Waiting on you. A repo with nothing
+  merged, ruled or moved, no failed read and no failed run collapses to one line with its window
+  start and its push run's state.
+- A repo that can't be opened at all (an unsupported forge, a bad config, no token) is one
+  `<dir>: FAILED (...)` line.
+- **Markers stay per repo.** Each repo whose reads all succeeded moves its own marker after the
+  report prints; a repo with a failed read keeps its marker, and the first line names it. Exit 1
+  when any repo failed, 0 otherwise, 2 only for the folder itself (no repo found, a bad root
+  config). `--json` prints every repo's own report, the shared notes and the skipped children.
+  `--record` takes one repo, so it refuses a workspace.
+
+The other commands read one repo; in a workspace they exit 2 naming the repos found and asking
+for `--repo <dir>`, and `/next`'s command text has Claude pick the repo instead of stopping.
+Reading an org's repos from the forge (`org:` at the root) is left for later: catchup reads local
+clones, and a repo with no clone has no config file or changelog to read.
 
 ### `/next` (#24)
 
