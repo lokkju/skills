@@ -10,18 +10,19 @@ only POST, PATCH and DELETE, only under the project's own REST path, and never t
 Every operation, written, refused or failed, is appended to a 0600 log in the local cache.
 
 So far the operations are the ones `/groom` proposes: `close`, `labels`, `milestone`, `unlink`
-and `delete-branch`. `file` and `rule` (discovered work, recording a ruling) come with the
-working rules.
+and `delete-branch`, plus `label-create`, which first-use setup runs for the labels the user
+approved. `file` and `rule` (discovered work, recording a ruling) come with the working rules.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import urllib.parse
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional
@@ -30,9 +31,11 @@ from . import state
 from .model import ForgeError, iso
 from .transport import USER_AGENT, Http, ReadTransport, redact
 
-OPS = ("close", "labels", "milestone", "unlink", "delete-branch")
+OPS = ("close", "labels", "milestone", "unlink", "delete-branch", "label-create")
 WRITE_METHODS = ("POST", "PATCH", "DELETE")
 WRAPPER_TIMEOUT = 120
+# GitHub's limits on a label.
+LABEL_NAME_MAX, LABEL_DESCRIPTION_MAX = 50, 100
 
 
 class WriteRefused(Exception):
@@ -87,6 +90,7 @@ _KEYS = {
     "milestone": {"issue", "milestone"},
     "unlink": {"issue", "blocker", "blocker_project", "label"},
     "delete-branch": {"branch", "sha"},
+    "label-create": {"name", "color", "description"},
 }
 
 
@@ -138,6 +142,18 @@ def validate(op: str, payload: Any, project: str) -> dict[str, Any]:
     elif op == "delete-branch":
         _text(payload, "branch", errors)
         _text(payload, "sha", errors)
+    elif op == "label-create":
+        name = _text(payload, "name", errors)
+        if name is not None and (name != name.strip() or len(name) > LABEL_NAME_MAX):
+            errors.append(f"name must have no outer spaces and at most {LABEL_NAME_MAX} characters")
+        color = payload.get("color")
+        if not isinstance(color, str) or not re.fullmatch(r"[0-9a-fA-F]{6}", color):
+            errors.append("color must be six hex digits, like d93f0b")
+        description = payload.get("description")
+        if description is not None and (
+            not isinstance(description, str) or len(description) > LABEL_DESCRIPTION_MAX
+        ):
+            errors.append(f"description must be a string of at most {LABEL_DESCRIPTION_MAX}")
     if errors:
         raise WriteRefused("; ".join(errors))
     return dict(payload)
@@ -298,6 +314,13 @@ class GitHubWrites:
         self.w.send("DELETE", f"{self.repo_path}/git/refs/heads/{_quote(name, '/')}")
         return f"deleted branch {name} (was {p['sha'][:7]})"
 
+    def label_create(self, p: Mapping[str, Any]) -> str:
+        body = {"name": p["name"], "color": p["color"].lower()}
+        if p.get("description"):
+            body["description"] = p["description"]
+        self.w.send("POST", f"{self.repo_path}/labels", body)
+        return f"created label {p['name']} (#{body['color']})"
+
 
 # --- running an operation -----------------------------------------------------------------------
 
@@ -313,12 +336,27 @@ class Writer:
     wrapper: Optional[str] = None
     run: Callable[..., Any] = subprocess.run
     now: Callable[[], datetime] = datetime.now
+    # The names of the repo's labels, read through the read transport. `label-create` checks it
+    # before anything is sent, with or without a wrapper, and is refused when it isn't set.
+    existing_labels: Optional[Callable[[], Sequence[str]]] = None
+
+    def _new_label(self, name: str) -> None:
+        if self.existing_labels is None:
+            raise WriteRefused("can't check the repo's existing labels; nothing written")
+        clash = [n for n in self.existing_labels() if n.lower() == name.lower()]
+        if clash:
+            raise WriteRefused(
+                f"a label named {clash[0]!r} already exists (names compare without case); "
+                "nothing written"
+            )
 
     def apply(self, op: str, payload: Any) -> Result:
         via = "wrapper" if self.wrapper else "forge"
         try:
             checked = validate(op, payload, self.project)
             checked.setdefault("repo", self.project)
+            if op == "label-create":
+                self._new_label(checked["name"])
             if self.wrapper:
                 detail = self._wrapped(op, checked)
             else:

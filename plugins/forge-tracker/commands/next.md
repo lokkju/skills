@@ -11,8 +11,8 @@ git fetch --quiet origin
 ```
 
 `/next` recommends; it never acts. Don't claim, assign, label, comment on or branch for any item
-because of this report unless the user asks. The one write it may lead to is the local config
-file, as set out under setup below, and only on the user's yes.
+because of this report unless the user asks. The writes it may lead to are the local config file
+and, on a second yes, the missing labels, as set out under setup below.
 
 ## When the report has a `setup:` line
 
@@ -27,16 +27,24 @@ before ranking a slate:
 - Otherwise offer to set it up, once. Run
   `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
   and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
-  has no such label, plus a `gh label create` command for each role no label matched. Show the
+  has no such label, plus the labels it would create for each role no label matched. Show the
   user the proposal and ask whether to write it, as is or with their corrections.
 - **Yes:** write `.claude/forge-tracker.local.md` with the proposed content and the user's
   corrections. When the file already exists, add only the keys the suggestion printed and keep
-  everything else in it. That file is the only thing you write; don't commit it unless the user
-  asks (committing it shares the label names, and whether to is the repo's call).
-- **Labels that don't exist yet:** creating labels isn't one of forge-tracker's write
-  operations yet, so don't create them on the forge yourself, even through `gh`. If the user wants them, give them the `gh label
-  create` commands from the suggestion to run, and once they have, put each name in the file in
-  place of its `~`.
+  everything else in it. Don't commit it unless the user asks (committing it shares the label
+  names, and whether to is the repo's call).
+- **Labels that don't exist yet:** when the suggestion listed any, ask a second, separate
+  question: whether to create them on the forge, naming each label, its color and description,
+  and saying that it goes through the repo's write-wrapper when one is set. The yes to the config
+  isn't a yes to this. Only on an explicit yes, run
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels create <names>` with exactly the names
+  the user approved (a default name such as `needs-human`, or `role=name`, such as
+  `agent=ready-for-agent`, for a name of their own). It refuses, creating nothing, a name the
+  repo already has in any case or a role the config already maps. Then put each created name in
+  the file in place of its `~`, as its output lists them. Show any `REFUSED` or `FAILED` line
+  as it is and leave that role at `~`. On a no, or for labels the user didn't approve, give
+  them the `gh label create` commands from the suggestion and leave the `~` in place. Never
+  create labels yourself any other way, even through `gh`; those commands are the user's.
 - **No:** run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`. It writes one file
   in the local cache (never the repo or the forge), so this command won't offer setup again
   here; the report's line keeps saying what's unset. Tell the user they can ask for it any time.
