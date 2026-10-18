@@ -14,6 +14,8 @@ These are the Claude Code plugins and agent skills I run on my own machines ever
 
 **[session-history](https://github.com/lokkju/claude-session-index)** indexes, searches and reports on your Claude Code sessions. It lives in its own repo, lokkju/claude-session-index, along with the `claude-session-index` CLI it drives; the marketplace just lists it. It used to be called `claude-session-index` too, until Claude Code reserved plugin names that start with `claude-`. If you installed it under that name, run `claude plugin uninstall claude-session-index@lokkju`, then `claude plugin marketplace update lokkju` and `claude plugin install session-history@lokkju`.
 
+**delegation-stats** (`scripts/delegation-stats.py`, not a plugin) measures how much your Claude Code sessions hand work to subagents. Point it at a project and a date range, `uv run scripts/delegation-stats.py ~/projects/infra --since 2026-10-01 --until 2026-10-14`, and it prints a row per session: prompts that made tool calls, how many of those called Agent, the longest run of reads with no Agent call, how many runs reached 10 reads, median and peak main-thread context, and what the subagents spent in tokens. `--json` adds the per-prompt numbers. It reads the transcripts under `~/.claude/projects/` and prints numbers only, never what you or Claude wrote.
+
 ## Install
 
 As a Claude Code marketplace, which gets you each plugin whole, hooks, commands and scripts included:

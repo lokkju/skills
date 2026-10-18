@@ -1,4 +1,5 @@
-# Ruff settings for the Python in this repo (forge-release, forge-tracker and term-recorder).
+# Ruff settings for the Python in this repo (forge-release, forge-tracker, term-recorder and
+# scripts/).
 line-length = 100
 # Their READMEs promise python3 3.9 or newer.
 target-version = "py39"
