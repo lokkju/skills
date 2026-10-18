@@ -1,7 +1,35 @@
 # forge-release
 
 Release-PR setup across forges: Conventional Commits feed one standing release PR or MR, and
-merging it tags and publishes. The setup skill comes later; this release has one helper script.
+merging it tags and publishes. The plugin has a skill and one helper script.
+
+## The forge-release skill
+
+`skills/forge-release/SKILL.md` walks a repo through its release automation. It starts with a
+decision tree: new repos use [yeet](https://github.com/monkescience/yeet), for SemVer and CalVer
+alike, on GitHub, GitLab or Azure DevOps. Cargo packages are the exception and use
+[release-plz](https://release-plz.dev), which publishes to crates.io, runs cargo-semver-checks
+and keeps `Cargo.lock` in step, none of which yeet does. On a forge yeet doesn't support, the
+skill stops and asks.
+
+Then the procedures, with a reference file each under `skills/forge-release/references/`:
+
+- **Setup** (`yeet-setup.md`): repo settings, the release App through `github-app-create` and
+  where its credentials go, `.yeet.yaml`, the workflow, the release-check guard on Conventional
+  Commits, and the dry run.
+- **Migration** (`migration.md`): from release-please (config and marker mapping, the pre-1.0
+  bump settings that keep its behaviour, moving the publish job), from hand-made tags, and from
+  SemVer to CalVer.
+- **Troubleshooting** (`troubleshooting.md`): the token step, a release PR that won't open or
+  refresh, tags yeet doesn't see, version files left alone, what yeet reads under merge and
+  squash, and a merged release PR with no tag.
+- **Release-triggered deploys** (`deploys.md`): publishing and deploying on
+  `release: published`, with guards that deploy only the newest release tag on main and create
+  nothing.
+- **release-plz** (`release-plz.md`): the Cargo setup with crates.io trusted publishing.
+
+`skills/forge-release/templates/` has the files to copy: `yeet.yml`, a SemVer and a CalVer
+`.yeet.yaml`, `release-check.yml` with its script, `pr-title.yml` and `deploy.yml`.
 
 ## github-app-create
 
