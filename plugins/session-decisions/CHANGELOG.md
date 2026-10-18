@@ -1,5 +1,12 @@
 # Changelog
 
+## [session-decisions--v2026.10.18.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.4...session-decisions--v2026.10.18.1) (2026-10-18)
+
+### Features
+
+- **session-decisions:** inline [more] after the card text, shown only when the dialog has more (#86) ([227fa39](https://github.com/lokkju/skills/commit/227fa39e8c3e03f9c3daea223f076e1eef88732b))
+- **session-decisions:** inline [more] after the card text, shown only when the dialog has more ([c8aaa2f](https://github.com/lokkju/skills/commit/c8aaa2fa9ebabf9404ef99c5e86e3d59a5d5099c))
+
 ## [session-decisions--v2026.10.16.4](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.3...session-decisions--v2026.10.16.4) (2026-10-16)
 
 ### Features

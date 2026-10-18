@@ -1,5 +1,13 @@
 # Changelog
 
+## [forge-tracker--v2026.10.18.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.18.1...forge-tracker--v2026.10.18.2) (2026-10-18)
+
+### Features
+
+- **forge-tracker:** /next judges untagged items and closes with a recommendation (#85) ([b472cdc](https://github.com/lokkju/skills/commit/b472cdcf987f455f0e974004d9485835248e5a7a))
+- **forge-tracker:** close /next with an evaluated recommendation ([67a9854](https://github.com/lokkju/skills/commit/67a9854ae96897940fdd9ae353efb5427ec7f85b))
+- **forge-tracker:** let the slate judge untagged items person-only in labelled repos ([2f470fb](https://github.com/lokkju/skills/commit/2f470fbab5fc8518a30305a90caa7d6d91b079ed))
+
 ## [forge-tracker--v2026.10.18.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.16.2...forge-tracker--v2026.10.18.1) (2026-10-18)
 
 ### Features
