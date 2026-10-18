@@ -222,8 +222,12 @@ one an approved `/groom` change or a working-rule action:
 | `unlink` (remove a blocked label, or a link to a closed blocker) | `/groom` |
 | `delete-branch` | `/groom` |
 | `label-create` (name, color, description) | first-use setup, for the labels the user approved |
+| `link-add` (record a native blocked-by link) | `/groom`, and recording blocking |
+| `link-remove` (remove a native blocked-by link, whatever the blocker's state) | recording blocking |
 
 Each runs as `forge-tracker write <op>` with a JSON payload on stdin and prints what it did.
+`forge-tracker link add|remove <blocked> --blocked-by <blocker>` runs `link-add` or
+`link-remove` from arguments.
 
 **The write-wrapper.** When the config sets `write_wrapper:`, every operation runs the wrapper
 instead of calling the forge: `<wrapper> <op>` with the same JSON on stdin, in the repo root.
@@ -245,6 +249,17 @@ most 50 characters with no outer spaces, the color six hex digits and the descri
 already exists compared without case, since GitHub treats label names that way. That check runs
 before the wrapper too, so a wrapper never gets a clashing name. On GitHub it's one `POST
 /repos/{o}/{r}/labels`.
+
+`link-add` and `link-remove` ([#91](https://github.com/lokkju/skills/issues/91)) take `issue`,
+`blocker` and, for a blocker in another project, `blocker_project` (`owner/repo`). A link from
+an issue to itself fails validation. Then, before the wrapper too, they read the issue's
+current native blockers (`GET /issues/{n}/dependencies/blocked_by`) and refuse a `link-add` that
+already exists or a `link-remove` that doesn't; a `link-add` also reads both issues and refuses
+when either is a pull request or closed. On GitHub `link-add` is `POST
+/repos/{o}/{r}/issues/{n}/dependencies/blocked_by` with `{"issue_id": <the blocker's id>}` and
+`link-remove` is `DELETE .../dependencies/blocked_by/{id}`, both under the blocked issue's
+repo. `unlink` stays the `/groom` fix that removes a link only once its blocker has closed.
+
 Every operation, written, refused or failed, is appended to
 `.../forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
@@ -644,6 +659,7 @@ and writes nothing until you approve.
 | Tier label without matching milestone, or the reverse | the label, the milestone | `labels` or `milestone` |
 | Blocked label with nothing linked | the label, no links | `unlink` |
 | Link whose blocker is closed | the link, the blocker's close date | `unlink` |
+| Blocking written only as prose | the body line, and no native link behind it | `link-add` (an open blocker); a closed blocker is listed for you |
 | Decided but still waiting | the ruling comment, dated after the label was added | `labels` (remove needs-human or decision, add decision-made) |
 | Stale branch | no open change, every commit on the default branch (`ahead_by == 0`) | `delete-branch` |
 | Conflicted or stale change | `conflicts: yes`, or no activity for `stale_days` | none; listed for you |
@@ -681,6 +697,16 @@ to judge, never closed by `/groom`.
   `release-please--*`, `changeset-release/*`, `dependabot/*`, `renovate/*`); yeet, for one,
   recreates `yeet/release-main` for every release PR. `groom.keep_branches` (a list of globs)
   adds to that list; it doesn't replace it.
+- Blocking written as prose ([#91](https://github.com/lokkju/skills/issues/91)) is read from
+  open issue bodies: `Blocked by: #17`, `blocked on #17` and `Depends on #17` anywhere in a
+  line, and `Blocks #18` or `Blocking: #18` only where a line starts, since "blocks" is also a
+  noun; each takes a list of `#N` or `owner/repo#N`. Code blocks and spans, quoted lines, HTML
+  comments, struck-out text and negations ("no longer blocked by #17") don't count, nor does an
+  issue naming itself. A sentence with a native link behind it is a gloss and is left alone.
+  Otherwise an open blocker is a `link-add` proposal (`link-add #18 blocked by #17`), a closed
+  one is listed for you as stale prose, and a pull request, a blocked issue in another project,
+  or a blocker that couldn't be read is unclear. A blocker that isn't an open or recently closed
+  issue here is read once by number. The check never edits a body; only a person does that.
 - A due date is a likely placeholder when more than one open milestone uses it; on GitHub the
   due date belongs to the milestone, so every issue in one milestone shares it by design.
 - `forge-tracker groom apply` reads `{"approved": [ids]}` (ids like `close #14`, `labels #22
@@ -733,6 +759,14 @@ None of it needs the commands.
   and dates such as `cilium-1.20.2` or `2026-10-14` don't count). A PR or MR with no such issue needs no reference. After merge,
   confirm the issue closed; when it didn't (a merge to a non-default branch, say), close it with
   `write close`.
+- **Blocking** goes in the forge's relationship data, never only in an issue body: `forge-tracker
+  link add <blocked> --blocked-by <blocker>` (or the forge's own UI or API) when an issue is
+  filed or found to wait on another, and `link remove` when that stops being true. `/next` and
+  `/groom` read only native links, so `Blocked by: #17` in a body blocks nothing they see, and
+  closing #17 doesn't update the sentence. A sentence may stay as a gloss for people. Until the
+  skill exists, the rule is stated in `commands/next.md` and `commands/groom.md`, and `/groom`'s
+  prose check catches what slips through
+  ([#91](https://github.com/lokkju/skills/issues/91)).
 - **Shared account.** Never infer that the user acted from the account that acted.
 - **Agents** pass `--no-mark` to `/catchup` (or `forge-tracker catchup --no-mark`) when they run
   it for themselves.
