@@ -67,7 +67,9 @@ rank them before presenting anything:
    (`person-only`, `agent-ready`, `blocked`, `unknown`, `unclassified`), tier, due date, labels,
    owners, blockers, what it unblocks, what has it in flight, and its body. `unclassified` means
    the repo configures no needs-human or decision label (`labelled: false`), so no label could
-   say the item needs a person, and the CLI doesn't claim it's agent-ready.
+   say the item needs a person, and the CLI doesn't claim it's agent-ready. An `agent-ready` item
+   with `untagged: true` is agent-ready only because no label said otherwise (it has neither a
+   person-only label nor the agent label); that's the default, not a judgement.
 2. Build the slate as JSON:
 
    ```json
@@ -79,7 +81,16 @@ rank them before presenting anything:
      ],
      "overrules": {"#40": "design work an agent can build from the spec"},
      "person_only": {"#15": "physical work: repaste the GPU"},
-     "note": "optional, one line"
+     "note": "optional, one line",
+     "recommend": {
+       "merge": [{"ref": "#33", "why": "release PR, CI green: the cheapest progress"}],
+       "you": [{"ref": "#10", "why": "unblocks #22, #23 and #24; nothing else queued unblocks agents"},
+               {"ref": "#15", "why": "the hardware gates #20"}],
+       "agent_cap": 3,
+       "start": [{"lane": "A", "why": "P1 bug, design ruled, due Friday"}],
+       "wait": [{"lane": "B", "why": "touches files open PR #41 is changing; wait for it to merge"}],
+       "not_yet": [{"ref": "#19", "why": "research with no design yet"}]
+     }
    }
    ```
 
@@ -93,13 +104,33 @@ rank them before presenting anything:
      lane; the report marks it. Items you leave out are listed as not in a lane.
    - **overrules**: an item that's person-only only by a marker word (`marker: legal`, say), never
      by a label, may go in a lane when you give the reason here.
-   - **person_only** (only for `unclassified` items): read each unclassified item's title and
-     body and decide where it goes. Put it in the queue, with a one-line reason here, when its
-     text says the user has to act: physical work, a device or a test window only they have,
+   - **person_only** (for `unclassified` items and `untagged` agent-ready ones): read each such
+     item's title and body when ranking and decide where it goes. Put it in the queue, with a
+     one-line reason here, when its text says the user has to act: a decision (a question in the
+     title, options with no ruling), physical work, a device or a test window only they have,
      research that's done and waits on their decision, waiting on an external event or another
      repo, or explicitly parked. Put it in a lane when an agent can do it from what's written.
-     Leave it out when you can't tell; the report lists it as not placed. Never put a classified
-     item here: a configured label already decided it, and save-slate refuses that.
+     An unclassified item you can't place, leave out; the report lists it as not placed. Never
+     put a labelled item here: a person-only label already put it in the queue, an item with the
+     agent label stays in the lanes, and save-slate refuses both. When you move an untagged item
+     into the queue in a repo with labels, suggest to the user that they tag it (the needs-human
+     or decision label) so the next run doesn't depend on your judgement; don't tag it yourself.
+   - **recommend**: the closing pick, written from the facts once the queue and lanes are set.
+     Judge impact: what each item unblocks, its tier and due date, bug before feature, how
+     settled its design is (a ruled spec against open questions), how close it is to merged work
+     that's still fresh, and the risk of conflicting with PRs in flight. Every entry needs a
+     one-line `why`.
+     - `merge`: open PRs ready to merge, bot PRs (Dependabot, a release PR) included, as the
+       first step. Ready means not a draft, `conflicts: no`, CI `success`, and review `approved`
+       or none required. `conflicts: unknown` is never ready; save-slate refuses it.
+     - `you`: one pick from your queue for the user, then the next one or two only when they
+       matter.
+     - `start` and `wait`: every lane, by its letter, either starts now or waits, each with its
+       reason. Set `agent_cap` to the number of agents this session may run at once (from the
+       user's instructions; leave it out when none is set) and start no more lanes than that.
+     - `not_yet`: what you wouldn't do yet, with the reason: umbrella issues, items waiting on a
+       decision, drift `/groom` should fix first, PRs not ready. An item here can't also be
+       picked, started or merged.
 3. Save it: pipe the JSON to `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" next save-slate`. A
    refusal (exit 2) names every problem; fix them and save again. It writes only to the local
    cache, never to the forge.
@@ -114,6 +145,9 @@ A later `/next` shows the saved slate, with its age, until the facts move.
    judgement of its text, not by a label; say so, with the reason. When the report opens with an
    `Unlabelled:` line, say once that the queue and lanes are your reading of the issues because
    the repo has no person-only label, and pass on any `not placed` items.
+   When you're presenting a report with no slate (you ran it for your own purposes, say), items
+   marked `untagged` under Agent-ready are agent-ready by default only; don't present them as
+   settled agent work.
 2. **Agent lanes** next. Say plainly that the grouping is your judgement, not a measurement.
    Keep each item's in-flight marks (an open PR with its draft, conflict and CI state, or a pushed
    branch) and never call a lane with `conflicts: unknown` ready to merge.
@@ -126,6 +160,10 @@ A later `/next` shows the saved slate, with its age, until the facts move.
 6. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A
    failed read is not "nothing": never summarize it as empty or clear. When blocking links
    failed, the items listed as not classified may be blocked; don't call them agent-ready.
+7. **Recommended next** closes the report: merge first, the user's pick, the lanes to start and
+   the ones that wait, and what not to do yet, each with its reason. Say plainly that it's your
+   judgement from the facts. It's a recommendation, not an action: ask before starting a lane,
+   merging a PR or touching any item it names.
 
 An assignee is never a reason an item is the user's or an agent's: agents share the user's
 account. Show assignees as owners.
