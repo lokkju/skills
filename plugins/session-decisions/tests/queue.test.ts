@@ -2,7 +2,7 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, revise, settle } from '../hooks/queue'
 import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
-import { codeSpans, dialogQuestion, dialogText, fitRows, githubShort, isShortLink, linkHref, plainText, wrappedRows } from '../hooks/markdown'
+import { codeSpans, descriptionText, githubShort, isShortLink, linkHref, plainText } from '../hooks/markdown'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -209,59 +209,20 @@ describe('markdown', () => {
     }
   })
 
-  test('dialogText keeps paragraphs and list items as plain text', () => {
-    expect(dialogText('Needs **`sudo`**.\n\n\n\nThen run it.')).toBe('Needs sudo.\n\nThen run it.')
-    expect(dialogText('')).toBe('')
-    expect(dialogText('\n\n  \nOne.\n\n')).toBe('One.')
-    expect(dialogText('## Options\nPick _one_:\n* Redis, `REDIS_URL`\n+ Memcached\n  - nested\n\n1. Pick.\n2) Ship.')).toBe(
+  test('descriptionText keeps paragraphs and list items as plain text', () => {
+    expect(descriptionText('Needs **`sudo`**.\n\n\n\nThen run it.')).toBe('Needs sudo.\n\nThen run it.')
+    expect(descriptionText('')).toBe('')
+    expect(descriptionText('\n\n  \nOne.\n\n')).toBe('One.')
+    expect(descriptionText('## Options\nPick _one_:\n* Redis, `REDIS_URL`\n+ Memcached\n  - nested\n\n1. Pick.\n2) Ship.')).toBe(
       'Options\nPick one:\n- Redis, REDIS_URL\n- Memcached\n  - nested\n\n1. Pick.\n2) Ship.',
     )
-    expect(dialogText('See [the runbook](https://x.dev/run) or [https://x.dev](https://x.dev), <https://y.dev>.')).toBe(
+    expect(descriptionText('See [the runbook](https://x.dev/run) or [https://x.dev](https://x.dev), <https://y.dev>.')).toBe(
       'See the runbook (https://x.dev/run) or https://x.dev, https://y.dev.',
     )
     // A fence keeps its lines as written, bullets and markers included.
-    expect(dialogText('Run:\n```sh\n* not a bullet **x**\n```\nDone.')).toBe('Run:\n* not a bullet **x**\nDone.')
+    expect(descriptionText('Run:\n```sh\n* not a bullet **x**\n```\nDone.')).toBe('Run:\n* not a bullet **x**\nDone.')
     // plainText for one-line rows still drops the url.
     expect(plainText('[the runbook](https://x.dev/run)')).toBe('the runbook')
-  })
-
-  test('wrappedRows counts rows wrapped at words', () => {
-    expect(wrappedRows('', 10)).toBe(1)
-    expect(wrappedRows('one two three', Infinity)).toBe(1)
-    expect(wrappedRows('one two three', 13)).toBe(1)
-    expect(wrappedRows('one two three', 8)).toBe(2)
-    expect(wrappedRows('one two three', 5)).toBe(3)
-    expect(wrappedRows('abcdefghijkl', 5)).toBe(3)
-  })
-
-  test('fitRows cuts to the rows and says how many lines are not shown', () => {
-    expect(fitRows('a\nb\nc', 3)).toBe('a\nb\nc')
-    expect(fitRows('a\nb\nc\nd', 3)).toBe('a\nb\n… 2 more lines not shown')
-    // Trailing blank lines go, and only lines with text count as not shown.
-    expect(fitRows('a\n\nb\n\nc', 3)).toBe('a\n… 2 more lines not shown')
-    // A long line fills what's left, cut at a word, and counts as not shown.
-    expect(fitRows('first\none two three four five six', 3, 10)).toBe('first\none two…\n… 1 more line not shown')
-    expect(fitRows('a\nb', 1)).toBe('… 2 more lines not shown')
-  })
-
-  test('dialogQuestion fits the item to the screen, or to 24 rows unmeasured', () => {
-    const item = { question: 'Cache **backend**?', recommendation: 'Redis, since ops runs it', description: 'Why:\n- fast\n- known' }
-    expect(dialogQuestion(item, 3, null)).toBe('Cache backend?\n\nRecommended: Redis, since ops runs it\n\nWhy:\n- fast\n- known')
-    expect(dialogQuestion({ ...item, recommendation: null, description: '' }, 2, null)).toBe('Cache backend?')
-    const long = { ...item, description: Array.from({ length: 40 }, (_, i) => `Line ${i + 1}`).join('\n') }
-    // Unmeasured: 24 rows, of which the question, recommendation and blank lines take 4.
-    const unmeasured = dialogQuestion(long, 3, null).split('\n')
-    expect(unmeasured).toHaveLength(24)
-    expect(unmeasured.at(-2)).toBe('Line 19')
-    expect(unmeasured.at(-1)).toBe('… 21 more lines not shown')
-    // 30 rows with 3 options leaves 15 for the question: 4 for its head, 11 for the description.
-    const measured = dialogQuestion(long, 3, { rows: 30, columns: 100 }).split('\n')
-    expect(measured).toHaveLength(15)
-    expect(measured.at(-1)).toBe('… 30 more lines not shown')
-    // Wrapped rows count: at 20 columns the recommendation takes three.
-    expect(dialogQuestion(long, 3, { rows: 30, columns: 20 }).split('\n')).toHaveLength(13)
-    // A screen too short for anything still shows a line of the description and the count.
-    expect(dialogQuestion(long, 3, { rows: 10, columns: 100 }).split('\n').slice(4)).toEqual(['Line 1', '… 39 more lines not shown'])
   })
 })
 

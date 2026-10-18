@@ -34,8 +34,9 @@ items yourself while the hook is working.
 
 Keep the subject to one short line: the question, the recommendation and the link. Everything else
 goes in the description, written as short paragraphs or `- ` bullets with real line breaks between
-them, never as one long paragraph. The user reads it in a dialog that keeps your line breaks but
-shows no markdown and cuts what doesn't fit the screen, so put what they need to decide first.
+them, never as one long paragraph. The user reads it in a scrollable view that draws your markdown
+(lists, tables, code) and shows all of it, but only a few lines fit at once, so put what they need
+to decide first.
 
 In your message, refer to the item by its label ("D3"); TaskList shows it if TaskCreate's result doesn't.
 

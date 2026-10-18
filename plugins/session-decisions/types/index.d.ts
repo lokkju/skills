@@ -21,6 +21,12 @@ export type Item = {
 export type Counters = { D: number; A: number }
 
 /**
+ * The item the queue pane shows in full, by `<source>:<id>`, in place of the list; `owns` is true
+ * when the pane opened for it, so its actions close the pane instead of going back to the list.
+ */
+export type Details = { item: string; owns: boolean }
+
+/**
  * What the plugin knows of a subagent's loop, by its agent id: spawned in the background or the
  * foreground (as its `agent.spawn` said), or seen calling a task tool. `$.tool.list()` answers the
  * main loop's tools inside a subagent, so this is how decision_close tells whether the loop that
@@ -54,6 +60,7 @@ declare module 'claude-code' {
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean
+      details: Details | null
       ascii: boolean
     }
   }

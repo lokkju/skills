@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { dialogExtras, hasMore, moreSplit, recommendationCut } from '../hooks/more'
+import { detailsExtras, hasMore, moreSplit, recommendationCut } from '../hooks/more'
 import { splitBody } from '../hooks/subject'
 
 const GITHUB = { kind: 'github', host: 'github.com', repo: 'lokkju/skills' } as const
@@ -21,17 +21,17 @@ describe('hasMore', () => {
     expect(hasMore(item('Keep SQLite for tests? (recommend yes) [#13]', 'It runs in memory.'), null)).toBe(true)
   })
 
-  test('a link the dialog spells out as a URL is more', () => {
+  test('a link the details view spells out as a URL is more', () => {
     // A short reference resolved on the forge, which the card shows only as #13.
     expect(hasMore(item('Keep SQLite? (recommend yes) [#13]'), GITHUB)).toBe(true)
-    // A URL: the card draws it on its own line, and the dialog offers to copy it.
+    // A URL: the card draws it on its own line, and the details view offers to copy it.
     expect(hasMore(item('read the runbook [https://example.com/runbook]'), null)).toBe(true)
     expect(hasMore(item('review it [https://github.com/lokkju/skills/pull/20]'), null)).toBe(true)
-    // A reference no forge resolves gives the dialog nothing to add.
+    // A reference no forge resolves gives the details view nothing to add.
     expect(hasMore(item('see it [gitlab/group/proj#4]'), null)).toBe(false)
   })
 
-  test('a command the dialog offers to copy is more', () => {
+  test('a command the details view offers to copy is more', () => {
     expect(hasMore(item('run `uv sync` first? (recommend yes) [#2]'), null)).toBe(true)
   })
 
@@ -44,14 +44,14 @@ describe('hasMore', () => {
   })
 })
 
-describe('dialogExtras', () => {
-  test('the URL and the first command the dialog offers', () => {
-    expect(dialogExtras(splitBody('ship? (recommend yes) [#3]'), 'Run `make` then `make test`.', GITHUB)).toEqual({
+describe('detailsExtras', () => {
+  test('the URL and the first command the details view offers', () => {
+    expect(detailsExtras(splitBody('ship? (recommend yes) [#3]'), 'Run `make` then `make test`.', GITHUB)).toEqual({
       url: 'https://github.com/lokkju/skills/issues/3',
       code: 'make',
     })
-    expect(dialogExtras(splitBody('ship? (recommend yes) [#3]'), '', null)).toEqual({ url: null, code: null })
-    expect(dialogExtras(splitBody('open [http://grafana.lab/d/x]'), '', null).url).toBe('http://grafana.lab/d/x')
+    expect(detailsExtras(splitBody('ship? (recommend yes) [#3]'), '', null)).toEqual({ url: null, code: null })
+    expect(detailsExtras(splitBody('open [http://grafana.lab/d/x]'), '', null).url).toBe('http://grafana.lab/d/x')
   })
 })
 
