@@ -4,8 +4,10 @@
 #
 # 1. Every commit subject is a Conventional Commit. Subjects starting with
 #    "Merge " (git's and GitHub's default merge subjects) are skipped, since
-#    yeet ignores them too. A merge commit titled with the PR title doesn't
-#    exist until the merge; pr-title.yml checks that title.
+#    yeet ignores them too. yeet skips the merge commit itself only while the
+#    repo keeps GitHub's default merge message; a merge commit titled with the
+#    PR title is conventional, yeet counts it, and it doesn't exist until the
+#    merge (pr-title.yml checks that title).
 # 2. A PR that changes a target's releasable files has at least one commit
 #    that releases (feat, fix or perf from bump_types in .yeet.yaml, or a
 #    breaking change: type!: or a BREAKING CHANGE footer), unless it carries

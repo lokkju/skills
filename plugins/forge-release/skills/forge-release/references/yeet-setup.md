@@ -14,13 +14,27 @@ and change `YEET_VERSION`, `YEET_SHA256` and the schema URL in `.yeet.yaml` toge
 
 ## Repo settings (GitHub)
 
-- **Merge method.** Merge commits on. yeet reads every commit that lands on the release branch,
-  including the commits a merge commit brings in, so a PR's commits each become a changelog
-  line. If the merge commit's title is the PR title (Settings, Pull Requests, "Default commit
-  message": Pull request title), that title is a commit too, and a conventional one: yeet lists
-  it as well, and `templates/pr-title.yml` should check it. With the default merge message
-  ("Merge pull request #N from ...") yeet skips it. If squash stays enabled, set its default
-  message to "Pull request title and description", since yeet reads the final commit only.
+- **Merge method.** Merge commits on, with GitHub's default merge message; squash and rebase
+  off. yeet reads every commit that lands on the release branch, including the commits a merge
+  commit brings in, so each of a PR's commits becomes a changelog line. The default merge
+  subject ("Merge pull request #N from <branch>") is one yeet skips, and only the PR's own
+  commits release. If the merge commit takes the PR title instead, that title is a conventional
+  commit too: yeet lists it beside the PR's commits and every merged PR shows up twice in the
+  changelog. In the web UI that's Settings, General, Pull Requests: "Allow merge commits" on
+  with "Default message", "Allow squash merging" and "Allow rebase merging" off. Through the
+  API:
+
+  ```bash
+  gh api -X PATCH repos/OWNER/REPO -F allow_merge_commit=true \
+    -f merge_commit_title=MERGE_MESSAGE -f merge_commit_message=PR_TITLE \
+    -F allow_squash_merge=false -F allow_rebase_merge=false
+  ```
+
+  A repo managed as code takes the setting in that code, not the web UI or the API, or the next
+  apply puts the old one back. With Pulumi's github provider those are the `github.Repository`
+  args `allow_merge_commit=True`, `merge_commit_title="MERGE_MESSAGE"`,
+  `merge_commit_message="PR_TITLE"`, `allow_squash_merge=False` and `allow_rebase_merge=False`
+  (camelCase in TypeScript); Terraform's `github_repository` uses the same names.
 - **Branch rules.** The token must be able to push and force-push `yeet/release-*`, and create
   tags matching the tag prefix. A ruleset that covers all branches or tags needs the App as a
   bypass actor.
