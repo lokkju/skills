@@ -19,14 +19,18 @@ no `forge-tracker write`, no `gh issue close`, `gh label`, `gh api` or `git push
 ## Presenting the report
 
 1. **Proposals**, keeping each one's number, its id (`close #14`, `labels #22 ruling`, `unlink #26
-   from #19`, `delete-branch sd-26`) and its evidence, grouped by kind: closes, label and
-   milestone fixes, unlinks, branch deletions. Keep the numbers as the report prints them, so
-   the user's answer maps back to exactly one id.
+   from #19`, `link-add #18 blocked by #17`, `delete-branch sd-26`) and its evidence, grouped by
+   kind: closes, label and milestone fixes, unlinks, new links, branch deletions. Keep the
+   numbers as the report prints them, so the user's answer maps back to exactly one id. A
+   `link-add` turns blocking that an issue body states only in words into the native link that
+   `/next` reads; it never edits the body, and the sentence can stay.
 2. **Unclear (not acted on)**: say plainly that `/groom` won't touch these, and why each is there
    (no closing reference, merged somewhere other than the default branch, a merge commit not on
    it, `conflicts: unknown`, a branch with commits the default branch lacks, a tier label and
-   milestone that disagree, a likely duplicate). Never call `conflicts: unknown` clean.
-3. **Listed for you**: conflicted or stale PRs and shared due dates, for the user to judge.
+   milestone that disagree, a likely duplicate, prose blocking that names a pull request or an
+   issue in another project). Never call `conflicts: unknown` clean.
+3. **Listed for you**: conflicted or stale PRs, shared due dates, and prose blocking on a blocker
+   that has closed (only a person edits the body), for the user to judge.
 4. Every `FAILED (...)` line, plainly, with its reason. A check that failed found nothing only
    because it didn't run; never summarize it as clean. **Skipped** lines name the config a
    check needs.
@@ -61,6 +65,14 @@ with them before making it.
 
 If you are running this for your own purposes (to check the board, not because the user typed
 `/groom`), report the proposals and stop; never apply them.
+
+## Recording blocking yourself
+
+Outside `/groom`, when you file an issue that waits on another, or find that one you're working
+on does, record it with `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link add <blocked>
+--blocked-by <blocker>`, not as `Blocked by: #N` in the body: `/next` and this report read only
+native links. Links `/groom` itself finds missing go through the approval above, like every
+other fix.
 
 ## When the report has a `setup:` line
 
