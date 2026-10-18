@@ -9,9 +9,11 @@ The write transport lives here and nowhere else, so no adapter or report can rea
 only POST, PATCH and DELETE, only under the project's own REST path, and never to GraphQL.
 Every operation, written, refused or failed, is appended to a 0600 log in the local cache.
 
-So far the operations are the ones `/groom` proposes: `close`, `labels`, `milestone`, `unlink`
-and `delete-branch`, plus `label-create`, which first-use setup runs for the labels the user
-approved. `file` and `rule` (discovered work, recording a ruling) come with the working rules.
+So far the operations are the ones `/groom` proposes: `close`, `labels`, `milestone`, `unlink`,
+`delete-branch` and `link-add`; `label-create`, which first-use setup runs for the labels the
+user approved; and `link-remove`, which with `link-add` is how an agent records blocking
+(`forge-tracker link add|remove`). `file` and `rule` (discovered work, recording a ruling) come
+with the working rules.
 """
 
 from __future__ import annotations
@@ -28,10 +30,20 @@ from datetime import datetime
 from typing import Any, Callable, Optional
 
 from . import state
-from .model import ForgeError, iso
+from .model import ForgeError, IssueRef, Link, iso
 from .transport import USER_AGENT, Http, ReadTransport, redact
 
-OPS = ("close", "labels", "milestone", "unlink", "delete-branch", "label-create")
+OPS = (
+    "close",
+    "labels",
+    "milestone",
+    "unlink",
+    "delete-branch",
+    "label-create",
+    "link-add",
+    "link-remove",
+)
+LINK_OPS = ("link-add", "link-remove")
 WRITE_METHODS = ("POST", "PATCH", "DELETE")
 WRAPPER_TIMEOUT = 120
 # GitHub's limits on a label.
@@ -91,7 +103,10 @@ _KEYS = {
     "unlink": {"issue", "blocker", "blocker_project", "label"},
     "delete-branch": {"branch", "sha"},
     "label-create": {"name", "color", "description"},
+    "link-add": {"issue", "blocker", "blocker_project"},
+    "link-remove": {"issue", "blocker", "blocker_project"},
 }
+_PROJECT = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 def validate(op: str, payload: Any, project: str) -> dict[str, Any]:
@@ -154,9 +169,24 @@ def validate(op: str, payload: Any, project: str) -> dict[str, Any]:
             not isinstance(description, str) or len(description) > LABEL_DESCRIPTION_MAX
         ):
             errors.append(f"description must be a string of at most {LABEL_DESCRIPTION_MAX}")
+    elif op in LINK_OPS:
+        issue, blocker = _int(payload, "issue", errors), _int(payload, "blocker", errors)
+        other = payload.get("blocker_project")
+        if other is not None and (not isinstance(other, str) or not _PROJECT.fullmatch(other)):
+            errors.append("blocker_project must be owner/repo")
+        elif issue is not None and issue == blocker and other in (None, project):
+            errors.append(f"#{issue} can't block itself")
     if errors:
         raise WriteRefused("; ".join(errors))
     return dict(payload)
+
+
+def blocker_ref(payload: Mapping[str, Any], project: str) -> str:
+    """The blocker a link payload names, written the way the forge writes it."""
+    other = payload.get("blocker_project")
+    if other and other != project:
+        return f"{other}#{payload['blocker']}"
+    return f"#{payload['blocker']}"
 
 
 # --- the write transport ------------------------------------------------------------------------
@@ -301,6 +331,34 @@ class GitHubWrites:
         ref = f"{p['blocker_project']}#{p['blocker']}" if p.get("blocker_project") else None
         return f"#{number}: no longer blocked by {ref or '#' + str(p['blocker'])}"
 
+    def _blocker_id(self, p: Mapping[str, Any]) -> int:
+        project = p.get("blocker_project") or self.project
+        blocker = self.r.get(f"/repos/{project}/issues/{p['blocker']}")
+        if not isinstance(blocker, dict) or not blocker.get("id"):
+            raise ForgeError(f"{blocker_ref(p, self.project)} returned no id")
+        return int(blocker["id"])
+
+    def link_add(self, p: Mapping[str, Any]) -> str:
+        """`POST /issues/{n}/dependencies/blocked_by` with the blocker's id. The Writer has
+        already checked that the link is new and both sides are open issues."""
+        number = p["issue"]
+        self.w.send(
+            "POST",
+            f"{self.repo_path}/issues/{number}/dependencies/blocked_by",
+            {"issue_id": self._blocker_id(p)},
+        )
+        return f"#{number}: now blocked by {blocker_ref(p, self.project)}"
+
+    def link_remove(self, p: Mapping[str, Any]) -> str:
+        """`DELETE /issues/{n}/dependencies/blocked_by/{id}`, whatever the blocker's state.
+        `unlink` is the `/groom` fix, which removes a link only once its blocker closed."""
+        number = p["issue"]
+        self.w.send(
+            "DELETE",
+            f"{self.repo_path}/issues/{number}/dependencies/blocked_by/{self._blocker_id(p)}",
+        )
+        return f"#{number}: no longer blocked by {blocker_ref(p, self.project)}"
+
     def delete_branch(self, p: Mapping[str, Any]) -> str:
         name = p["branch"]
         branch = self.r.get(f"{self.repo_path}/branches/{_quote(name, '/')}")
@@ -339,6 +397,11 @@ class Writer:
     # The names of the repo's labels, read through the read transport. `label-create` checks it
     # before anything is sent, with or without a wrapper, and is refused when it isn't set.
     existing_labels: Optional[Callable[[], Sequence[str]]] = None
+    # One issue by number (and project), and the native links blocking one of this project's
+    # issues, read through the read transport. `link-add` and `link-remove` check them before
+    # anything is sent, with or without a wrapper, and are refused when they aren't set.
+    issue_ref: Optional[Callable[[int, Optional[str]], IssueRef]] = None
+    blocked_by: Optional[Callable[[int], Sequence[Link]]] = None
 
     def _new_label(self, name: str) -> None:
         if self.existing_labels is None:
@@ -350,6 +413,34 @@ class Writer:
                 "nothing written"
             )
 
+    def _link(self, op: str, p: Mapping[str, Any]) -> None:
+        """Refuse a link-remove whose link isn't there, and a link-add whose link already is or
+        whose either side is a pull request or closed, before anything is sent."""
+        if self.issue_ref is None or self.blocked_by is None:
+            raise WriteRefused("can't check the issue's existing links; nothing written")
+        number, blocker = p["issue"], blocker_ref(p, self.project)
+        other = p.get("blocker_project")
+        other = None if other in (None, self.project) else other
+        linked = any(
+            link.blocker == p["blocker"] and link.blocker_project == other
+            for link in self.blocked_by(number)
+        )
+        if op == "link-remove":
+            if not linked:
+                raise WriteRefused(f"#{number} isn't blocked by {blocker}; nothing written")
+            return
+        if linked:
+            raise WriteRefused(f"#{number} is already blocked by {blocker}; nothing written")
+        sides = (
+            (self.issue_ref(number, None), f"#{number}"),
+            (self.issue_ref(p["blocker"], other), blocker),
+        )
+        for ref, name in sides:
+            if ref.is_change:
+                raise WriteRefused(f"{name} is a pull request; a blocking link joins two issues")
+            if ref.state == "closed":
+                raise WriteRefused(f"{name} is closed; a link to or from it blocks nothing")
+
     def apply(self, op: str, payload: Any) -> Result:
         via = "wrapper" if self.wrapper else "forge"
         try:
@@ -357,6 +448,8 @@ class Writer:
             checked.setdefault("repo", self.project)
             if op == "label-create":
                 self._new_label(checked["name"])
+            if op in LINK_OPS:
+                self._link(op, checked)
             if self.wrapper:
                 detail = self._wrapped(op, checked)
             else:

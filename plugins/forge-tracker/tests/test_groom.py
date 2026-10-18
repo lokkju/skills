@@ -340,6 +340,7 @@ class Forge:
         self.answers = {}
         self.issue_state = {14: "open"}
         self.branch_heads = {"old-1": "d"}
+        self.changes: set[int] = set()  # numbers that are pull requests
 
     def __call__(self, method, url, headers, body=None):
         path = urllib.parse.urlsplit(url).path
@@ -352,7 +353,10 @@ class Forge:
             if tail.isdigit():
                 number = int(tail)
                 state = "closed" if number == 19 else self.issue_state.get(number, "open")
-                return response({"id": 9000 + number, "number": number, "state": state})
+                raw = {"id": 9000 + number, "number": number, "state": state}
+                if number in self.changes:
+                    raw["pull_request"] = {"url": "x"}
+                return response(raw)
         if method == "GET" and path.startswith("/repos/acme/widgets/branches/"):
             name = path[len("/repos/acme/widgets/branches/") :]
             return response({"name": name, "commit": {"sha": self.branch_heads.get(name, "?")}})

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -367,6 +368,8 @@ def make_writer(
         run=run,
         now=lambda: now,
         existing_labels=lambda: [label.name for label in ctx.adapter.labels()],
+        issue_ref=lambda number, project: ctx.adapter.issue_ref(number, project),
+        blocked_by=ctx.adapter.blocked_by,
     )
 
 
@@ -423,6 +426,48 @@ def cmd_write(
         print(problem, file=sys.stderr)
         return EXIT_USAGE
     result = make_writer(ctx, now, environ, run).apply(args.op, payload)
+    out.write(writes.render(result) + "\n")
+    if result.status == "refused":
+        return EXIT_USAGE
+    return EXIT_OK if result.ok else EXIT_FAILED
+
+
+_ISSUE_ARG = re.compile(r"#?(\d+)")
+_BLOCKER_ARG = re.compile(r"(?:([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#?(\d+)")
+
+
+def link_payload(blocked: str, blocker: str) -> Optional[dict[str, Any]]:
+    """The link-add or link-remove payload for `<blocked> --blocked-by <blocker>`, where the
+    blocked issue is `18` or `#18` and the blocker also may be `owner/repo#17`; None when either
+    doesn't parse."""
+    a, b = _ISSUE_ARG.fullmatch(blocked.strip()), _BLOCKER_ARG.fullmatch(blocker.strip())
+    if not a or not b:
+        return None
+    payload: dict[str, Any] = {"issue": int(a.group(1)), "blocker": int(b.group(2))}
+    if b.group(1):
+        payload["blocker_project"] = b.group(1)
+    return payload
+
+
+def cmd_link(
+    args: argparse.Namespace,
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    out: TextIO,
+) -> int:
+    """`link add|remove <blocked> --blocked-by <blocker>`: the link-add or link-remove write
+    with the payload built from the arguments. Exits 2 when it's refused."""
+    payload = link_payload(args.issue, args.blocked_by)
+    if payload is None:
+        print(
+            "forge-tracker: link takes an issue number (18 or #18) and --blocked-by an issue "
+            "(17, #17 or owner/repo#17)",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    result = make_writer(ctx, now, environ, run).apply(f"link-{args.action}", payload)
     out.write(writes.render(result) + "\n")
     if result.status == "refused":
         return EXIT_USAGE
@@ -566,7 +611,8 @@ def parser() -> argparse.ArgumentParser:
         prog="forge-tracker",
         description=(
             "Read a repo's forge (GitHub so far) and report on it. Every command only reads, "
-            "except `write`, `groom apply` and `labels create`, which run named write operations."
+            "except `write`, `link`, `groom apply` and `labels create`, which run named write "
+            "operations."
         ),
     )
     p.add_argument("--repo", default=".", help="the git checkout to report on (default: .)")
@@ -672,6 +718,28 @@ def parser() -> argparse.ArgumentParser:
     )
     w.add_argument("op", choices=writes.OPS)
 
+    lk = sub.add_parser(
+        "link",
+        help="record that an issue is blocked by another, as a native link (or remove one)",
+        description=(
+            "Add or remove a native blocking link: `link add 18 --blocked-by 17` records that "
+            "#18 waits on #17 in the forge's own relationship data, which /next and /groom read; "
+            "prose such as 'Blocked by #17' in an issue body is invisible to both. It runs the "
+            "link-add or link-remove write operation, through the write-wrapper when the config "
+            "sets one, and is refused, writing nothing, for a link that already exists (add) or "
+            "doesn't (remove), a self-link, or a pull request or closed issue on either side "
+            "(add). Exits 2 when it's refused."
+        ),
+    )
+    lk.add_argument("action", choices=("add", "remove"))
+    lk.add_argument("issue", help="the blocked issue: 18 or #18")
+    lk.add_argument(
+        "--blocked-by",
+        required=True,
+        metavar="ISSUE",
+        help="the blocker: 17, #17, or owner/repo#17 in another project",
+    )
+
     sub.add_parser("smoke", help="run every read once and print counts (a live check)")
     return p
 
@@ -701,7 +769,7 @@ def main(
     if args.command == "labels" and args.action == "decline":
         return cmd_labels_decline(os.path.abspath(args.repo), run, now, environ, out)
     writing = (
-        args.command == "write"
+        args.command in ("write", "link")
         or (args.command == "groom" and args.action == "apply")
         or (args.command == "labels" and args.action == "create")
     )
@@ -743,6 +811,8 @@ def main(
             return cmd_groom(args, ctx, now, out)
         if args.command == "write":
             return cmd_write(args, ctx, now, environ, run, stdin or sys.stdin, out)
+        if args.command == "link":
+            return cmd_link(args, ctx, now, environ, run, out)
         return cmd_smoke(ctx, now, out)
     except BrokenPipeError:
         return EXIT_FAILED

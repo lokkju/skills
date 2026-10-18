@@ -187,6 +187,19 @@ class Link:
 
 
 @dataclass(frozen=True)
+class IssueRef:
+    """One issue or change looked up by number, possibly in another project: what a blocking
+    link to it needs to know. `id` is the forge's own id, which GitHub's link API takes."""
+
+    number: int
+    state: str  # open | closed
+    is_change: bool
+    id: Optional[int] = None
+    project: Optional[str] = None  # None when it's in the project being read
+    closed: Optional[datetime] = None
+
+
+@dataclass(frozen=True)
 class ClosingRef:
     """A change whose body or commits carry a real closing reference (`Closes #N`) to an issue,
     whatever the change's state. `state` is open, merged or closed."""
