@@ -25,6 +25,14 @@
   (`scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
   example step files for Claude Code. Tests run with
   `uv run --no-project --with pytest pytest plugins/term-recorder/tests` and need tmux.
+- `scripts/`: repo scripts that aren't part of any plugin. `check-skill-names.py` (below) and
+  `delegation-stats.py`, a standard-library `uv run` script that reads a project's Claude Code
+  transcripts under `~/.claude/projects/` and prints delegation numbers per session: prompts
+  with tool calls, the share with an Agent call, read runs, main-thread context and subagent
+  tokens (lokkju/infra#284). It prints numbers only, never transcript content, and exits 2
+  naming the file and line on a record shape it doesn't know, which is the cue to update it for
+  a new Claude Code version. Tests run with `uv run --no-project --with pytest pytest
+  scripts/tests` over synthetic transcripts; never commit real ones.
 
 `npx skills add lokkju/skills` finds every `SKILL.md` under `plugins/*/skills/`, so a skill here
 is installable for any agent as well as through the marketplace.
@@ -80,6 +88,7 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
   `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
 - `forge-release`, `forge-tracker` and `term-recorder`: `ruff check`, `ruff format --check` and
   the pytest suite on Python 3.11 and 3.14 (tmux is installed for term-recorder's).
+- `scripts`: the same ruff checks and `scripts/tests` on Python 3.11 and 3.14.
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
 
@@ -96,6 +105,8 @@ uvx ruff check plugins/forge-tracker && uvx ruff format --check plugins/forge-tr
 uv run --no-project --with pytest pytest plugins/forge-tracker/tests
 uvx ruff check plugins/term-recorder && uvx ruff format --check plugins/term-recorder
 uv run --no-project --with pytest pytest plugins/term-recorder/tests
+uvx ruff check scripts && uvx ruff format --check scripts
+uv run --no-project --with pytest pytest scripts/tests
 uv run --no-project scripts/check-skill-names.py
 ```
 
