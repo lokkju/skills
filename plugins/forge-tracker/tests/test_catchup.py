@@ -495,7 +495,9 @@ def test_keys_set_to_none_silence_the_notes(env, repo_dir):
     )
     code, text = run_catchup(env)
     assert code == 0
-    assert "setup:" not in text
+    # Nothing is called unset; the ~ labels only get the offer to create them.
+    assert "unset in" not in text
+    assert "(setup: labels.needs_human and labels.decision set to ~ in " in text
     assert "ruling_pattern" not in text
 
 

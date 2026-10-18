@@ -3,8 +3,9 @@ already has, and remember a declined offer to set one up.
 
 `suggest` reads the forge and prints a proposal; it writes nothing. Writing the config file is the
 assistant's job, and only on the user's yes. `decline` writes one local cache file and reads no
-forge. Neither one creates a label: creating one isn't a write operation yet, so a missing label
-is a command printed for the user to run.
+forge. `create` makes the labels the user approved, by name, each through the write layer's
+`label-create` operation (the caller passes it in; this module can't write), and prints the
+config lines that replace their `~`. Nothing is created without names given explicitly.
 """
 
 from __future__ import annotations
@@ -50,6 +51,15 @@ DEFAULT_NAMES: dict[str, tuple[str, str]] = {
     "decision_made": ("decided", "The decision is recorded in a comment"),
     "blocked": ("blocked", "Can't start until something else lands"),
     "agent": ("agent-ready", "Ready for an agent to pick up"),
+}
+
+# The color a created label gets, fixed per role.
+COLORS: dict[str, str] = {
+    "needs_human": "d93f0b",
+    "decision": "fbca04",
+    "decision_made": "0e8a16",
+    "blocked": "b60205",
+    "agent": "1d76db",
 }
 
 # Priority families: (pattern with one group, how to order the group). The family with the most
@@ -120,12 +130,15 @@ def suggest(labels: Sequence[Label], cfg: Config) -> dict[str, Any]:
     existing = {name.lower() for name in names}
     missing = []
     for role, entry in roles.items():
-        if entry["source"] != "none":
+        # A role nothing matched, or one the config sets to ~ (no such label yet).
+        if entry["label"] is not None:
             continue
         name, description = DEFAULT_NAMES[role]
         if name.lower() in existing:  # taken by another role; don't propose a clash
             continue
-        missing.append({"key": role, "name": name, "description": description})
+        missing.append(
+            {"key": role, "name": name, "description": description, "color": COLORS[role]}
+        )
     return {
         "roles": roles,
         "tiers": {"labels": tiers, "source": tier_source},
@@ -183,7 +196,10 @@ def frontmatter_lines(proposal: dict[str, Any], only_new: bool) -> list[str]:
 def create_command(remote: Remote, item: Mapping[str, str]) -> str:
     repo = remote.project if remote.host == "github.com" else f"{remote.host}/{remote.project}"
     description = item["description"].replace('"', '\\"')
-    return f'gh label create {item["name"]} -R {repo} --description "{description}"'
+    return (
+        f"gh label create {item['name']} -R {repo} --color {item['color']} "
+        f'--description "{description}"'
+    )
 
 
 def report(labels: Sequence[Label], cfg: Config, remote: Remote, now: datetime) -> dict[str, Any]:
@@ -216,20 +232,120 @@ def render(data: Mapping[str, Any]) -> str:
     count = len(data["labels_read"])
     head = f"{data['project']} on {data['host']}: {count} label{'s' if count != 1 else ''}"
     out = [head, ""]
-    if data["config_exists"]:
-        if not data["content"]:
-            out.append(f"{data['path']} already sets every key this proposes; nothing to add.")
-            return "\n".join(out) + "\n"
-        out.append(f"{data['path']} exists. Add these keys to its frontmatter (merge into its")
-        out.append("labels: and tiers: blocks where it has them):")
-    else:
-        out.append(f"Proposed {data['path']} (nothing written):")
-    out += ["", data["content"].rstrip("\n"), ""]
     missing = data["proposal"]["missing"]
+    if data["config_exists"] and not data["content"]:
+        out.append(f"{data['path']} already sets every key this proposes; nothing to add.")
+        if not missing:
+            return "\n".join(out) + "\n"
+        out.append("")
+    else:
+        if data["config_exists"]:
+            out.append(f"{data['path']} exists. Add these keys to its frontmatter (merge into its")
+            out.append("labels: and tiers: blocks where it has them):")
+        else:
+            out.append(f"Proposed {data['path']} (nothing written):")
+        out += ["", data["content"].rstrip("\n"), ""]
     if missing:
-        out.append("Not on the forge (set to ~ above). To create them instead, the user can run:")
+        names = " ".join(item["name"] for item in missing)
+        roles = ", ".join(f"labels.{item['key']}" for item in missing)
+        out.append(f"Not on the forge ({roles} at ~). With the user's approval, create them with")
+        out.append(f"  forge-tracker labels create {names}")
+        out.append("(through the write-wrapper when one is set), or the user can run:")
         out += [f"  {item['command']}" for item in missing]
         out.append("and then put each name in place of its ~.")
+    return "\n".join(out) + "\n"
+
+
+# --- creating the approved labels ---------------------------------------------------------------
+
+
+class CreateError(ValueError):
+    """`labels create` arguments that don't fit; the message names every problem."""
+
+
+def plan_create(args: Sequence[str], labels: Sequence[Label], cfg: Config) -> list[dict[str, str]]:
+    """The labels to create, one per approved argument: a default name (`needs-human`), a role
+    (`needs_human`), or `role=name` for another name. Refuses (all of them) a role the config
+    already maps to a label, a role or name given twice, and a name the repo already has,
+    compared without case."""
+    if not args:
+        raise CreateError("name the approved labels; nothing is created without them")
+    by_default = {name.lower(): role for role, (name, _) in DEFAULT_NAMES.items()}
+    existing = {label.name.lower(): label.name for label in labels}
+    errors: list[str] = []
+    plan: list[dict[str, str]] = []
+    roles: set[str] = set()
+    names: set[str] = set()
+    for arg in args:
+        role, sep, name = arg.partition("=")
+        if sep:
+            role, name = role.strip(), name.strip()
+        elif arg in DEFAULT_NAMES:
+            role, name = arg, DEFAULT_NAMES[arg][0]
+        else:
+            role = by_default.get(arg.lower(), "")
+            name = arg
+        if role not in DEFAULT_NAMES:
+            errors.append(
+                f"{arg!r}: not a default name ({', '.join(n for n, _ in DEFAULT_NAMES.values())}), "
+                f"a role ({', '.join(LABEL_KEYS)}), or role=name"
+            )
+            continue
+        if not name:
+            errors.append(f"{arg!r}: the name is empty")
+            continue
+        if role in cfg.labels:
+            errors.append(f"labels.{role} is already {cfg.labels[role]!r} in {PATH}")
+        elif role in roles:
+            errors.append(f"labels.{role} is named twice")
+        elif name.lower() in names:
+            errors.append(f"{name!r} is named twice")
+        elif name.lower() in existing:
+            errors.append(
+                f"{name!r}: the repo already has {existing[name.lower()]!r} (names compare "
+                "without case); put that in the config instead"
+            )
+        roles.add(role)
+        names.add(name.lower())
+        plan.append(
+            {
+                "key": role,
+                "name": name,
+                "color": COLORS[role],
+                "description": DEFAULT_NAMES[role][1],
+            }
+        )
+    if errors:
+        raise CreateError("; ".join(errors))
+    return plan
+
+
+def create(plan: Sequence[Mapping[str, str]], apply: Any) -> dict[str, Any]:
+    """Run `apply("label-create", payload)` for each planned label, in order, and collect what
+    happened; `apply` returns the write layer's Result."""
+    results = []
+    for item in plan:
+        payload = {k: item[k] for k in ("name", "color", "description")}
+        result = apply("label-create", payload)
+        results.append(dict(item, status=result.status, detail=result.detail, via=result.via))
+    created = {r["key"]: r["name"] for r in results if r["status"] == "written"}
+    return {
+        "results": results,
+        "config": created,
+        "ok": all(r["status"] == "written" for r in results),
+    }
+
+
+def render_create(data: Mapping[str, Any]) -> str:
+    out = []
+    for r in data["results"]:
+        if r["status"] == "written":
+            out.append(f"{r['name']}: {r['detail']}")
+        else:
+            out.append(f"{r['name']}: {r['status'].upper()} ({r['detail']})")
+    if data["config"]:
+        out.append(f"Put these in {PATH} in place of their ~:")
+        out += [f"  labels.{role}: {yaml_str(name)}" for role, name in data["config"].items()]
     return "\n".join(out) + "\n"
 
 

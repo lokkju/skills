@@ -1,8 +1,11 @@
 lokkju/skills on github.com, facts from 2026-10-16 06:37 (read now)
+Unlabelled: no needs-human or decision label is configured, so 15 open issues are unclassified until a slate places them
 
 Your queue (no slate: most agent-ready items unblocked first)
-  nothing person-only (but labels aren't configured to mark any; see setup)
+  nothing marked person-only: no label is configured to mark any, so the unclassified issues below may still need you
 Agent-ready (no slate: by tier, agent label first, then due date)
+  none: without a needs-human or decision label nothing can be called agent-ready (see Not classified)
+Not classified (no needs-human or decision label is configured; a slate places these)
   #1 session-decisions: block a reply that hands work to the user without queuing it
   #10 forge-release: standardize on yeet for new repos instead of release-please for SemVer on GitHub?
   #11 forge-release: write the skill (setup, migration, troubleshooting, release-triggered deploys)
@@ -19,7 +22,7 @@ Agent-ready (no slate: by tier, agent label first, then due date)
   #59 forge-tracker: offer to configure labels on first use; an unconfigured repo silently reports an empty queue
   #60 session-decisions: per-repo forge override (kind and web base), ahead of forge_hosts
 Blocked
-  nothing blocked
+  no blocking links recorded (no blocked label is configured)
 (setup: labels.needs_human and labels.decision unset in .claude/forge-tracker.local.md, so no label marks needs-human or decision items. Set them, or set them to ~ to record that this repo has none; `forge-tracker labels suggest` proposes one from this repo's labels)
 
 slate: needed (no slate is saved for this repo). Rank from `forge-tracker next facts --json` and save with `forge-tracker next save-slate`.

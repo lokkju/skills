@@ -90,7 +90,7 @@ class Config:
         the user declined it here."""
         missing = [k for k in keys if self._get(k) is None and k not in self.set_to_none]
         if not missing:
-            return None
+            return self._create_note()
         kinds = [k.split(".", 1)[1].replace("_", "-") for k in missing if k.startswith("labels.")]
         lost = []
         if kinds:
@@ -110,6 +110,18 @@ class Config:
         return (
             f"{SETUP_PREFIX} {_join(missing, 'and')} unset in {PATH}, so {effect}. Set them, or set "
             f"them to ~ to record that this repo has none; {how}"
+        )
+
+    def _create_note(self) -> Optional[str]:
+        """A label role set to `~` means the forge has no such label yet, which setup can create.
+        Until the user creates them or declines setup, the line says so; then it's silent."""
+        unmapped = [f"labels.{k}" for k in LABEL_KEYS if f"labels.{k}" in self.set_to_none]
+        if not unmapped or self.setup_declined:
+            return None
+        return (
+            f"{SETUP_PREFIX} {_join(unmapped, 'and')} set to ~ in {PATH}, so no label marks "
+            "those roles yet. `forge-tracker labels suggest` lists the labels it can create for "
+            "them"
         )
 
     def _get(self, key: str) -> Any:

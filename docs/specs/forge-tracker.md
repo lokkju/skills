@@ -40,7 +40,8 @@ plugins/forge-tracker/
   scripts/forge_tracker/
     detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
-    labelsetup.py                 first use: a config proposed from the repo's labels, a declined offer
+    labelsetup.py                 first use: a config proposed from the repo's labels, the approved
+                                  labels created, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
@@ -220,6 +221,7 @@ one an approved `/groom` change or a working-rule action:
 | `milestone` (set or clear) | `/groom` |
 | `unlink` (remove a blocked label, or a link to a closed blocker) | `/groom` |
 | `delete-branch` | `/groom` |
+| `label-create` (name, color, description) | first-use setup, for the labels the user approved |
 
 Each runs as `forge-tracker write <op>` with a JSON payload on stdin and prints what it did.
 
@@ -236,6 +238,13 @@ before anything is sent (a payload naming another `repo` is refused), and the op
 can go stale check first through the read transport: `close` refuses an issue that's already
 closed, `unlink` a blocker that reopened, and `delete-branch` a branch that moved off the
 payload's `sha` or is protected. The payload the wrapper gets carries `repo` (`owner/repo`).
+
+`label-create` ([#76](https://github.com/lokkju/skills/issues/76)) checks that the name is at
+most 50 characters with no outer spaces, the color six hex digits and the description at most
+100 characters, then reads the repo's labels through the read transport and refuses a name that
+already exists compared without case, since GitHub treats label names that way. That check runs
+before the wrapper too, so a wrapper never gets a clashing name. On GitHub it's one `POST
+/repos/{o}/{r}/labels`.
 Every operation, written, refused or failed, is appended to
 `.../forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
@@ -257,8 +266,10 @@ Per repo, frontmatter only matters; the body is free notes for the assistant. Un
 the load with the key named. Every key is optional; a report that needs an unset one leaves that
 part out and says so in a single `setup:` line (#59), which names the missing keys, what the
 report can't do without them, and how to set them up. A label key or `ruling_pattern` set to `~`
-(or `null`) records that the repo has no such label or convention, and the reports say nothing
-about it; that's how a repo that genuinely lacks a label stops the line.
+(or `null`) records that the repo has no such label or convention. `ruling_pattern: ~` silences
+the line. A label role at `~` means no such label exists on the forge yet, which setup can
+create, so the line names those roles and points at `labels suggest` until they're created or
+setup is declined (`labels decline`); that's how a repo that genuinely lacks a label stops it.
 
 ```markdown
 ---
@@ -297,7 +308,8 @@ call: committed, everyone shares the label names; gitignored, it's personal.
 
 With no config, `/next`'s queue can only fill from marker words, so `Your queue: nothing
 person-only` would read as "nothing needs you" when it means "no label was configured to say so".
-The report says so on that line, and the commands turn the `setup:` line into an offer:
+The report says so on that line, lists the rest as unclassified rather than agent-ready (see
+[Classification](#next-24)), and the commands turn the `setup:` line into an offer:
 
 - **`forge-tracker labels suggest`** reads the repo's labels (`GET /repos/{o}/{r}/labels`,
   through the read transport) and prints a proposed file: each role mapped to the label that
@@ -306,15 +318,27 @@ The report says so on that line, and the commands turn the `setup:` line into an
   spaces, `_`, `:`, `/` and `.` as `-`), the largest priority family as tiers (`P0`..`P9`,
   `priority:N`, `priority: high` and so on, ordered), `~` for each role nothing matched, and
   `ruling_pattern: ~` when that's unset. Keys the existing file already sets, `~` included, are
-  kept and left out of the proposal. For each unmatched role it also prints a `gh label create`
-  command. It writes nothing, and `--json` prints the same.
+  kept and left out of the proposal. For each role nothing matched, and each role the file sets
+  to `~` (no such label yet), it also lists the label it would
+  create (the default name, description and a fixed color per role: `needs-human` d93f0b,
+  `decision` fbca04, `decided` 0e8a16, `blocked` b60205, `agent-ready` 1d76db), as a
+  `forge-tracker labels create` line and as `gh label create` commands. It writes nothing, and
+  `--json` prints the same.
 - **The command files** offer setup once, when the `setup:` line doesn't say it was declined and
   the run isn't an agent's own. Claude shows the proposal and writes `.claude/forge-tracker.local.md`
   only on the user's yes, with their corrections, adding to an existing file rather than
-  replacing it. That's the only write. Labels missing on the forge are an instruction for the
-  user (the printed `gh label create` commands) until creating them becomes a named operation
-  behind the write-wrapper like the others; the write layer exists, but that operation doesn't
-  yet.
+  replacing it. When labels are missing on the forge, Claude then asks a second, separate
+  question, and only on an explicit yes runs `forge-tracker labels create` with the approved
+  names; the yes to the config file doesn't cover it. On a no, the `gh label create` commands
+  stay an instruction for the user, and the roles stay `~`.
+- **`forge-tracker labels create <names>`** ([#76](https://github.com/lokkju/skills/issues/76))
+  takes each approved label as a default name (`needs-human`), a role (`needs_human`) or
+  `role=name` for a name of the user's own. Before anything is written it refuses the whole list,
+  exit 2, for no names at all, a role the config already maps to a label, a role or name given
+  twice, or a name the repo already has compared without case. Then it runs `label-create` for
+  each, through the write-wrapper when one is set, prints a result line per label and the
+  `labels.<role>: <name>` lines that replace the `~` (`--json` reports the same), and Claude
+  writes those into the config file.
 - **`forge-tracker labels decline`** records a no in the local cache (see [State](#state)), reads
   no forge and needs no token. The `setup:` line then says setup was declined, so the commands
   don't offer it again; the line stays, one line, because the report still can't see the labels.
@@ -480,6 +504,12 @@ ranking) and `forge-tracker next save-slate` (JSON on stdin; reads no forge).
   that's neither person-only nor labelled blocked is "not classified", never agent-ready.
 - **Agent-ready:** open, not person-only, not blocked. The agent label isn't required; when it's
   configured, it only sorts labelled items first within their tier.
+- **Unclassified** ([#69](https://github.com/lokkju/skills/issues/69)): with neither the
+  needs-human nor the decision label configured (missing or `~`), nothing could have marked an
+  item person-only, so "not person-only" says nothing. An item that's neither blocked nor marked
+  by a `person_only_markers` word is then `unclassified`, never agent-ready, and the report's
+  second line says how many there are. The CLI can't judge prose; the slate places each one.
+  Repos with either label configured classify exactly as above.
 - **Merged but open:** flagged on the item when a merged change has a real closing reference to
   it (the same rule `/groom` uses), since it inflates the ready list badly; `/groom` fixes it.
 
@@ -506,18 +536,27 @@ facts with their fingerprint. While the fingerprint holds, `/next` shows the sav
 age and doesn't re-rank; `/next --rerank` forces a new one.
 
 The slate is `{"queue": [refs], "lanes": [{"area", "items": [refs], "why"}], "overrules":
-{ref: reason}, "note"}`. Blocked items come from the facts, not the slate. `save-slate` refuses
-(exit 2, every problem named) a ref that isn't an open issue, an item listed twice, a queue item
-that isn't person-only, a lane item that isn't agent-ready, and an overrule of anything but a
-marker hint; it saves only over complete facts whose fingerprint still matches the current config
-and code. Person-only items the slate leaves out are appended to the queue as not ranked, and
-agent-ready items it leaves out are listed as not in a lane.
+{ref: reason}, "person_only": {ref: reason}, "note"}`. Blocked items come from the facts, not the
+slate. `person_only` is Claude's judgement, from an unclassified item's title and body, that the
+user has to act (physical work, a device or test window, research waiting on a decision, an
+external event, a parked item), with the reason; each such item goes in the queue, and the report
+shows it as `judged person-only: <reason>`. An unclassified item Claude judges agent work goes in
+a lane with no extra key. `save-slate` refuses (exit 2, every problem named) a ref that isn't an
+open issue, an item listed twice, a queue item that isn't person-only or judged person-only, a
+lane item that isn't agent-ready or unclassified, an overrule of anything but a marker hint, a
+`person_only` entry for an item that isn't unclassified, without a reason, or missing from the
+queue; it saves only over complete facts whose fingerprint still matches the current config and
+code. Person-only items the slate leaves out are appended to the queue as not ranked, agent-ready
+items it leaves out are listed as not in a lane, and unclassified items it leaves out are listed
+as not placed.
 
 - **Your queue:** person-only items, most agent-ready items unblocked first.
 - **Agent lanes:** agent-ready items by tier and due date, grouped into lanes that shouldn't touch
   the same files. The grouping is Claude's stated judgement from titles, bodies and labels, and
   the output says so. A lane with an open change or a pushed branch is marked in flight.
-- **Blocked:** each blocked item and what it waits on.
+- **Blocked:** each blocked item and what it waits on. With none it says `no blocking links
+  recorded` (or `no blocking links or blocked labels recorded`), since an issue whose text says
+  it waits isn't counted.
 - **Open PRs with no open issue:** every open change that has no open issue in flight, with its
   draft, conflict, CI and review state, its branch, and any issue numbers it names that aren't
   open. It's the mirror of the branch-with-no-PR flag: work in flight that no issue accounts for,
