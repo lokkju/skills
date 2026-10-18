@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/v0.17.0/yeet.schema.json
+#
+# Copy to .yeet.yaml. CalVer YYYY.0M.0D.MICRO in UTC: the first release of a
+# day is .1, the next .2. Shown as a monorepo with one target per component,
+# each tagged <name>--vYYYY.0M.0D.N; for a single deployable, keep one target
+# with path: . and tag_prefix: v. All targets with changes share one release
+# PR. .github/scripts/release-check.sh reads bump_types and the targets.
+
+versioning: calver
+calver:
+  format: YYYY.0M.0D.MICRO
+timezone: UTC
+telemetry:
+  enabled: false
+
+# Only these types release. Under CalVer the bump size doesn't matter; the
+# lists only decide whether a commit releases.
+bump_types:
+  minor: [feat]
+  patch: [fix, perf]
+
+changelog:
+  include: [feat, fix, perf]
+  sections:
+    feat: Features
+    fix: Fixes
+    perf: Performance
+
+targets:
+  COMPONENT: # one block per component
+    type: path
+    path: COMPONENT_PATH
+    tag_prefix: COMPONENT--v
+    version_files:
+      - path: COMPONENT_PATH/package.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: COMPONENT_PATH/CHANGELOG.md
+    exclude_paths:
+      - COMPONENT_PATH/CHANGELOG.md
+      - COMPONENT_PATH/README.md
+      - COMPONENT_PATH/tests
