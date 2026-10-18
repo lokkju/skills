@@ -1,0 +1,88 @@
+name: deploy
+
+# Deploys a release. yeet (yeet.yml) creates the tag and GitHub Release with
+# the release App's token, so the release starts this workflow; a release
+# made with GITHUB_TOKEN would not. workflow_dispatch redeploys an existing
+# tag, for a deploy that failed for an outside reason.
+#
+# Guards, all in the guard job:
+# - the tag has the release shape (TAG_PATTERN), so a stray tag can't deploy
+#   or block deploys;
+# - its commit is on main;
+# - it's the newest release-shaped tag, so a late or re-run deploy of an
+#   older release never overwrites a newer one.
+# This workflow creates nothing: no tags, no releases, no commits.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to redeploy
+        required: true
+
+# Its own group, shared with no other workflow: GitHub keeps one pending run
+# per group and cancels the older one, which here is harmless (the newer tag
+# wins anyway) but would cancel another workflow's run.
+concurrency:
+  group: deploy-release
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  # The release tag shape as an extended regex. SemVer: ^v[0-9]+\.[0-9]+\.[0-9]+$
+  # CalVer YYYY.0M.0D.MICRO with prefix v:
+  TAG_PATTERN: ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check the tag is a release, on main, and the newest
+        run: |
+          set -euo pipefail
+          if ! grep -qE "$TAG_PATTERN" <<<"$TAG"; then
+            echo "::error::$TAG isn't a release tag ($TAG_PATTERN)."
+            exit 1
+          fi
+          git rev-parse -q --verify "refs/tags/$TAG^{commit}" >/dev/null || {
+            echo "::error::No tag $TAG."
+            exit 1
+          }
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/main; then
+            echo "::error::$TAG isn't on main."
+            exit 1
+          fi
+          newest=$(git tag -l | grep -E "$TAG_PATTERN" | sort -V | tail -n 1)
+          if [[ $newest != "$TAG" ]]; then
+            echo "::error::$TAG isn't the newest release ($newest is); not deploying it."
+            exit 1
+          fi
+
+  deploy:
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      # Build and deploy from the tag here.
+      - name: Deploy
+        run: echo "deploy $TAG"

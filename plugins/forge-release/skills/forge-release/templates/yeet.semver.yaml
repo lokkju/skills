@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/monkescience/yeet/v0.17.0/yeet.schema.json
+#
+# Copy to .yeet.yaml. One package at the repo root, tagged vX.Y.Z.
+# .github/scripts/release-check.sh reads bump_types and the targets below,
+# so a PR is held to the same idea of "releasable" that yeet uses.
+
+versioning: semver
+timezone: UTC
+telemetry:
+  enabled: false
+
+# Before 1.0.0: a feat bumps minor (yeet's default would bump patch) and a
+# breaking change bumps minor. release-please's bump-minor-pre-major: true
+# with bump-patch-for-minor-pre-major: false behaves the same way.
+pre_major_breaking_bumps_minor: true
+pre_major_features_bump_patch: false
+
+# yeet's defaults, spelled out because release-check.sh reads them.
+bump_types:
+  minor: [feat]
+  patch: [fix, perf]
+
+targets:
+  PACKAGE: # the package name
+    type: path
+    path: .
+    tag_prefix: v
+    # Every file that carries the version. A text file needs an
+    # `x-yeet-version` comment on the version line; JSON takes a pointer.
+    # A Python package on uv takes its version from the tag (hatch-vcs), so
+    # pyproject.toml isn't listed.
+    version_files:
+      - path: package.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: CHANGELOG.md
+    # A commit counts only when it touches what the package ships. CHANGELOG.md
+    # is excluded so yeet's own release commits never count; .github and the
+    # lockfile so dependency-bot PRs pass release-check without a label.
+    exclude_paths:
+      - CHANGELOG.md
+      - .github
+      - docs
+      - tests
+      - uv.lock
