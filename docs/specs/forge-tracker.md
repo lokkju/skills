@@ -503,7 +503,12 @@ ranking) and `forge-tracker next save-slate` (JSON on stdin; reads no forge).
   that's blocked is listed under Blocked, not in your queue. When the links read fails, an item
   that's neither person-only nor labelled blocked is "not classified", never agent-ready.
 - **Agent-ready:** open, not person-only, not blocked. The agent label isn't required; when it's
-  configured, it only sorts labelled items first within their tier.
+  configured, it only sorts labelled items first within their tier. An agent-ready item without
+  the agent label is `untagged` ([#83](https://github.com/lokkju/skills/issues/83)): no label
+  decided it either way, so agent-ready is the default, not a judgement. The report without a
+  slate marks it `untagged` (and says how many), and `--json` sets `untagged: true` on it, so a
+  reader of the CLI run directly, of `--json`, or of an agent's own run doesn't take it for
+  settled agent work. The slate may still judge it person-only.
 - **Unclassified** ([#69](https://github.com/lokkju/skills/issues/69)): with neither the
   needs-human nor the decision label configured (missing or `~`), nothing could have marked an
   item person-only, so "not person-only" says nothing. An item that's neither blocked nor marked
@@ -537,16 +542,20 @@ age and doesn't re-rank; `/next --rerank` forces a new one.
 
 The slate is `{"queue": [refs], "lanes": [{"area", "items": [refs], "why"}], "overrules":
 {ref: reason}, "person_only": {ref: reason}, "note"}`. Blocked items come from the facts, not the
-slate. `person_only` is Claude's judgement, from an unclassified item's title and body, that the
-user has to act (physical work, a device or test window, research waiting on a decision, an
-external event, a parked item), with the reason; each such item goes in the queue, and the report
-shows it as `judged person-only: <reason>`. An unclassified item Claude judges agent work goes in
-a lane with no extra key. `save-slate` refuses (exit 2, every problem named) a ref that isn't an
-open issue, an item listed twice, a queue item that isn't person-only or judged person-only, a
-lane item that isn't agent-ready or unclassified, an overrule of anything but a marker hint, a
-`person_only` entry for an item that isn't unclassified, without a reason, or missing from the
-queue; it saves only over complete facts whose fingerprint still matches the current config and
-code. Person-only items the slate leaves out are appended to the queue as not ranked, agent-ready
+slate. `person_only` is Claude's judgement, from the title and body of an item no label decided
+(unclassified, or untagged agent-ready in a labelled repo, #83), that the user has to act (a
+decision, physical work, a device or test window, research waiting on a decision, an external
+event, a parked item), with the reason; each such item goes in the queue, the report shows it as
+`judged person-only: <reason>`, and in a labelled repo the assistant suggests tagging it so the
+next run doesn't depend on judgement. A labelled item stays as its label says: a needs-human or
+decision item is in the queue already, and one with the agent label can't be moved out of the
+lanes this way. An unclassified item Claude judges agent work goes in a lane with no extra key.
+`save-slate` refuses (exit 2, every problem named) a ref that isn't an open issue, an item listed
+twice, a queue item that isn't person-only or judged person-only, a lane item that isn't
+agent-ready or unclassified, an overrule of anything but a marker hint, a `person_only` entry for
+an item that's blocked or has a person-only or agent label, without a reason, or missing from the
+queue; it saves only over complete
+facts whose fingerprint still matches the current config and code. Person-only items the slate leaves out are appended to the queue as not ranked, agent-ready
 items it leaves out are listed as not in a lane, and unclassified items it leaves out are listed
 as not placed.
 

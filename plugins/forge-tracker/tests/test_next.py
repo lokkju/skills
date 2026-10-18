@@ -300,12 +300,13 @@ Your queue (no slate: most agent-ready items unblocked first)
   2. #15 buy the test hardware (needs-human)  unblocks 1: #20
   3. #13 legal review of the license (marker: legal)
 Agent-ready (no slate: by tier, agent label first, then due date)
-  #21 GitHub adapter (P1, due 2026-10-20)  in flight: #41 (conflicts: unknown, ci: pending, review: review required)
+  #21 GitHub adapter (P1, due 2026-10-20, untagged)  in flight: #41 (conflicts: unknown, ci: pending, review: review required)
   #31 labelled P2 (P2, agent label)
-  #30 second P2 (P2)
-  #14 merged but open
-  #26 stale link
-  #27 pushed branch (owner: me)  in flight: branch 27-pushed (2 ahead)
+  #30 second P2 (P2, untagged)
+  #14 merged but open (untagged)
+  #26 stale link (untagged)
+  #27 pushed branch (untagged, owner: me)  in flight: branch 27-pushed (2 ahead)
+  (5 untagged: no label marks them either way, so agent-ready is the default, not a judgement; a slate reads their text)
 Blocked
   #22 groom waits on #10 (native)
   #20 footer width waits on #15 (native)
@@ -462,7 +463,7 @@ def test_failed_closing_refs_say_merged_but_open_isnt_checked(env):
     assert "merged-but-open issues aren't flagged" in text
     # The open PR still marks #21 in flight? Not by its title or branch: only the closing
     # reference names it, so it's unmarked and the report says marks may be missing.
-    assert "#21 GitHub adapter (P1, due 2026-10-20)\n" in text
+    assert "#21 GitHub adapter (P1, due 2026-10-20, untagged)\n" in text
     # So #41 is listed with no issue, and the list says why it may be wrong.
     assert "  #41 feat: adapter (conflicts: unknown" in text
     assert "(closing references FAILED, so a PR here may still close an open issue)" in text
@@ -580,7 +581,11 @@ def test_queue_items_not_ranked_are_appended(env):
     "slate, message",
     [
         ({"queue": ["#77"], "lanes": []}, "queue item 1: #77 isn't an open issue in the facts"),
-        ({"queue": ["#21"], "lanes": []}, "queue item 1: #21 is agent-ready, not person-only"),
+        (
+            {"queue": ["#21"], "lanes": []},
+            "queue item 1: #21 is agent-ready (untagged); add it to person_only with the reason",
+        ),
+        ({"queue": ["#31"], "lanes": []}, "queue item 1: #31 is agent-ready, not person-only"),
         (
             {"queue": [], "lanes": [{"area": "x", "items": ["#22"]}]},
             "lane 1: #22 is blocked, not agent-ready",
@@ -767,7 +772,7 @@ def test_the_slate_puts_unclassified_items_in_the_queue_with_its_reason(bare):
         ),
         (
             {"queue": ["#22"], "lanes": [], "person_only": {"#22": "waits"}},
-            "person_only: #22 is blocked; only unclassified items",
+            "person_only: #22 is blocked; only an item that isn't blocked",
         ),
         (
             {
@@ -786,11 +791,71 @@ def test_save_slate_checks_the_judged_queue(bare, capsys, slate, message):
     assert message in capsys.readouterr().err
 
 
-def test_a_labelled_repo_cant_judge_an_item_into_the_queue(env, capsys):
+# --- untagged items in a labelled repo (#83) -------------------------------------------------
+
+
+def test_untagged_items_are_marked_in_json_without_a_slate(env):
+    report = json.loads(run_next(env, "--json")[1])
+    untagged = {i["ref"]: i["untagged"] for i in report["agent_ready"]}
+    assert untagged == {
+        "#21": True,
+        "#31": False,  # the agent label decided it
+        "#30": True,
+        "#14": True,
+        "#26": True,
+        "#27": True,
+    }
+    assert all(not i["untagged"] for i in report["queue"] + report["blocked"])
+
+
+def test_a_labelled_repo_can_judge_an_untagged_item_into_the_queue(env):
     run_next(env)
-    code, _ = save(env, {"queue": ["#21"], "lanes": [], "person_only": {"#21": "hardware"}})
+    slate = {
+        "queue": ["#10", "#30"],
+        "lanes": [{"area": "forges/github.py", "items": ["#21"]}],
+        "person_only": {"#30": "a decision: which storage format, with no default"},
+    }
+    code, text = save(env, slate)
+    assert code == 0, text
+    _, text = run_next(env)
+    assert (
+        "  2. #30 second P2 (P2)  judged person-only: a decision: which storage format, "
+        "with no default\n"
+    ) in text
+    assert "  not in a lane: #31, #14, #26, #27\n" in text  # #30 is in the queue, not unlaned
+    assert "untagged" not in text  # the slate placed them; the mark is for unranked reports
+    report = json.loads(run_next(env, "--json")[1])
+    assert report["slate"]["person_only"] == {
+        "#30": "a decision: which storage format, with no default"
+    }
+
+
+@pytest.mark.parametrize(
+    "slate, message",
+    [
+        (
+            {"queue": ["#31"], "lanes": [], "person_only": {"#31": "hardware"}},
+            "person_only: #31 has the agent label; a labelled item stays as its label says",
+        ),
+        (
+            {"queue": ["#10"], "lanes": [], "person_only": {"#10": "a decision"}},
+            "person_only: #10 is person-only by label (decision); it's in the queue already",
+        ),
+        (
+            {"queue": ["#22"], "lanes": [], "person_only": {"#22": "waits"}},
+            "person_only: #22 is blocked; only an item that isn't blocked",
+        ),
+        (
+            {"queue": ["#30"], "lanes": [], "person_only": {"#30": ""}},
+            "person_only: #30 needs a stated reason",
+        ),
+    ],
+)
+def test_a_labelled_repo_judges_only_what_no_label_decided(env, capsys, slate, message):
+    run_next(env)
+    code, _ = save(env, slate)
     assert code == 2
-    assert "person_only: #21 is agent-ready; only unclassified items" in capsys.readouterr().err
+    assert message in capsys.readouterr().err
 
 
 # --- classification units -------------------------------------------------------------------

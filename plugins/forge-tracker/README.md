@@ -115,7 +115,9 @@ The CLI classifies every open issue, deterministically:
   doesn't block; it's flagged for `/groom`, and so is a blocked label with nothing linked. A
   person-only item that's blocked is listed under Blocked.
 - **Agent-ready:** open, not person-only and not blocked. The agent label isn't required; when
-  it's configured, labelled items sort first within their tier.
+  it's configured, labelled items sort first within their tier. An agent-ready item without the
+  agent label is marked `untagged` in the report without a slate (`untagged: true` in `--json`):
+  no label decided it, so agent-ready is the default there, not a judgement.
 - **Unclassified:** when the repo configures neither the needs-human nor the decision label,
   nothing could have marked an item person-only, so an item that's neither blocked nor marked by
   a marker word isn't called agent-ready. It's listed under Not classified, the report's second
@@ -135,12 +137,15 @@ bodies and labels, and the report says so. Claude saves it with `forge-tracker n
 lanes agent-ready unless a marker hint is overruled with a reason) and stores it beside them. It's
 shown, with its age, until the fingerprint moves.
 
-On a repo without the labels, Claude reads each unclassified item's title and body. One whose
-text says you have to act (physical work, a device or test window, research waiting on your
-decision, an external event, a parked item) goes in your queue through the slate's
-`person_only` map, with the reason, and the report shows it as `judged person-only: <reason>`.
-One an agent can do goes in a lane. One Claude can't call is listed as not placed. save-slate
-refuses a `person_only` entry for any item a label already classified.
+Claude reads the title and body of every item no label decided: each unclassified item on a
+repo without the labels, and each untagged agent-ready item on a repo with them. One whose text
+says you have to act (a decision, physical work, a device or test window, research waiting on
+your decision, an external event, a parked item) goes in your queue through the slate's
+`person_only` map, with the reason, and the report shows it as `judged person-only: <reason>`;
+on a labelled repo Claude also suggests you tag it, so the next run doesn't depend on its
+judgement. One an agent can do goes in a lane. An unclassified one Claude can't call is listed as
+not placed. save-slate refuses a `person_only` entry for a blocked item or one with a person-only
+or agent label: a labelled item stays as its label says.
 
 ```bash
 plugins/forge-tracker/scripts/forge-tracker next                  # the report
