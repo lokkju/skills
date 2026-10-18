@@ -116,6 +116,7 @@ class Repo:
         self.pipeline_updated = "2026-10-14T13:00:00Z"
         self.head = "c1"
         self.checks = "PENDING"
+        self.checks_43 = "PENDING"  # #43 has no review required, so SUCCESS makes it ready
         self.broken: set[str] = set()
         self.issues = [
             issue(10, ["decision"], title="pick the storage format"),
@@ -187,7 +188,21 @@ class Repo:
                             reviewDecision="APPROVED",
                         ),
                         # Names only a closed issue (#19), and a version in its branch.
-                        pr(43, "cilium-1.20.2", title="chore(cilium): 1.20.2 (#19)"),
+                        pr(
+                            43,
+                            "cilium-1.20.2",
+                            title="chore(cilium): 1.20.2 (#19)",
+                            commits={
+                                "nodes": [
+                                    {
+                                        "commit": {
+                                            "oid": "c43",
+                                            "statusCheckRollup": {"state": self.checks_43},
+                                        }
+                                    }
+                                ]
+                            },
+                        ),
                     ],
                     "pullRequests",
                 ),
@@ -856,6 +871,168 @@ def test_a_labelled_repo_judges_only_what_no_label_decided(env, capsys, slate, m
     code, _ = save(env, slate)
     assert code == 2
     assert message in capsys.readouterr().err
+
+
+# --- the closing recommendation (#78) -------------------------------------------------------
+
+RECOMMEND = {
+    "you": [
+        {"ref": "#10", "why": "it unblocks #22, #23 and #24, more than anything else queued"},
+        {"ref": "#15", "why": "the hardware gates #20"},
+    ],
+    "agent_cap": 3,
+    "start": [{"lane": "A", "why": "P1, due 2026-10-20, and its PR is already open"}],
+    "wait": [{"lane": "b", "why": "P2 docs; it touches nothing urgent"}],
+    "merge": [{"ref": "#43", "why": "a version bump with green CI; the cheapest progress"}],
+    "not_yet": [
+        {"ref": "#30", "why": "its design is still open"},
+        {"ref": "#42", "why": "a draft with conflicts"},
+    ],
+}
+
+RECOMMENDED = """
+Recommended next (Claude's judgement from the facts; nothing starts or merges until you say so)
+  Merge first (CI green, no conflicts, review approved or not required)
+    #43 chore(cilium): 1.20.2 (#19): a version bump with green CI; the cheapest progress
+  For you
+    1. #10 pick the storage format: it unblocks #22, #23 and #24, more than anything else queued
+    2. #15 buy the test hardware: the hardware gates #20
+  Start now (1 lane, agent cap 3)
+    A  forges/github.py: P1, due 2026-10-20, and its PR is already open
+  Waits
+    B  docs: P2 docs; it touches nothing urgent
+  Not yet
+    #30 second P2: its design is still open
+    PR #42 fix(rulesets): require the dedicated entry point: a draft with conflicts
+"""
+
+
+@pytest.fixture
+def ready_repo():
+    repo = Repo()
+    repo.checks_43 = "SUCCESS"
+    return repo
+
+
+def test_the_slate_closes_with_a_recommendation(env, ready_repo):
+    run_next(env, http=ready_repo.world())
+    code, text = save(env, dict(SLATE, recommend=RECOMMEND))
+    assert code == 0, text
+    assert text.startswith("slate saved: 2 in your queue, 2 lanes, a recommendation (facts ")
+    code, text = run_next(env, http=ready_repo.world())
+    assert code == 0
+    assert text.endswith("\nslate note: ranked for the October milestone\n" + RECOMMENDED)
+
+    rec = json.loads(run_next(env, "--json", http=ready_repo.world())[1])["slate"]["recommend"]
+    assert rec["you"][0] == {
+        "ref": "#10",
+        "title": "pick the storage format",
+        "why": "it unblocks #22, #23 and #24, more than anything else queued",
+    }
+    assert rec["start"] == [
+        {
+            "lane": "A",
+            "area": "forges/github.py",
+            "why": "P1, due 2026-10-20, and its PR is already open",
+        }
+    ]
+    assert rec["wait"][0]["lane"] == "B"  # a lane may be named in either case or by number
+    assert rec["merge"][0]["ref"] == "#43"
+    assert [(n["ref"], n["kind"]) for n in rec["not_yet"]] == [("#30", "issue"), ("#42", "pr")]
+
+
+def test_a_slate_without_a_recommendation_prints_none(env):
+    run_next(env)
+    save(env, SLATE)
+    _, text = run_next(env)
+    assert "Recommended next" not in text
+    assert json.loads(run_next(env, "--json")[1])["slate"]["recommend"] is None
+
+
+def test_no_recommendation_shows_without_a_current_slate(env, ready_repo):
+    run_next(env, http=ready_repo.world())
+    save(env, dict(SLATE, recommend=RECOMMEND))
+    _, text = run_next(env, "--rerank", http=ready_repo.world())
+    assert "Recommended next" not in text
+
+
+def rec(**changes):
+    out = {k: v for k, v in RECOMMEND.items() if k not in changes}
+    out.update({k: v for k, v in changes.items() if v is not None})
+    return dict(SLATE, recommend=out)
+
+
+@pytest.mark.parametrize(
+    "slate, message",
+    [
+        (
+            rec(you=[{"ref": "#21", "why": "x"}]),
+            "recommend.you 1: #21 isn't in the slate's queue",
+        ),
+        (rec(you=[{"ref": "#10"}]), "recommend.you 1 needs a stated reason (why)"),
+        (
+            rec(you=[{"ref": r, "why": "x"} for r in ("#10", "#15", "#10")]),
+            "recommend.you 3: #10 is picked more than once",
+        ),
+        (
+            rec(merge=[{"ref": "#41", "why": "x"}]),
+            (
+                "recommend.merge 1: #41 isn't ready to merge (conflicts: unknown, ci: pending, "
+                "review: review required)"
+            ),
+        ),
+        (
+            rec(merge=[{"ref": "#42", "why": "x"}], not_yet=[]),
+            "recommend.merge 1: #42 isn't ready to merge (it's a draft, conflicts: yes",
+        ),
+        (
+            rec(merge=[{"ref": "#21", "why": "x"}]),
+            "recommend.merge 1: '#21' isn't an open PR in the facts",
+        ),
+        (
+            rec(agent_cap=1, start=[{"lane": "A", "why": "x"}, {"lane": 2, "why": "y"}], wait=[]),
+            "recommend.start: 2 lanes is more than the agent cap of 1",
+        ),
+        (rec(wait=[]), "every lane starts now or waits, with a reason; missing B"),
+        (
+            rec(wait=[{"lane": "A", "why": "x"}, {"lane": "B", "why": "y"}]),
+            "recommend.wait 1: lane A is already in recommend.start",
+        ),
+        (rec(wait=[{"lane": "Z", "why": "x"}]), "recommend.wait 1: 'Z' isn't a lane in the slate"),
+        (
+            rec(not_yet=[{"ref": "#21", "why": "x"}]),
+            "recommend.not_yet 1: #21 is in a lane that starts now",
+        ),
+        (
+            rec(not_yet=[{"ref": "#10", "why": "x"}]),
+            "recommend.not_yet 1: #10 is picked for you",
+        ),
+        (
+            rec(not_yet=[{"ref": "#77", "why": "x"}]),
+            "recommend.not_yet 1: '#77' isn't an open issue or PR in the facts",
+        ),
+        (rec(agent_cap="three"), "recommend.agent_cap must be a whole number of agents"),
+        (rec(lanes_now=[]), "recommend: unknown key lanes_now"),
+        (dict(SLATE, recommend=["#10"]), "recommend must be an object"),
+    ],
+)
+def test_save_slate_checks_the_recommendation(env, ready_repo, capsys, slate, message):
+    run_next(env, http=ready_repo.world())
+    code, _ = save(env, slate)
+    assert code == 2
+    assert message in capsys.readouterr().err
+    assert not (env["dir"] / "slate.json").exists()
+
+
+def test_merge_ready_needs_green_ci_no_conflicts_and_a_review_when_required():
+    ready = {"draft": False, "conflicts": "no", "pipeline": "success", "review": None}
+    assert next_.merge_ready(ready) == []
+    assert next_.merge_ready(dict(ready, review="approved")) == []
+    assert next_.merge_ready(dict(ready, conflicts="unknown")) == ["conflicts: unknown"]
+    assert next_.merge_ready(dict(ready, pipeline=None)) == ["ci: none"]
+    assert next_.merge_ready(dict(ready, review="changes_requested")) == [
+        "review: changes requested"
+    ]
 
 
 # --- classification units -------------------------------------------------------------------

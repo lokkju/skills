@@ -322,9 +322,10 @@ def cmd_save_slate(
         print(f"forge-tracker: slate refused: {error}", file=sys.stderr)
         return EXIT_USAGE
     lanes = len(slate["lanes"])
+    recommended = ", a recommendation" if slate.get("recommend") else ""
     out.write(
         f"slate saved: {len(slate['queue'])} in your queue, {lanes} lane{'s' if lanes != 1 else ''}"
-        f" (facts {slate['fingerprint'][:12]})\n"
+        f"{recommended} (facts {slate['fingerprint'][:12]})\n"
     )
     return EXIT_OK
 

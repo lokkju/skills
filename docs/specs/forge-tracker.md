@@ -541,8 +541,8 @@ facts with their fingerprint. While the fingerprint holds, `/next` shows the sav
 age and doesn't re-rank; `/next --rerank` forces a new one.
 
 The slate is `{"queue": [refs], "lanes": [{"area", "items": [refs], "why"}], "overrules":
-{ref: reason}, "person_only": {ref: reason}, "note"}`. Blocked items come from the facts, not the
-slate. `person_only` is Claude's judgement, from the title and body of an item no label decided
+{ref: reason}, "person_only": {ref: reason}, "note", "recommend"}`. Blocked items come from the
+facts, not the slate. `person_only` is Claude's judgement, from the title and body of an item no label decided
 (unclassified, or untagged agent-ready in a labelled repo, #83), that the user has to act (a
 decision, physical work, a device or test window, research waiting on a decision, an external
 event, a parked item), with the reason; each such item goes in the queue, the report shows it as
@@ -554,10 +554,38 @@ lanes this way. An unclassified item Claude judges agent work goes in a lane wit
 twice, a queue item that isn't person-only or judged person-only, a lane item that isn't
 agent-ready or unclassified, an overrule of anything but a marker hint, a `person_only` entry for
 an item that's blocked or has a person-only or agent label, without a reason, or missing from the
-queue; it saves only over complete
-facts whose fingerprint still matches the current config and code. Person-only items the slate leaves out are appended to the queue as not ranked, agent-ready
-items it leaves out are listed as not in a lane, and unclassified items it leaves out are listed
-as not placed.
+queue, and a `recommend` section that doesn't fit the facts (below); it saves only over complete
+facts whose fingerprint still matches the current config and code. Person-only items the slate
+leaves out are appended to the queue as not ranked, agent-ready items it leaves out (and haven't
+been judged person-only) are listed as not in a lane, and unclassified items it leaves out are
+listed as not placed.
+
+**The recommendation** ([#78](https://github.com/lokkju/skills/issues/78)): the slate closes with
+`recommend`, Claude's evaluated pick of what to do first, written from the facts. Impact is the
+judgement: what each item unblocks, tier and due date, bug before feature, how settled the design
+is (a ruled spec against open questions), how close it is to merged work that's still fresh, and
+the risk of conflicting with in-flight PRs. It's
+`{"merge": [{ref, why}], "you": [{ref, why}], "agent_cap", "start": [{lane, why}], "wait":
+[{lane, why}], "not_yet": [{ref, why}]}`, every entry with a reason, and `save-slate` checks
+each part against the facts and the rest of the slate:
+
+- `merge`: open PRs ready to merge, bot PRs included, as the merge-first step. Ready is not a
+  draft, `conflicts: no`, CI `success`, and review `approved` or none required (GitHub reports no
+  review decision when the branch requires none). `conflicts: unknown` is never ready, and
+  neither is a PR with no CI result.
+- `you`: one pick from the slate's queue, then at most two after it.
+- `start` and `wait`: every lane once, by its letter (or 1-based number), either starting now or
+  waiting, each with its reason. `agent_cap` is the session's agent limit as Claude knows it
+  from the user's instructions; when it's given, `start` holds no more lanes than that.
+- `not_yet`: open issues or PRs Claude wouldn't take yet (umbrella issues, items waiting on a
+  decision, drift for `/groom`, PRs not ready), each with its reason. An item here can't also be
+  picked for the user, sit in a lane that starts now, or be in `merge`.
+
+The report prints it as a closing `Recommended next` block, which says it's Claude's judgement
+and that nothing starts or merges until the user says so; `--json` carries it as
+`slate.recommend` (with each entry's title and each lane's area), and `null` for a slate saved
+without one. `/next` stays read-only: the recommendation is never an action, and the assistant
+asks before starting a lane or merging anything.
 
 - **Your queue:** person-only items, most agent-ready items unblocked first.
 - **Agent lanes:** agent-ready items by tier and due date, grouped into lanes that shouldn't touch
@@ -588,6 +616,19 @@ Open PRs with no open issue
   #33 chore: release wave (conflicts: no, ci: success, review: approved)  branch yeet/release-main
 Flags
   #14 is referenced by merged #31 but still open (run /groom)
+
+Recommended next (Claude's judgement from the facts; nothing starts or merges until you say so)
+  Merge first (CI green, no conflicts, review approved or not required)
+    #33 chore: release wave: the release PR is green; the cheapest progress available
+  For you
+    1. #10 settle forge-release scope: unblocks 4, more than anything else in the queue
+  Start now (2 lanes, agent cap 3)
+    A  plugins/forge-tracker/forges: P1, due 10-20, and its PR is already open
+    B  plugins/session-decisions: P2, and no other lane touches its files
+  Waits
+    C  docs: P3, and it would conflict with the release wave
+  Not yet
+    #22 /groom: blocked on #21 and #10
 ```
 
 ### `/groom` (#22)

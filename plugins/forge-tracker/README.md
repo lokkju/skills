@@ -147,6 +147,16 @@ judgement. One an agent can do goes in a lane. An unclassified one Claude can't 
 not placed. save-slate refuses a `person_only` entry for a blocked item or one with a person-only
 or agent label: a labelled item stays as its label says.
 
+The slate closes with a **recommendation**, printed as a `Recommended next` block and carried in
+`--json` as `slate.recommend`: the open PRs ready to merge first (CI green, no conflicts, review
+approved or not required; `conflicts: unknown` never counts), one pick from your queue with its
+reason and up to two after it, which lanes to start now (no more than the session's agent cap)
+and which wait, and what Claude wouldn't take yet, every entry with its reason. Claude judges
+impact from the facts (what an item unblocks, tier and due date, bug or feature, how settled its
+design is, closeness to fresh merged work, conflict risk with open PRs) and says it's a
+judgement; save-slate checks every pick against the facts. A recommendation never acts: Claude
+asks before starting a lane or merging anything.
+
 ```bash
 plugins/forge-tracker/scripts/forge-tracker next                  # the report
 plugins/forge-tracker/scripts/forge-tracker next facts --json     # facts with issue bodies, to rank

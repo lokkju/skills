@@ -81,7 +81,16 @@ rank them before presenting anything:
      ],
      "overrules": {"#40": "design work an agent can build from the spec"},
      "person_only": {"#15": "physical work: repaste the GPU"},
-     "note": "optional, one line"
+     "note": "optional, one line",
+     "recommend": {
+       "merge": [{"ref": "#33", "why": "release PR, CI green: the cheapest progress"}],
+       "you": [{"ref": "#10", "why": "unblocks #22, #23 and #24; nothing else queued unblocks agents"},
+               {"ref": "#15", "why": "the hardware gates #20"}],
+       "agent_cap": 3,
+       "start": [{"lane": "A", "why": "P1 bug, design ruled, due Friday"}],
+       "wait": [{"lane": "B", "why": "touches files open PR #41 is changing; wait for it to merge"}],
+       "not_yet": [{"ref": "#19", "why": "research with no design yet"}]
+     }
    }
    ```
 
@@ -106,6 +115,22 @@ rank them before presenting anything:
      agent label stays in the lanes, and save-slate refuses both. When you move an untagged item
      into the queue in a repo with labels, suggest to the user that they tag it (the needs-human
      or decision label) so the next run doesn't depend on your judgement; don't tag it yourself.
+   - **recommend**: the closing pick, written from the facts once the queue and lanes are set.
+     Judge impact: what each item unblocks, its tier and due date, bug before feature, how
+     settled its design is (a ruled spec against open questions), how close it is to merged work
+     that's still fresh, and the risk of conflicting with PRs in flight. Every entry needs a
+     one-line `why`.
+     - `merge`: open PRs ready to merge, bot PRs (Dependabot, a release PR) included, as the
+       first step. Ready means not a draft, `conflicts: no`, CI `success`, and review `approved`
+       or none required. `conflicts: unknown` is never ready; save-slate refuses it.
+     - `you`: one pick from your queue for the user, then the next one or two only when they
+       matter.
+     - `start` and `wait`: every lane, by its letter, either starts now or waits, each with its
+       reason. Set `agent_cap` to the number of agents this session may run at once (from the
+       user's instructions; leave it out when none is set) and start no more lanes than that.
+     - `not_yet`: what you wouldn't do yet, with the reason: umbrella issues, items waiting on a
+       decision, drift `/groom` should fix first, PRs not ready. An item here can't also be
+       picked, started or merged.
 3. Save it: pipe the JSON to `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" next save-slate`. A
    refusal (exit 2) names every problem; fix them and save again. It writes only to the local
    cache, never to the forge.
@@ -135,6 +160,10 @@ A later `/next` shows the saved slate, with its age, until the facts move.
 6. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A
    failed read is not "nothing": never summarize it as empty or clear. When blocking links
    failed, the items listed as not classified may be blocked; don't call them agent-ready.
+7. **Recommended next** closes the report: merge first, the user's pick, the lanes to start and
+   the ones that wait, and what not to do yet, each with its reason. Say plainly that it's your
+   judgement from the facts. It's a recommendation, not an action: ask before starting a lane,
+   merging a PR or touching any item it names.
 
 An assignee is never a reason an item is the user's or an agent's: agents share the user's
 account. Show assignees as owners.

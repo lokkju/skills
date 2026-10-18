@@ -350,6 +350,7 @@ def classify(
         "cycles": [],
         "other_branches": [],
         "other_changes": [],
+        "open_changes": [],
         "notes": [],
         "labelled": False,
         "blocked_label": False,
@@ -471,6 +472,19 @@ def classify(
         for c in changes or []:
             if c["branch"] == branch:
                 fly(number, change_entry(c, "pickup"))
+
+    # Every open change, for the slate's recommendation (what's ready to merge).
+    result["open_changes"] = [
+        {
+            "ref": f"#{c['number']}",
+            "title": c["title"],
+            "draft": c["draft"],
+            "conflicts": c["conflicts"],
+            "pipeline": c["pipeline"],
+            "review": c.get("review"),
+        }
+        for c in changes or []
+    ]
 
     # Open changes with no open issue behind them: the mirror of a branch with no change.
     for c in changes or []:
@@ -642,7 +656,9 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
     `validate_recommend` against the slate it closes."""
     if not isinstance(payload, dict):
         raise SlateError("the slate must be a JSON object with queue and lanes")
-    unknown_keys = sorted(set(payload) - {"queue", "lanes", "overrules", "person_only", "note"})
+    unknown_keys = sorted(
+        set(payload) - {"queue", "lanes", "overrules", "person_only", "note", "recommend"}
+    )
     errors = [f"unknown key {k}" for k in unknown_keys]
     items = {i["number"]: i for i in classified["items"]}
     seen: set[int] = set()
@@ -802,6 +818,9 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
     note = payload.get("note")
     if note is not None and not isinstance(note, str):
         errors.append("note must be a string")
+    recommend = None
+    if payload.get("recommend") is not None:
+        recommend = validate_recommend(payload["recommend"], queue, lanes, classified, errors)
     if errors:
         raise SlateError("; ".join(errors))
     return {
@@ -810,6 +829,188 @@ def validate_slate(payload: Any, classified: Mapping[str, Any]) -> dict[str, Any
         "overrules": {f"#{n}": reason for n, reason in overrules.items()},
         "person_only": {f"#{n}": reason for n, reason in judged.items()},
         "note": note,
+        "recommend": recommend,
+    }
+
+
+def lane_label(index: int) -> str:
+    """A lane's name in the report: A to Z, then its 1-based number."""
+    return chr(ord("A") + index) if index < 26 else str(index + 1)
+
+
+def merge_ready(change: Mapping[str, Any]) -> list[str]:
+    """Why an open change isn't ready to merge; empty when it is. Ready means not a draft, no
+    conflicts (`unknown` is never clean), CI green, and an approved review when one is required
+    (GitHub reports no review decision when the branch requires none)."""
+    why = []
+    if change.get("draft"):
+        why.append("it's a draft")
+    if change.get("conflicts") != "no":
+        why.append(f"conflicts: {change.get('conflicts')}")
+    if change.get("pipeline") != "success":
+        why.append(f"ci: {change.get('pipeline') or 'none'}")
+    if change.get("review") not in (None, "approved"):
+        why.append(f"review: {str(change.get('review')).replace('_', ' ')}")
+    return why
+
+
+RECOMMEND_KEYS = ("you", "agent_cap", "start", "wait", "merge", "not_yet")
+
+
+def validate_recommend(
+    raw: Any,
+    queue: list[str],
+    lanes: list[dict[str, Any]],
+    classified: Mapping[str, Any],
+    errors: list[str],
+) -> Optional[dict[str, Any]]:
+    """Check the slate's closing recommendation against the facts and the slate itself, adding
+    every problem to `errors`. `you` picks come from the queue (one, then up to two more);
+    `start` and `wait` name every lane once, with `start` within `agent_cap` when it's given;
+    `merge` holds only open PRs ready to merge; `not_yet` names open issues or PRs the rest of
+    the recommendation doesn't pick. Every entry needs a reason."""
+    if not isinstance(raw, dict):
+        errors.append("recommend must be an object with you, start, wait, merge and not_yet")
+        return None
+    errors.extend(f"recommend: unknown key {k}" for k in sorted(set(raw) - set(RECOMMEND_KEYS)))
+    items = {i["ref"]: i for i in classified["items"]}
+    changes = {c["ref"]: c for c in classified.get("open_changes") or []}
+
+    def entries(key: str, what: str) -> list[tuple[int, dict[str, Any], str]]:
+        value = raw.get(key) or []
+        if not isinstance(value, list):
+            errors.append(f"recommend.{key} must be a list of {{{what}, why}}")
+            return []
+        out = []
+        for position, entry in enumerate(value, 1):
+            where = f"recommend.{key} {position}"
+            if not isinstance(entry, dict):
+                errors.append(f"{where} must be an object with {what} and why")
+                continue
+            extra = sorted(set(entry) - {what, "why"})
+            if extra:
+                errors.append(f"{where}: unknown key {', '.join(extra)}")
+            why = entry.get("why")
+            if not isinstance(why, str) or not why.strip():
+                errors.append(f"{where} needs a stated reason (why)")
+                continue
+            out.append((position, entry, why.strip()))
+        return out
+
+    def ref_of(value: Any) -> Optional[str]:
+        number = _ref_number(value)
+        return None if number is None else f"#{number}"
+
+    you = []
+    picked: set[str] = set()
+    for position, entry, why in entries("you", "ref"):
+        where = f"recommend.you {position}"
+        ref = ref_of(entry.get("ref"))
+        if ref is None or ref not in items:
+            errors.append(f"{where}: {entry.get('ref')!r} isn't an open issue in the facts")
+        elif ref not in queue:
+            errors.append(f"{where}: {ref} isn't in the slate's queue; picks for you come from it")
+        elif ref in picked:
+            errors.append(f"{where}: {ref} is picked more than once")
+        else:
+            picked.add(ref)
+            you.append({"ref": ref, "title": items[ref]["title"], "why": why})
+    if len(you) > 3:
+        errors.append("recommend.you: one pick, then at most two after it")
+
+    cap = raw.get("agent_cap")
+    if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 0):
+        errors.append("recommend.agent_cap must be a whole number of agents")
+        cap = None
+
+    labels = {lane_label(n): n for n in range(len(lanes))}
+    placed: dict[str, str] = {}
+
+    def lanes_in(key: str) -> list[dict[str, Any]]:
+        out = []
+        for position, entry, why in entries(key, "lane"):
+            where = f"recommend.{key} {position}"
+            value = entry.get("lane")
+            if isinstance(value, int) and not isinstance(value, bool):
+                label = lane_label(value - 1) if 1 <= value <= len(lanes) else None
+            elif isinstance(value, str):
+                label = value.strip().upper()
+                label = label if label in labels else None
+            else:
+                label = None
+            if label is None:
+                errors.append(f"{where}: {value!r} isn't a lane in the slate (A, B, ...)")
+                continue
+            if label in placed:
+                errors.append(f"{where}: lane {label} is already in recommend.{placed[label]}")
+                continue
+            placed[label] = key
+            out.append({"lane": label, "area": lanes[labels[label]]["area"], "why": why})
+        return out
+
+    start = lanes_in("start")
+    wait = lanes_in("wait")
+    if raw.get("start") is not None or raw.get("wait") is not None:
+        missing = [label for label in labels if label not in placed]
+        if missing:
+            errors.append(
+                "recommend: every lane starts now or waits, with a reason; "
+                f"missing {', '.join(missing)}"
+            )
+    if cap is not None and len(start) > cap:
+        errors.append(f"recommend.start: {len(start)} lanes is more than the agent cap of {cap}")
+
+    merge = []
+    merging: set[str] = set()
+    for position, entry, why in entries("merge", "ref"):
+        where = f"recommend.merge {position}"
+        ref = ref_of(entry.get("ref"))
+        if ref is None or ref not in changes:
+            errors.append(f"{where}: {entry.get('ref')!r} isn't an open PR in the facts")
+            continue
+        if ref in merging:
+            errors.append(f"{where}: {ref} is listed more than once")
+            continue
+        blockers = merge_ready(changes[ref])
+        if blockers:
+            errors.append(f"{where}: {ref} isn't ready to merge ({', '.join(blockers)})")
+            continue
+        merging.add(ref)
+        merge.append({"ref": ref, "title": changes[ref]["title"], "why": why})
+
+    started = {ref for lane in start for ref in lanes[labels[lane["lane"]]]["items"]}
+    not_yet = []
+    held: set[str] = set()
+    for position, entry, why in entries("not_yet", "ref"):
+        where = f"recommend.not_yet {position}"
+        ref = ref_of(entry.get("ref"))
+        if ref is None or (ref not in items and ref not in changes):
+            errors.append(f"{where}: {entry.get('ref')!r} isn't an open issue or PR in the facts")
+            continue
+        clash = (
+            "picked for you"
+            if ref in picked
+            else "in a lane that starts now"
+            if ref in started
+            else "in recommend.merge"
+            if ref in merging
+            else "listed more than once"
+            if ref in held
+            else None
+        )
+        if clash:
+            errors.append(f"{where}: {ref} is {clash}")
+            continue
+        held.add(ref)
+        kind, source = ("issue", items) if ref in items else ("pr", changes)
+        not_yet.append({"ref": ref, "kind": kind, "title": source[ref]["title"], "why": why})
+    return {
+        "you": you,
+        "agent_cap": cap,
+        "start": start,
+        "wait": wait,
+        "merge": merge,
+        "not_yet": not_yet,
     }
 
 
@@ -907,6 +1108,7 @@ def build(
                 "overrules": slate.get("overrules") or {},
                 "person_only": slate.get("person_only") or {},
                 "note": slate.get("note"),
+                "recommend": slate.get("recommend"),
             }
         )
     return report
@@ -1077,7 +1279,7 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         lines.append("Agent lanes (grouped by judgement: these shouldn't share files)")
         laned: set[str] = set()
         for n, lane in enumerate(slate["lanes"]):
-            letter = chr(ord("A") + n) if n < 26 else str(n + 1)
+            letter = lane_label(n)
             members = [items[r] for r in lane["items"] if r in items]
             laned.update(lane["items"])
             flying = any(m["in_flight"] for m in members)
@@ -1223,4 +1425,41 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         lines += ["", f"slate: unavailable ({slate['reason']})"]
     elif slate.get("note"):
         lines += ["", f"slate note: {slate['note']}"]
+    if slate["status"] == "current" and slate.get("recommend"):
+        lines += ["", *_recommended(slate["recommend"])]
     return "\n".join(lines) + "\n"
+
+
+def _recommended(rec: Mapping[str, Any]) -> list[str]:
+    """The slate's closing recommendation. It's a judgement, and /next never acts on it."""
+    lines = [
+        (
+            "Recommended next (Claude's judgement from the facts; nothing starts or merges "
+            "until you say so)"
+        )
+    ]
+    if rec.get("merge"):
+        lines.append("  Merge first (CI green, no conflicts, review approved or not required)")
+        lines += [f"    {m['ref']} {m['title']}: {m['why']}" for m in rec["merge"]]
+    if rec.get("you"):
+        lines.append("  For you")
+        lines += [
+            f"    {n}. {p['ref']} {p['title']}: {p['why']}" for n, p in enumerate(rec["you"], 1)
+        ]
+    if rec.get("start"):
+        count = len(rec["start"])
+        cap = f", agent cap {rec['agent_cap']}" if rec.get("agent_cap") is not None else ""
+        lines.append(f"  Start now ({count} lane{'s' if count != 1 else ''}{cap})")
+        lines += [f"    {lane['lane']}  {lane['area']}: {lane['why']}" for lane in rec["start"]]
+    if rec.get("wait"):
+        lines.append("  Waits")
+        lines += [f"    {lane['lane']}  {lane['area']}: {lane['why']}" for lane in rec["wait"]]
+    if rec.get("not_yet"):
+        lines.append("  Not yet")
+        lines += [
+            f"    {'PR ' if n['kind'] == 'pr' else ''}{n['ref']} {n['title']}: {n['why']}"
+            for n in rec["not_yet"]
+        ]
+    if len(lines) == 1:
+        lines.append("  nothing picked")
+    return lines
