@@ -1,5 +1,22 @@
 # Changelog
 
+## [forge-tracker--v2026.10.18.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.16.2...forge-tracker--v2026.10.18.1) (2026-10-18)
+
+### Features
+
+- **forge-tracker:** classify unlabelled repos honestly and create missing labels on approval (#80) ([73cd13a](https://github.com/lokkju/skills/commit/73cd13a142c9a52e851902a2dbc86a5ecd7217ab))
+- **forge-tracker:** create missing labels during setup, on approval ([94c3688](https://github.com/lokkju/skills/commit/94c3688422740accfd7b2b2356815fba9eaf5e4d))
+- **forge-tracker:** workspace catchup and per-clone tracker.* keys (#81) ([29cdc92](https://github.com/lokkju/skills/commit/29cdc92a82df6c210785c59ab388340c30547758))
+- **forge-tracker:** catch up across a folder of repos in one report ([0cd28b0](https://github.com/lokkju/skills/commit/0cd28b053fcce6ba2831cdca4f6bf6e16cec56e7))
+- **forge-tracker:** list your own ready PRs as yours to merge in catchup ([713d9d5](https://github.com/lokkju/skills/commit/713d9d5a2d9e3c8592f9e424ee5d6acbccbfe598))
+- **forge-tracker:** read the per-clone tracker.web and tracker.forge git config keys ([64d82da](https://github.com/lokkju/skills/commit/64d82da354b5ded64a99c53d3264981dc81f2afd))
+
+### Fixes
+
+- **forge-tracker:** fit label setup into workspace catchup ([f300de1](https://github.com/lokkju/skills/commit/f300de14f865a04aeb82d7143111f5aa45fc329d))
+- **forge-tracker:** offer and accept label creation for roles set to ~ ([d0dd625](https://github.com/lokkju/skills/commit/d0dd625b4f92fa4b6aa6b994752f7de3db7ede24))
+- **forge-tracker:** call unlabelled issues unclassified, not agent-ready ([689f166](https://github.com/lokkju/skills/commit/689f1665142331452afe55f53f93815a5e79bca9))
+
 ## [forge-tracker--v2026.10.16.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.16.1...forge-tracker--v2026.10.16.2) (2026-10-16)
 
 ### Features
