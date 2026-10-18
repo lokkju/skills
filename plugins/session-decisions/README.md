@@ -74,8 +74,12 @@ write a recommendation isn't ready to ask yet, which is the point.
   mirror, or otherwise not where its issues live can say where they do in its
   [git config](#per-repository-forge). On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
   ctrl/cmd+click); one without OSC 8 support shows the text alone.
-- **More:** **More**, or a press on the card's label, opens the item in Claude Code's question
-  dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
+- **More:** when the dialog has something the card doesn't (a description, a link it spells out
+  as a URL and can copy, a command in backticks it can copy, or a recommendation the card cuts
+  short), the card's text ends with a dim `[more]`: after the question, or after the qualifier
+  when there is one, on its last row when there's room and on a row of its own when the text fills
+  it. A card without `[more]` is the whole item. `[more]`, or a press on the card's label, opens
+  the item in Claude Code's question dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
   hands it plain text: the question, `Link: <url>` when the link is a URL or a reference the
   plugin can resolve (the dialog makes no hyperlinks, so the URL opens only where the terminal
   spots URLs in plain text itself), `Recommended: <the full recommendation>`, and the item's
@@ -93,7 +97,7 @@ write a recommendation isn't ready to ask yet, which is the point.
 ### Answering
 
 **Accept** puts `D3: go with <the recommendation>` in your prompt, **Done** puts `A2: done`, and
-**Answer** puts `D3: ` for you to finish. The dialog **More** opens fills the same lines. Each press adds or replaces that item's line, so one
+**Answer** puts `D3: ` for you to finish. The dialog `[more]` opens fills the same lines. Each press adds or replaces that item's line, so one
 message can answer several items; **Accept all** adds a line for every open recommendation. You
 edit and send it like any other message, and the assistant marks each item completed with a
 dated `Ruling (2026-10-08): ...` line. Completed items stay in the task list as the session's

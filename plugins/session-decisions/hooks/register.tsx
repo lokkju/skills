@@ -20,7 +20,8 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { codeSpans, dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
+import { dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
+import { MORE, dialogExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge } from './handoff'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
@@ -96,6 +97,16 @@ const DAY = 24 * 60 * 60 * 1000
 // Claude Code's own theme keys, so the cards follow whichever theme the person runs.
 const ACCENT = 'claude'
 const KIND_COLOR = { DECIDE: 'warning', ACTION: 'suggestion' } as const
+// Columns a bordered card's frame takes: a border and a column of padding on each side.
+const CARD_FRAME = 4
+
+/**
+ * The columns inside a transcript card's frame, which spans the conversation's width (Claude Code
+ * 2.1.300); null when the drawing has no viewport.
+ */
+function transcriptWidth(site: { viewport?: { columns: number } }): number | null {
+  return site.viewport && site.viewport.columns > 0 ? site.viewport.columns - CARD_FRAME : null
+}
 
 /**
  * The item a finished TaskCreate, decision_add or decision_update call made or changed, found by
@@ -708,7 +719,7 @@ export const register: Register = (on, options) => {
       measure(e)
       const item = rowItem(await read($, items), e.props)
       if (!item) return next(e)
-      return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })
+      return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item), width: transcriptWidth(e) })
     })
   }
 
@@ -734,7 +745,7 @@ export const register: Register = (on, options) => {
         {await Promise.all(
           found.map(async item => (
             <Box key={`group-${item.source}-${item.id}`} flexDirection="column">
-              {await drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item) })}
+              {await drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item), width: transcriptWidth(e) })}
             </Box>
           )),
         )}
@@ -767,7 +778,7 @@ export const register: Register = (on, options) => {
         {await Promise.all(
           open.map(async (item, i) => (
             <Box key={`slot-${item.source}-${item.id}`} flexDirection="column" marginBottom={docked ? 1 : 0}>
-              {await drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false })}
+              {await drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false, width: e.props.bodyColumns - (docked ? 0 : CARD_FRAME) })}
             </Box>
           )),
         )}
@@ -784,7 +795,7 @@ export const register: Register = (on, options) => {
           (await Promise.all(
             settled.map(async item => (
               <Box key={`slot-${item.source}-${item.id}`} flexDirection="column">
-                {await drawCard($, e, item, { bordered: false, isNext: false, compact: true })}
+                {await drawCard($, e, item, { bordered: false, isNext: false, compact: true, width: null })}
               </Box>
             )),
           ))}
@@ -820,14 +831,16 @@ function chip(Text: Elements['Text'], plain: boolean, text: string, color: strin
 
 /**
  * One item. Open: kind chip, label, recommendation tag, age, the question, the qualifier, and its
- * buttons; `bordered` draws a round frame (the accent one for `isNext`). Settled, or `compact`: one
- * dim line with the ruling.
+ * buttons; `bordered` draws a round frame (the accent one for `isNext`). When the dialog has more
+ * than the card shows, the text ends with `[more]`, beside its last row when it fits in `width`
+ * (the columns inside the frame) and on a row of its own otherwise. Settled, or `compact`: one dim
+ * line with the ruling.
  */
 async function drawCard(
   $: $,
   site: Parameters<$['ui']['resolve']>[0],
   item: Item,
-  opts: { bordered: boolean; isNext: boolean; compact: boolean },
+  opts: { bordered: boolean; isNext: boolean; compact: boolean; width: number | null },
 ) {
   const { Box, Button, Link, Markdown, Text } = $.ui.resolve(site) as Elements
   const plain = await read($, ascii)
@@ -863,6 +876,37 @@ async function drawCard(
     ? { borderStyle: 'round', borderColor: opts.isNext ? ACCENT : 'inactive', hover: { borderColor: ACCENT }, paddingX: 1 }
     : {}
   const more = (press: { surface: Surface }) => void popup($, item, press.surface)
+  const question = linkRefs(parts.question, forge)
+  const qualifier = rec?.qualifier ? linkRefs(rec.qualifier, forge) : null
+  // [more] follows whichever line of text comes last: the qualifier when there is one.
+  const ending = hasMore({ parts, description: item.description }, forge)
+    ? {
+        split: moreSplit(qualifier ?? question, opts.width),
+        button: <Button key={`more-${item.label}`} plain dimColor label={MORE} hover={{ bold: true }} onPress={more} />,
+      }
+    : null
+  const line = (key: string, text: string, dim: boolean) => {
+    const drawn = (k: string, t: string) => <Markdown key={k} text={t} dimColor={dim || undefined} />
+    if (!ending) return drawn(key, text)
+    if (!ending.split) {
+      return (
+        <Box key={`${key}-end`} flexDirection="column">
+          {drawn(key, text)}
+          {ending.button}
+        </Box>
+      )
+    }
+    const { head, tail } = ending.split
+    return (
+      <Box key={`${key}-end`} flexDirection="column">
+        {head && drawn(`${key}-head`, head)}
+        <Box key={`${key}-tail`} flexDirection="row" gap={1}>
+          {drawn(head ? `${key}-tail` : key, tail)}
+          {ending.button}
+        </Box>
+      </Box>
+    )
+  }
   return (
     <Box key={`card-${item.source}-${item.id}`} flexDirection="column" {...frame}>
       <Box key="top" flexDirection="row" gap={1}>
@@ -877,8 +921,8 @@ async function drawCard(
           </Text>
         )}
       </Box>
-      <Markdown key={`question-${item.label}`} text={linkRefs(parts.question, forge)} />
-      {rec?.qualifier && <Markdown key={`qualifier-${item.label}`} text={linkRefs(rec.qualifier, forge)} dimColor />}
+      {qualifier ? <Markdown key={`question-${item.label}`} text={question} /> : line(`question-${item.label}`, question, false)}
+      {qualifier && line(`qualifier-${item.label}`, qualifier, true)}
       {!short && parts.link !== null && linkLine(Link, Text, parts.link)}
       <Box key="actions" flexDirection="row" gap={1}>
         {rec && item.kind === 'DECIDE' && (
@@ -893,7 +937,6 @@ async function drawCard(
           <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer($, [`${item.label}: done`])} />
         )}
         <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
-        <Button key={`more-${item.label}`} label="More" dimColor onPress={more} />
         <Box flexGrow={1} />
         {short && shortLink(Link, Text, parts.link)}
       </Box>
@@ -937,7 +980,7 @@ function linkLine(Link: Elements['Link'], Text: Elements['Text'], token: string)
 type Surface = Parameters<$['ui']['copy']>[0]['surface']
 
 /**
- * More, or the card's label: the item in Claude Code's question dialog. Accept and Done fill the
+ * `[more]`, or the card's label: the item in Claude Code's question dialog. Accept and Done fill the
  * prompt as the card's buttons do, the copy options copy, and text typed under Other becomes the
  * item's answer. A dismissed dialog changes nothing.
  */
@@ -950,9 +993,8 @@ async function popup($: $, item: Item, surface: Surface): Promise<void> {
   }
   if (item.kind === 'ACTION') choices.push({ label: 'Done', run: answer($, [`${item.label}: done`]) })
   // A URL as written, or a reference as its URL on the repository's forge.
-  const url = parts.link && /^https?:\/\//i.test(parts.link) ? parts.link : refHref(parts.link, forge)
+  const { url, code } = dialogExtras(parts, item.description, forge)
   if (url) choices.push({ label: 'Copy link', run: () => void copy($, url, surface) })
-  const code = codeSpans(`${parts.question}\n${item.description}`)[0]
   if (code && choices.length < 3) {
     const shown = code.replace(/\s+/g, ' ')
     choices.push({ label: `Copy ${shown.length > 30 ? `${shown.slice(0, 29)}…` : shown}`, run: () => void copy($, code, surface) })

@@ -820,7 +820,7 @@ describe('markdown', () => {
       options: ['Accept: core', 'Copy link', 'Copy mise run flux-up core', 'Close'],
     })
     expect(filled.at(-1)).toBe('D1: go with **core**, it is _faster_')
-    expect((await ui.find({ key: 'more-D1' }))?.text).toBe('More')
+    expect((await ui.find({ key: 'more-D1' }))?.text).toBe('[more]')
     replies.push('Copy link', 'Copy mise run flux-up core')
     await ui.press({ key: 'label-D1' })
     await ui.press({ key: 'label-D1' })
@@ -835,7 +835,10 @@ describe('markdown', () => {
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]', '')
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     replies.push('Done')
-    await ui.press({ key: 'more-A1' })
+    // Neither has more to show than its card, so only the label opens the dialog.
+    expect(await ui.find({ key: 'more-A1' })).toBeUndefined()
+    expect(await ui.find({ key: 'more-D1' })).toBeUndefined()
+    await ui.press({ key: 'label-A1' })
     expect(asked.at(-1)).toEqual({ question: 'log in', header: 'A1', options: ['Done', 'Close'] })
     expect(filled.at(-1)).toBe('A1: done')
     replies.push('  Postgres, we need the extensions  ')
@@ -843,10 +846,52 @@ describe('markdown', () => {
     expect(asked.at(-1)?.options).toEqual(['Accept: SQLite', 'Close'])
     expect(filled.at(-1)).toBe('A1: done\nD1: Postgres, we need the extensions')
     replies.push('Close', null)
-    await ui.press({ key: 'more-D1' })
-    await ui.press({ key: 'more-D1' })
+    await ui.press({ key: 'label-D1' })
+    await ui.press({ key: 'label-D1' })
     expect(asked).toHaveLength(4)
     expect(filled).toHaveLength(2)
+  })
+
+  test('[more] ends the card text only when the dialog has more, beside the last row when it fits', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Keep SQLite for the tests? (recommend yes) [#3]', '')
+    await create($, 'DECIDE: Keep SQLite for the tests? (recommend yes) [#3]', 'It runs in memory.')
+    await create($, 'DECIDE: Run the suite on Postgres in CI as well as on SQLite locally? (recommend yes) [#4]', 'Slower.')
+    await create($, 'DECIDE: Which driver? (recommend psycopg 3, for async) [#5]', 'Async.')
+    await create($, 'ACTION: run `uv sync` [no link]', '')
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: PLUGIN,
+      props: { bodyColumns: 52, placement: 'inline' } as never,
+    })
+    type Node = { type: string; props?: Record<string, unknown>; children?: (Node | string)[] }
+    const find = (node: Node | string, key: string): Node | undefined => {
+      if (typeof node === 'string') return undefined
+      if (node.props?.key === key) return node
+      for (const child of node.children ?? []) {
+        const found = find(child, key)
+        if (found) return found
+      }
+      return undefined
+    }
+    const drawn = (await ui.drawn()) as unknown as Node
+    const keys = (node: Node | undefined) => (node?.children ?? []).map(one => (typeof one === 'string' ? one : String(one.props?.key ?? one.type)))
+    // The bare item: no [more], and its action row has no More either.
+    expect(find(drawn, 'more-D1')).toBeUndefined()
+    expect(keys(find(find(drawn, 'card-tasks-1')!, 'actions'))).toEqual(['accept-D1', 'answer-D1', 'Box', 'Text'])
+    // A one-row question: [more] beside it.
+    expect(keys(find(drawn, 'question-D2-tail'))).toEqual(['question-D2', 'more-D2'])
+    // At 48 columns inside the frame, the question wraps and [more] follows its last row.
+    expect((find(drawn, 'question-D3-head')?.props as { text: string }).text).toBe('Run the suite on Postgres in CI as well as on')
+    expect(keys(find(drawn, 'question-D3-tail'))).toEqual(['question-D3-tail', 'more-D3'])
+    // With a qualifier, [more] follows the qualifier rather than the question.
+    expect(find(drawn, 'question-D4')?.type).toBe('Markdown')
+    expect(keys(find(drawn, 'qualifier-D4-tail'))).toEqual(['qualifier-D4', 'more-D4'])
+    // A command in backticks is something the dialog offers to copy.
+    expect((await ui.find({ key: 'more-A1' }))?.text).toBe('[more]')
   })
 
   test('a long description is cut to fit the screen the card was drawn on', async ($, on) => {
