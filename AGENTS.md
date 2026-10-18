@@ -57,11 +57,13 @@ hand; yeet writes both. Marketplace entries carry no version.
 
 Conventional Commit types decide what releases: `feat`, `fix`, `perf` and any breaking change
 (`type!:`) release the plugins whose files they touch; other types don't. yeet reads the commit
-messages that land on `main`, so a squash merge releases by its PR title and a merge commit by the
-PR's individual commits. README.md, `docs/`, `tests/` and type-checking config don't count toward
+messages that land on `main`. PRs merge with merge commits under GitHub's default merge message
+("Merge pull request #N from <branch>"), which yeet skips, so a PR releases by its own commits;
+squash and rebase merging are off. A merge commit titled with the PR title would count too and
+list each PR twice in the changelog, as forge-tracker 2026.10.18.1's entry does. README.md, `docs/`, `tests/` and type-checking config don't count toward
 a release (`exclude_paths` in `.yeet.yaml`).
 
-A PR that changes a plugin's releasable files needs a `feat`, `fix` or `perf` title, or the
+A PR that changes a plugin's releasable files needs a `feat`, `fix` or `perf` commit, or the
 `no-release` label when the change shouldn't reach users; `release-check` fails it otherwise.
 
 After a releasable merge, yeet opens or refreshes one release PR (`yeet/release-main`) covering

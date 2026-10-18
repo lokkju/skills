@@ -68,11 +68,20 @@ It was opened with `GITHUB_TOKEN`, not the App token. Check that the yeet step's
 
 yeet reads the commit messages that land on the release branch, never PR descriptions.
 
-- **Merge commits:** each of the PR's commits is a line. If the merge commit's title is the PR
-  title, that's one more line (with the PR number); with GitHub's default "Merge pull request
-  #N" title it's skipped. A PR whose commits are all `chore` but whose title is `feat` releases
-  only through that title.
-- **Squash:** the squash commit is the only one. GitHub's default squash message for a
+- **Every PR listed twice:** the merge commit's subject is the PR title (the repo's default
+  message for merge commits is "Pull request title", `merge_commit_title=PR_TITLE`). That
+  subject is a conventional commit, and yeet lists it, with the PR number, beside each of the
+  PR's own commits. Set the default merge message back (`merge_commit_title=MERGE_MESSAGE`,
+  `merge_commit_message=PR_TITLE`): yeet skips "Merge pull request #N from <branch>" and only
+  the PR's commits release. In a repo managed as code, change it there (Pulumi's
+  `github.Repository` `merge_commit_title` and `merge_commit_message`), or the next apply undoes
+  a web UI fix. Released entries stay as they are; edit the open release PR's entry if it has
+  duplicates. Under the PR-title setting, a PR whose commits are all `chore` but whose title is
+  `feat` released through the title alone; with the default subject it doesn't release, and
+  release-check fails it before the merge.
+- **Merge commits (default subject):** each of the PR's commits is a line and the merge commit
+  is skipped.
+- **Squash** (the setup turns it off): the squash commit is the only one. GitHub's default squash message for a
   multi-commit PR is the PR title plus a bullet list of the commits, which yeet doesn't read as
   separate changes; set the squash default to the PR title and description, and put
   `BREAKING CHANGE:` footers or a `BEGIN_COMMIT_OVERRIDE` block in the description so they reach

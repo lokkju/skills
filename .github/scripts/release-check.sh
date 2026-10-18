@@ -2,8 +2,11 @@
 # Two checks on a pull request's commits, which is what yeet reads once they
 # land on main (this repo merges with merge commits, so every commit lands):
 #
-# 1. Every commit subject is a Conventional Commit. Merge commits are skipped,
-#    since yeet ignores them too.
+# 1. Every commit subject is a Conventional Commit. Subjects starting with
+#    "Merge " are skipped. yeet skips a merge commit only when its subject is
+#    the default one ("Merge pull request #N from <branch>"), which is why the
+#    repo keeps GitHub's default merge message; a merge commit titled with the
+#    PR title would release as well.
 # 2. A PR that changes a plugin's releasable files has at least one commit that
 #    releases (feat, fix or perf from bump_types in .yeet.yaml, or a breaking
 #    change: type!: or a BREAKING CHANGE footer), unless it carries the

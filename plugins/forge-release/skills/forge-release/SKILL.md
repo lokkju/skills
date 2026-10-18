@@ -54,9 +54,12 @@ standalone chore.
 
 Full detail, including GitLab and Azure DevOps, is in `references/yeet-setup.md`. On GitHub:
 
-1. **Repo settings.** Merge commits on (the convention: every PR commit lands and yeet reads
-   each one). If squash stays enabled, set its default message to the PR title and description.
-   Rulesets and branch protection must let the App force-push `yeet/release-*`.
+1. **Repo settings.** Merge commits on with GitHub's default merge message
+   (`merge_commit_title=MERGE_MESSAGE`, `merge_commit_message=PR_TITLE`); squash and rebase off.
+   Every PR commit lands and yeet reads each one; it skips the default "Merge pull request #N
+   from <branch>" subject, and only the PR's own commits release. A repo managed as code
+   (Pulumi's `github.Repository`, Terraform's `github_repository`) sets these in that code, not
+   the web UI. Rulesets and branch protection must let the App force-push `yeet/release-*`.
 2. **Release App.** One App per owner, reused by every repo of that owner. If none exists, run
    `github-app-create` (contents and pull requests write are its defaults, which is what yeet
    needs); it stores the client ID as variable `YEET_APP_ID` and the key as secret
@@ -69,8 +72,8 @@ Full detail, including GitLab and Azure DevOps, is in `references/yeet-setup.md`
    the target, its `version_files` and `exclude_paths`. Keep `telemetry.enabled: false`.
 4. **Workflow.** Copy `templates/yeet.yml` to `.github/workflows/yeet.yml` unchanged.
 5. **Commit guard.** Copy `templates/release-check.yml` and `templates/release-check.sh`
-   (`.github/workflows/`, `.github/scripts/`, mode 0755), and `templates/pr-title.yml` when
-   merge commits take the PR title. Create the `no-release` label.
+   (`.github/workflows/`, `.github/scripts/`, mode 0755). Add `templates/pr-title.yml` only for a
+   repo that keeps merge commits titled with the PR title. Create the `no-release` label.
 6. **Dry run** before merging: `GITHUB_TOKEN=$(gh auth token) yeet release --dry-run --verbose`
    from a clone whose HEAD is the remote's release branch, pointing `--config` at the new file.
    It must report the current version you expect.
@@ -92,8 +95,8 @@ run, merge.
 
 `references/troubleshooting.md` goes symptom by symptom: the token step fails (App not
 installed, wrong variable), the release PR doesn't open or doesn't refresh, tags yeet doesn't
-see, version files left alone, changelog lines doubled or missing (what yeet reads under merge
-and squash), a merged release PR with no tag, and a release that started no workflow. Start with
+see, version files left alone, changelog lines doubled or missing (every PR listed twice when
+the merge subject is the PR title), a merged release PR with no tag, and a release that started no workflow. Start with
 `yeet release --dry-run --verbose`; it says which tag it continued from and why each commit was
 counted or ignored.
 
