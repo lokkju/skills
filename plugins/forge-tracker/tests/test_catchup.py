@@ -576,10 +576,26 @@ def mk(number, title="", branch="", closing=()):
         ),
         (mk(5, "fix: x (#0)", "fix-0"), []),
         (mk(5, "fix: x", "fix-42"), [42]),
+        # lokkju/skills#65, filed under #300 before #96: a version in the title and the branch.
+        (
+            mk(
+                65,
+                "fix: point the hand-off nudge at deferred TaskCreate "
+                "(haiku is Haiku 5.5 since 2.1.300)",
+                "fix/task-tools-2-1-300",
+            ),
+            [],
+        ),
+        (mk(5, "chore: bump yeet to v0.17.1", "chore/yeet-0-17-1"), []),
     ],
 )
 def test_issue_numbers(c, numbers):
     assert catchup.issue_numbers(c) == numbers
+
+
+def test_issue_numbers_reads_this_projects_references():
+    c = mk(5, "fix: lokkju/skills#9, acme/other#7 and GH-11", "x")
+    assert catchup.issue_numbers(c, "lokkju/skills") == [9, 11]
 
 
 def _own(**kw):

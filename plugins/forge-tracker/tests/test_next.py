@@ -1135,6 +1135,40 @@ def test_pickups_mark_a_branch_in_flight():
     assert result["other_branches"] == []
 
 
+def fact_change(number, title, branch):
+    return {
+        "number": number,
+        "title": title,
+        "branch": branch,
+        "draft": False,
+        "conflicts": "no",
+        "pipeline": None,
+        "review": None,
+        "author": "lokkju",
+        "updated": "2026-10-01T00:00:00Z",
+        "url": "",
+    }
+
+
+def test_titles_and_branches_mark_in_flight_only_by_a_real_reference():
+    # lokkju/skills#96: a version in a title or branch put #300 in flight.
+    cfg = config.from_mapping({})
+    changes = [
+        fact_change(
+            65,
+            "fix: point the hand-off nudge at deferred TaskCreate "
+            "(haiku is Haiku 5.5 since 2.1.300)",
+            "fix/task-tools-2-1-300",
+        ),
+        fact_change(66, "bump yeet to v0.17.1", "chore/yeet"),
+        fact_change(67, "fix: x (lokkju/skills#286, acme/other#300, GH-1)", "x"),
+    ]
+    issues = [fact_issue(1), fact_issue(286), fact_issue(300)]
+    result = next_.classify(dict(facts(issues, changes=changes), project="lokkju/skills"), cfg)
+    flying = {i["number"]: [e["ref"] for e in i["in_flight"]] for i in result["items"]}
+    assert flying == {1: ["#67"], 286: ["#67"], 300: []}
+
+
 def test_no_pickups_are_recorded_before_phase_2(env):
     from forge_tracker.detect import Remote
 
