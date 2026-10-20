@@ -20,6 +20,7 @@ import {
   subjectOf,
   upsert,
 } from './queue'
+import { type Message, type Trail, ledgerMatches, trailOf } from './lineage'
 import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
@@ -66,6 +67,9 @@ function measure(site: { viewport?: { rows: number; columns: number } }) {
   if (site.viewport && site.viewport.rows > 0) screenRows = site.viewport.rows
 }
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
+// Whether the last hydrate found no stored record and no transcript to look for one in, so the
+// next prompt should look again. A module variable: it's about this process, not the queue.
+let lineageOpen = false
 // The forge the session's repository is on, read from its git config and remote at session start, so `#12`
 // and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
 let forge: Forge | null = null
@@ -224,32 +228,54 @@ function asRecord(value: unknown): SessionRecord {
   }
 }
 
-/**
- * This session's stored record. The first read under a shared task list takes over the record
- * this session kept under its own id. A session with no record whose task files hold decision
- * items was forked from another (backgrounding a session gives it a new id and a copy of the task
- * files), so it starts from that session's record.
- */
-async function loadRecord($: $, sid: string, fromFiles: readonly Item[] | null): Promise<SessionRecord> {
-  const key = await recordKey($, sid)
-  const stored = await $.store.get(key)
-  if (stored !== undefined) return asRecord(stored)
-  const own = key === `session:${sid}` ? undefined : await $.store.get(`session:${sid}`)
-  const found = own !== undefined ? asRecord(own) : key.startsWith('session:') ? await forkedFrom($, sid, fromFiles ?? []) : null
-  if (!found) return asRecord(undefined)
-  await $.store.set(key, { ...found, touched: await $.clock.now() })
-  if (own !== undefined) await $.store.delete(`session:${sid}`)
-  return found
+/** The main conversation's transcript as `$.session.messages()` has it; empty when it can't be read. */
+async function conversation($: $): Promise<readonly Message[]> {
+  try {
+    const rows = await $.session.messages()
+    return Array.isArray(rows) ? (rows as readonly Message[]) : []
+  } catch {
+    return []
+  }
 }
 
 /**
- * The record of the session this one was forked from: the most recently used one whose task list
- * holds every decision item in this one's by task id and label, and at least one of them word for
- * word. A label survives a revised subject, so items either session changed after the fork still
- * match; the word-for-word one keeps two short lists that both start at task 1, D1 apart.
+ * This session's stored record, and whether there was one. The first read under a shared task
+ * list takes over the record this session kept under its own id. A session with no record that
+ * carries decision items, in its task files or in its transcript, came from another session under
+ * a new id, so it starts from that session's record (see `carriedFrom`).
  */
-async function forkedFrom($: $, sid: string, carried: readonly Item[]): Promise<SessionRecord | null> {
-  if (carried.length === 0) return null
+async function loadRecord(
+  $: $,
+  sid: string,
+  fromFiles: readonly Item[] | null,
+  trail: Trail,
+): Promise<{ record: SessionRecord; isStored: boolean }> {
+  const key = await recordKey($, sid)
+  const stored = await $.store.get(key)
+  if (stored !== undefined) return { record: asRecord(stored), isStored: true }
+  const own = key === `session:${sid}` ? undefined : await $.store.get(`session:${sid}`)
+  const found = own !== undefined ? asRecord(own) : key.startsWith('session:') ? await carriedFrom($, sid, fromFiles ?? [], trail) : null
+  if (!found) return { record: asRecord(undefined), isStored: false }
+  await $.store.set(key, { ...found, touched: await $.clock.now() })
+  if (own !== undefined) await $.store.delete(`session:${sid}`)
+  return { record: found, isStored: true }
+}
+
+/**
+ * The record of the session this one carries on from under a new id: the most recently used one
+ * that agrees with every sign of it this session has, and there has to be at least one.
+ * - Task files. Backgrounding a session copies its task files under the new id, so the record's
+ *   own task list holds every decision item in this one's by task id and label, and at least one
+ *   of them word for word. A label survives a revised subject, so items either session changed
+ *   after the fork still match; the word-for-word one keeps two short lists that both start at
+ *   task 1, D1 apart.
+ * - The transcript. A resume, restart or fork that changes the id keeps the conversation, and with
+ *   it what decision_add, decision_update and decision_close answered, so the record's ledger
+ *   holds those items (`ledgerMatches`). That is the only sign a session whose items are all in
+ *   the ledger has; an unrelated session in the same project never has the same answers.
+ */
+async function carriedFrom($: $, sid: string, carried: readonly Item[], trail: Trail): Promise<SessionRecord | null> {
+  if (carried.length === 0 && trail.ledger.size === 0) return null
   const root = await tasksRoot($)
   const covers = (record: SessionRecord) =>
     carried.every(item => record.counters[LETTER[item.kind]] >= Number(item.label.slice(1)))
@@ -259,10 +285,14 @@ async function forkedFrom($: $, sid: string, carried: readonly Item[]): Promise<
     if (!other || other === sid) continue
     const record = asRecord(await $.store.get(key))
     if (!covers(record) || (best && record.touched <= best.touched)) continue
-    const theirs = await readTaskFiles($, `${root}/${other}`)
-    const same = (item: Item, exact: boolean) =>
-      theirs?.some(one => one.id === item.id && one.label === item.label && (!exact || one.body === item.body))
-    if (carried.every(item => same(item, false)) && carried.some(item => same(item, true))) best = record
+    if (ledgerMatches(record, trail) === false) continue
+    if (carried.length > 0) {
+      const theirs = await readTaskFiles($, `${root}/${other}`)
+      const same = (item: Item, exact: boolean) =>
+        theirs?.some(one => one.id === item.id && one.label === item.label && (!exact || one.body === item.body))
+      if (!carried.every(item => same(item, false)) || !carried.some(item => same(item, true))) continue
+    }
+    best = record
   }
   return best
 }
@@ -313,7 +343,12 @@ async function hydrate($: $, given?: string): Promise<void> {
   const sid = safeId(given) ?? (await sessionId($))
   if (!sid) return
   const fromFiles = await readTaskFiles($, await tasksDir($, sid))
-  const record = await loadRecord($, sid, fromFiles)
+  const messages = await conversation($)
+  const trail = trailOf(messages)
+  const { record, isStored } = await loadRecord($, sid, fromFiles, trail)
+  // A session with no record yet may be one whose transcript the engine hadn't loaded when this
+  // ran; the next prompt looks again, until the record exists or the transcript has been read.
+  lineageOpen = !isStored && messages.length === 0
   const current = await read($, items)
   const settled = { ...record.closed, ...(await read($, closed)) }
   const known = { ...record.created, ...(await read($, created)) }
@@ -324,8 +359,11 @@ async function hydrate($: $, given?: string): Promise<void> {
   await update($, items, () => merged)
   await update($, created, () => known)
   await update($, closed, () => settled)
+  // Labels the conversation has already shown count too, so a session whose record is gone
+  // still never hands out one of them again.
+  const shown = trail.labels.map(label => ({ label }))
   await update($, counters, now =>
-    coverLabels({ D: Math.max(now.D, record.counters.D), A: Math.max(now.A, record.counters.A) }, merged),
+    coverLabels(coverLabels({ D: Math.max(now.D, record.counters.D), A: Math.max(now.A, record.counters.A) }, merged), shown),
   )
   await publish($, merged)
 }
@@ -467,6 +505,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const now = await $.clock.now()
     await update($, turnStarted, () => now)
+    if (lineageOpen) await hydrate($, e.session_id)
     const pending = await read($, handoffNudge)
     if (!pending) return result
     await update($, handoffNudge, () => '')

@@ -25,7 +25,9 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     if (!lists.has(dir)) lists.set(dir, new Map())
     return lists.get(dir)!
   }
-  const session = { id: SID }
+  // `messages` is the transcript $.session.messages() answers: what the conversation already holds.
+  const session = { id: SID, messages: [] as unknown[] }
+  on('session.messages', () => ({ value: session.messages as any }))
   const own = () => listOf(env.CLAUDE_CODE_TASK_LIST_ID ?? session.id)
   const tasks = own()
   // The tools the model is offered; a test empties it to take the task tools away. `deferred`
@@ -511,6 +513,12 @@ const ledgerItem = (label: string, body: string, status = 'pending', description
   description,
 })
 const listAll = ($: any) => $.command.run({ command: 'decisions', args: 'all', ...RUN })
+/** A transcript row: one of the plugin's tools called, and what it answered. */
+const said = (tool: string, result: string) => ({
+  role: 'assistant',
+  text: '',
+  toolUses: [{ tool_use_id: `${tool}-${result}`, tool: `mcp__session-decisions__${tool}`, input: {}, result, text: result }],
+})
 
 describe('resume and fork', () => {
   test('on a shared task list, the record is kept under the list', async ($, on) => {
@@ -648,6 +656,152 @@ describe('resume and fork', () => {
     const text = after.additionalContext?.join('\n') ?? ''
     expect(text).toContain('- D1 DECIDE: Postgres or SQLite?')
     expect(text).toContain('- A1 ACTION: approve the deploy [no link] (fallback ledger)')
+  })
+
+  test('a ledger-only session resumed under a new id carries its ledger and numbering on', async ($, on) => {
+    const { session, store, lists } = engine(on, {}, {
+      store: {
+        'session:old': {
+          counters: { D: 1, A: 0 },
+          created: { D1: 1 },
+          ledger: [ledgerItem('D1', 'which cluster? (recommend k3s) [no link]')],
+          closed: {},
+          touched: 2,
+        },
+      },
+    })
+    session.id = 'resumed'
+    session.messages = [said('decision_add', 'D1 DECIDE: which cluster? (recommend k3s) [no link]')]
+    await start($)
+    expect((await $.command.run({ command: 'decisions', args: '', ...RUN })).text).toContain(
+      'D1 DECIDE: which cluster? (recommend k3s) [no link]  (ledger',
+    )
+    // The task tools are back: the next item numbers on from the carried counters.
+    await create($, 'DECIDE: retire kapp? (recommend yes) [no link]')
+    expect(lists.get(`${ROOT}/resumed`)?.get('1')?.subject).toBe('D2 DECIDE: retire kapp? (recommend yes) [no link]')
+    const closed = await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'c1', label: 'D1', ruling: 'k3s' })
+    expect(closed.result).toBe('D1 closed')
+    // The new id keeps its own copy; the old record stays as it was.
+    expect((store.get('session:resumed') as any).ledger.map((item: any) => [item.label, item.status])).toEqual([['D1', 'completed']])
+    expect((store.get('session:old') as any).ledger[0].status).toBe('pending')
+  })
+
+  test('a transcript the engine loads after session start is read by the resume hook or the next prompt', async ($, on) => {
+    const seed = {
+      store: {
+        'session:old': { counters: { D: 0, A: 1 }, created: {}, ledger: [ledgerItem('A1', 'approve the deploy [no link]')], closed: {}, touched: 2 },
+      },
+    }
+    const { session } = engine(on, {}, seed)
+    on('classic.SessionStart', () => ({}))
+    on('classic.UserPromptSubmit', () => ({}))
+    session.id = 'resumed'
+    await start($)
+    expect((await listAll($)).text).not.toContain('A1')
+    session.messages = [said('decision_add', 'A1 ACTION: approve the deploy [no link]')]
+    const after = await $.classic.SessionStart({ source: 'resume', session_id: session.id })
+    expect(after.additionalContext?.join('\n')).toContain('- A1 ACTION: approve the deploy [no link] (fallback ledger)')
+  })
+
+  test('with no resume hook, the first prompt finds the record once the transcript is there', async ($, on) => {
+    const { session } = engine(on, {}, {
+      store: {
+        'session:old': { counters: { D: 0, A: 1 }, created: {}, ledger: [ledgerItem('A1', 'approve the deploy [no link]')], closed: {}, touched: 2 },
+      },
+    })
+    on('classic.UserPromptSubmit', () => ({}))
+    session.id = 'resumed'
+    await start($)
+    session.messages = [said('decision_add', 'A1 ACTION: approve the deploy [no link]')]
+    await $.classic.UserPromptSubmit({ prompt: 'next', session_id: session.id })
+    expect((await listAll($)).text).toContain('A1 ACTION: approve the deploy [no link]  (ledger')
+  })
+
+  test('a fork with task-list and ledger items needs both to match its parent', async ($, on) => {
+    const D1 = 'D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]'
+    const { session, lists } = engine(on, {}, {
+      lists: {
+        parent: { '1': task(D1) },
+        // Another fork of the same conversation's start, which went another way: its task files
+        // match, but its ledger doesn't have the item this conversation added.
+        sibling: { '1': task(D1) },
+        forked: { '1': task(D1) },
+      },
+      store: {
+        'session:parent': { counters: { D: 1, A: 2 }, created: {}, ledger: [ledgerItem('A2', 'approve the deploy [no link]')], closed: {}, touched: 5 },
+        'session:sibling': { counters: { D: 1, A: 2 }, created: {}, ledger: [ledgerItem('A2', 'renew the cert [no link]')], closed: {}, touched: 9 },
+      },
+    })
+    session.id = 'forked'
+    session.messages = [
+      { role: 'assistant', text: '', toolUses: [{ tool_use_id: 't1', tool: 'TaskCreate', input: {}, result: { task: { id: '1', subject: D1 } } }] },
+      said('decision_add', 'A2 ACTION: approve the deploy [no link]'),
+    ]
+    await start($)
+    const all = (await listAll($)).text
+    expect(all).toContain('A2 ACTION: approve the deploy [no link]  (ledger')
+    expect(all).not.toContain('renew the cert')
+    await create($, 'ACTION: rotate the deploy key [no link]')
+    expect(lists.get(`${ROOT}/forked`)?.get('2')?.subject).toBe('A3 ACTION: rotate the deploy key [no link]')
+  })
+
+  test('an unrelated session in the same project is never carried over', async ($, on) => {
+    const { session, store } = engine(on, {}, {
+      store: {
+        // Both start at D1; only the body tells them apart.
+        'session:ours': { counters: { D: 1, A: 0 }, created: {}, ledger: [ledgerItem('D1', 'which cluster? (recommend k3s) [no link]')], closed: {}, touched: 2 },
+        'session:theirs': { counters: { D: 1, A: 0 }, created: {}, ledger: [ledgerItem('D1', 'tabs or spaces? (recommend tabs) [no link]')], closed: {}, touched: 9 },
+      },
+    })
+    session.id = 'resumed'
+    session.messages = [said('decision_add', 'D1 DECIDE: which cluster? (recommend k3s) [no link]')]
+    await start($)
+    const all = (await listAll($)).text
+    expect(all).toContain('which cluster?')
+    expect(all).not.toContain('tabs or spaces?')
+    expect((store.get('session:resumed') as any).ledger[0].body).toBe('which cluster? (recommend k3s) [no link]')
+  })
+
+  test('a session with an empty transcript takes no ledger-only record', async ($, on) => {
+    const { store } = engine(on, {}, {
+      store: { 'session:other': { counters: { D: 1, A: 0 }, created: {}, ledger: [ledgerItem('D1', 'not ours? (recommend no) [no link]')], closed: {}, touched: 9 } },
+    })
+    await start($)
+    expect((await listAll($)).text).not.toContain('not ours')
+    expect(store.has(`session:${SID}`)).toBe(false)
+  })
+
+  test('an item the conversation closed is never revived from an older record', async ($, on) => {
+    const { session, lists } = engine(on, {}, {
+      store: {
+        // Still shows D1 open: the conversation closed it after this was written.
+        'session:stale': { counters: { D: 1, A: 0 }, created: {}, ledger: [ledgerItem('D1', 'which cluster? (recommend k3s) [no link]')], closed: {}, touched: 9 },
+      },
+    })
+    session.id = 'resumed'
+    session.messages = [
+      said('decision_add', 'D1 DECIDE: which cluster? (recommend k3s) [no link]'),
+      said('decision_close', 'D1 closed'),
+    ]
+    await start($)
+    expect((await $.command.run({ command: 'decisions', args: '', ...RUN })).text).toBe('No open decisions or actions.')
+    // With no record to carry, the labels the conversation used still aren't handed out again.
+    await create($, 'DECIDE: retire kapp? (recommend yes) [no link]')
+    expect(lists.get(`${ROOT}/resumed`)?.get('1')?.subject).toBe('D2 DECIDE: retire kapp? (recommend yes) [no link]')
+  })
+
+  test('labels the transcript shows keep numbering going when the record is gone', async ($, on) => {
+    const { session, offered } = engine(on)
+    session.messages = [
+      { role: 'assistant', text: '', toolUses: [{ tool_use_id: 't1', tool: 'TaskCreate', input: {}, result: { task: { id: '1', subject: 'A4 ACTION: run gh auth login [no link]' } } }] },
+      said('decision_add', 'D3 DECIDE: which cluster? (recommend k3s) [no link]'),
+    ]
+    await start($)
+    offered.tools = []
+    const d = await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'DECIDE', text: 'retire kapp? (recommend yes) [no link]' })
+    const a = await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l2', kind: 'ACTION', text: 'approve the deploy [no link]' })
+    expect(d.result).toBe('D4 DECIDE: retire kapp? (recommend yes) [no link]')
+    expect(a.result).toBe('A5 ACTION: approve the deploy [no link]')
   })
 
   test('prune keeps the most recently used records of both kinds', async ($, on) => {
