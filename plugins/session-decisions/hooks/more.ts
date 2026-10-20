@@ -1,18 +1,18 @@
-// What the question dialog shows beyond an open card, and where a card's `[more]` goes.
+// What the details view shows beyond an open card, and where a card's `[more]` goes.
 // Nothing here touches `$`, so it's tested directly.
 
 import { type Forge, refHref } from './forge'
-import { codeSpans, dialogText, plainText } from './markdown'
+import { codeSpans, descriptionText, plainText } from './markdown'
 import { type BodyParts, shortRecommendation } from './subject'
 
 export const MORE = '[more]'
 
 /**
- * The link and command the dialog offers for an item: the link as a URL (as written, or a
+ * The link and command the details view offers for an item: the link as a URL (as written, or a
  * reference resolved on the repository's forge) for its `Link:` line and Copy link, and the first
  * code span of the question or description for its Copy option; null for each it doesn't offer.
  */
-export function dialogExtras(
+export function detailsExtras(
   parts: BodyParts,
   description: string,
   forge: Forge | null,
@@ -33,15 +33,15 @@ export function recommendationCut(recommendation: string): boolean {
 }
 
 /**
- * Whether the question dialog shows something an open card doesn't, so the card ends its text
- * with `[more]`: a description, a recommendation the card cuts short, a link the dialog spells out
+ * Whether the details view shows something an open card doesn't, so the card ends its text
+ * with `[more]`: a description, a recommendation the card cuts short, a link the details view spells out
  * as a URL and offers to copy, or a command it offers to copy. With none of them the card is the
  * whole item.
  */
 export function hasMore(item: { parts: BodyParts; description: string }, forge: Forge | null): boolean {
-  if (dialogText(item.description)) return true
+  if (descriptionText(item.description)) return true
   if (item.parts.recommendation && recommendationCut(item.parts.recommendation)) return true
-  const extras = dialogExtras(item.parts, item.description, forge)
+  const extras = detailsExtras(item.parts, item.description, forge)
   return extras.url !== null || extras.code !== null
 }
 

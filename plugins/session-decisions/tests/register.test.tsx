@@ -70,11 +70,16 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     return { value: { isCopied: true as const } }
   })
   const opened: { id: string; focus?: true }[] = []
+  const panes = new Set<string>()
   on('ui.open', (_$, e) => {
     opened.push({ id: e.id, focus: e.focus })
+    panes.add(e.id)
     return { value: { isPlaced: true } }
   })
-  on('ui.close', () => ({ value: undefined }))
+  on('ui.close', (_$, e) => {
+    panes.delete(e.id)
+    return { value: undefined }
+  })
   on('prompt.submit', (_$, e) => {
     submitted.push(e.text)
     return { text: e.text }
@@ -117,18 +122,7 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  // $.ui.ask is a call of AskUserQuestion. Each dialog takes the next scripted reply: a string is the
-  // option chosen or the text typed under Other, null dismisses it.
-  const asked: { question: string; header: string; options: string[] }[] = []
-  const replies: (string | null)[] = []
-  on('tool.call', { tool: 'AskUserQuestion' }, (_$, e) => {
-    const question = e.questions[0]!
-    asked.push({ question: question.question, header: question.header, options: question.options.map(one => one.label) })
-    const reply = replies.shift() ?? null
-    if (reply === null) return { deny: 'The user dismissed the question' }
-    return { result: { questions: e.questions, answers: { [question.question]: reply } } }
-  })
-  return { tasks, lists, store, filled, submitted, status, clock, opened, offered, session, copied, toasts, asked, replies }
+  return { tasks, lists, store, filled, submitted, status, clock, opened, panes, offered, session, copied, toasts }
 }
 
 async function start($: any) {
@@ -804,55 +798,75 @@ describe('markdown', () => {
     }
   })
 
-  test('More opens the item in a dialog with its context, and Accept or a copy acts on it', async ($, on) => {
-    const { asked, replies, filled, copied } = engine(on)
+  test('More on a transcript card opens the pane on the item in full, with its actions, and Accept closes it', async ($, on) => {
+    const { filled, copied, opened, panes } = engine(on)
     await start($)
     await create($, SUBJECT, DESCRIPTION)
+    const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: { task: { id: '1', subject: 'D1 DECIDE: x' } } } as never
+    const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
+    await row.press({ key: 'more-D1' })
+    expect(opened.at(-1)).toEqual({ id: PLUGIN, focus: true })
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
-    // Nothing expands inline any more.
-    expect(await ui.find({ key: 'description-D1' })).toBeUndefined()
-    expect(await ui.find({ key: 'detail' })).toBeUndefined()
-    replies.push('Accept: core')
-    await ui.press({ key: 'more-D1' })
-    expect(asked.at(-1)).toEqual({
-      question: 'run mise run core or read the guide (https://example.com/guide) first?\nLink: https://github.com/lokkju/skills/issues/20\n\nRecommended: core, it is faster\n\nNeeds sudo on ml-01.\n\nmise run flux-up core',
-      header: 'D1',
-      options: ['Accept: core', 'Copy link', 'Copy mise run flux-up core', 'Close'],
-    })
-    expect(filled.at(-1)).toBe('D1: go with **core**, it is _faster_')
-    expect((await ui.find({ key: 'more-D1' }))?.text).toBe('[more]')
-    replies.push('Copy link', 'Copy mise run flux-up core')
-    await ui.press({ key: 'label-D1' })
-    await ui.press({ key: 'label-D1' })
+    // The list gives way to the item: its question, link, whole recommendation and description, as markdown.
+    expect(await ui.find({ key: 'question-D1' })).toBeUndefined()
+    expect((await ui.find({ key: 'details-question' }))?.type).toBe('Markdown')
+    expect((await ui.find({ key: 'details-question' }))?.text).toBe('run **`mise run core`** or read [the guide](https://example.com/guide) first?')
+    expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://github.com/lokkju/skills/issues/20', label: 'https://github.com/lokkju/skills/issues/20' })
+    expect((await ui.find({ key: 'details-recommendation-text' }))?.text).toBe('Recommended: **core**, it is _faster_')
+    expect((await ui.find({ key: 'details-description-text' }))?.text).toBe(DESCRIPTION)
+    expect((await ui.find({ key: 'details-end' }))?.text).toBe('─ end of D1 ─')
+    const buttons = (await ui.findAll({ type: 'Button' })).map(one => one.text)
+    expect(buttons).toEqual(['Accept', 'Answer', 'Copy link', 'Copy mise run flux-up core', 'Close'])
+    await ui.press({ key: 'details-copy-link' })
+    await ui.press({ key: 'details-copy-code' })
     expect(copied).toEqual(['https://github.com/lokkju/skills/issues/20', 'mise run flux-up core'])
-    expect(filled).toHaveLength(1)
+    expect(await ui.find({ key: 'details-question' })).toBeDefined()
+    // The pane opened for the item, so Accept fills the prompt and closes it.
+    await ui.press({ key: 'details-accept' })
+    expect(filled).toEqual(['D1: go with **core**, it is _faster_'])
+    expect(panes.has(PLUGIN)).toBe(false)
+    expect(await ui.find({ key: 'details-question' })).toBeUndefined()
+    expect(await ui.find({ key: 'question-D1' })).toBeDefined()
   })
 
-  test('Done, typed text and a dismissal from the dialog', async ($, on) => {
-    const { asked, replies, filled } = engine(on)
+  test('in the open queue, Back returns to the list, and Done and Answer fill the prompt', async ($, on) => {
+    const { filled, panes } = engine(on)
     await start($)
     await create($, 'ACTION: log in [no link]', '')
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]', '')
+    await $.command.run({ command: 'decisions', args: 'pane', ...RUN })
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
-    replies.push('Done')
-    // Neither has more to show than its card, so only the label opens the dialog.
+    // Neither has more to show than its card, so only the label opens the details.
     expect(await ui.find({ key: 'more-A1' })).toBeUndefined()
-    expect(await ui.find({ key: 'more-D1' })).toBeUndefined()
     await ui.press({ key: 'label-A1' })
-    expect(asked.at(-1)).toEqual({ question: 'log in', header: 'A1', options: ['Done', 'Close'] })
-    expect(filled.at(-1)).toBe('A1: done')
-    replies.push('  Postgres, we need the extensions  ')
+    expect((await ui.findAll({ type: 'Button' })).map(one => one.text)).toEqual(['Done', 'Answer', 'Back'])
+    expect(await ui.find({ key: 'details-description-text' })).toBeUndefined()
+    await ui.press({ key: 'details-back' })
+    expect(await ui.find({ key: 'question-A1' })).toBeDefined()
+    expect(panes.has(PLUGIN)).toBe(true)
+    await ui.press({ key: 'label-A1' })
+    await ui.press({ key: 'details-done' })
     await ui.press({ key: 'label-D1' })
-    expect(asked.at(-1)?.options).toEqual(['Accept: SQLite', 'Close'])
-    expect(filled.at(-1)).toBe('A1: done\nD1: Postgres, we need the extensions')
-    replies.push('Close', null)
-    await ui.press({ key: 'label-D1' })
-    await ui.press({ key: 'label-D1' })
-    expect(asked).toHaveLength(4)
-    expect(filled).toHaveLength(2)
+    await ui.press({ key: 'details-answer' })
+    expect(filled.at(-1)).toBe('A1: done\nD1: ')
+    expect(await ui.find({ key: 'question-D1' })).toBeDefined()
+    expect(panes.has(PLUGIN)).toBe(true)
   })
 
-  test('[more] ends the card text only when the dialog has more, beside the last row when it fits', async ($, on) => {
+  test('a long description is drawn whole, for the pane to scroll', async ($, on) => {
+    engine(on)
+    await start($)
+    const long = ['Why it matters:', '', ...Array.from({ length: 60 }, (_, i) => `- Point ${i + 1}, with **some** detail.`)].join('\n')
+    await create($, 'ACTION: log in [no link]', long)
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never, viewport: { columns: 60, rows: 20 } })
+    await ui.press({ key: 'more-A1' })
+    const text = (await ui.find({ key: 'details-description-text' }))?.text
+    expect(text).toBe(long)
+    expect(text).toContain('- Point 60, with **some** detail.')
+    expect((await ui.find({ key: 'details-end' }))?.text).toBe('─ end of A1 ─')
+  })
+
+  test('[more] ends the card text only when the details view has more, beside the last row when it fits', async ($, on) => {
     engine(on)
     await start($)
     await create($, 'DECIDE: Keep SQLite for the tests? (recommend yes) [#3]', '')
@@ -890,35 +904,8 @@ describe('markdown', () => {
     // With a qualifier, [more] follows the qualifier rather than the question.
     expect(find(drawn, 'question-D4')?.type).toBe('Markdown')
     expect(keys(find(drawn, 'qualifier-D4-tail'))).toEqual(['qualifier-D4', 'more-D4'])
-    // A command in backticks is something the dialog offers to copy.
+    // A command in backticks is something the details view offers to copy.
     expect((await ui.find({ key: 'more-A1' }))?.text).toBe('[more]')
-  })
-
-  test('a long description is cut to fit the screen the card was drawn on', async ($, on) => {
-    const { asked, replies } = engine(on)
-    await start($)
-    const long = ['Why it matters:', '', ...Array.from({ length: 30 }, (_, i) => `- Point ${i + 1}, with **some** detail.`)].join('\n')
-    await create($, 'ACTION: log in [no link]', long)
-    const mount = (columns: number, rows: number) =>
-      $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never, viewport: { columns, rows } })
-    // 30 rows with Done and Close leaves 16 for the question: "log in", a blank line, and 14.
-    let ui = await mount(100, 30)
-    replies.push(null)
-    await ui.press({ key: 'more-A1' })
-    let lines = asked.at(-1)!.question.split('\n')
-    expect(lines.slice(0, 4)).toEqual(['log in', '', 'Why it matters:', ''])
-    expect(lines).toHaveLength(16)
-    expect(lines.at(-2)).toBe('- Point 11, with some detail.')
-    expect(lines.at(-1)).toBe('… 19 more lines not shown')
-    await ui.unmount()
-    // At 20 columns each point wraps to two rows, and the row left over takes part of the next.
-    ui = await mount(20, 30)
-    replies.push(null)
-    await ui.press({ key: 'more-A1' })
-    lines = asked.at(-1)!.question.split('\n')
-    expect(lines.at(-2)).toBe('- Point 6, with…')
-    expect(lines.at(-1)).toBe('… 25 more lines not shown')
-    await ui.unmount()
   })
 
   test('a settled row and the toast use plain text', async ($, on) => {
@@ -996,8 +983,8 @@ describe('link and label forms', () => {
     expect(drawn).toContain(`{"type":"Text","props":{"wrap":"wrap"},"children":[{"type":"Link","props":{"href":"${LONG}"`)
   })
 
-  test('with a GitHub remote, references link to it in the card, the question and the dialog', async ($, on) => {
-    const { asked } = engine(on)
+  test('with a GitHub remote, references link to it in the card, the question and the details view', async ($, on) => {
+    engine(on)
     const ran: string[][] = []
     on('process.run', (_$, e) => {
       ran.push([...e.argv])
@@ -1017,8 +1004,11 @@ describe('link and label forms', () => {
       'merge [!4](https://github.com/lokkju/skills/pull/4) before [#9](https://github.com/lokkju/skills/issues/9)?',
     )
     await ui.press({ key: 'more-D1' })
-    expect(asked.at(-1)?.question).toContain('\nLink: https://github.com/lokkju/skills/issues/3\n')
-    expect(asked.at(-1)?.options).toContain('Copy link')
+    expect((await ui.find({ type: 'Link' }))?.props).toEqual({ href: 'https://github.com/lokkju/skills/issues/3', label: 'https://github.com/lokkju/skills/issues/3' })
+    expect((await ui.find({ key: 'details-question' }))?.text).toBe(
+      'merge [!4](https://github.com/lokkju/skills/pull/4) before [#9](https://github.com/lokkju/skills/issues/9)?',
+    )
+    expect(await ui.find({ key: 'details-copy-link' })).toBeDefined()
   })
 
   test('the forge_hosts option links a host the plugin cannot name, and notes the entries it skips', { options: { forge_hosts: 'git.lab.lokkju.com=forgejo, bad' } }, async ($, on) => {

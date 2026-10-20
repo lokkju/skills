@@ -74,30 +74,30 @@ write a recommendation isn't ready to ask yet, which is the point.
   mirror, or otherwise not where its issues live can say where they do in its
   [git config](#per-repository-forge). On the terminal a link is an OSC 8 hyperlink, which most terminals open with a click (or
   ctrl/cmd+click); one without OSC 8 support shows the text alone.
-- **More:** when the dialog has something the card doesn't (a description, a link it spells out
-  as a URL and can copy, a command in backticks it can copy, or a recommendation the card cuts
-  short), the card's text ends with a dim `[more]`: after the question, or after the qualifier
-  when there is one, on its last row when there's room and on a row of its own when the text fills
-  it. A card without `[more]` is the whole item. `[more]`, or a press on the card's label, opens
-  the item in Claude Code's question dialog, headed by the label. The dialog keeps line breaks but draws no markdown, so the plugin
-  hands it plain text: the question, `Link: <url>` when the link is a URL or a reference the
-  plugin can resolve (the dialog makes no hyperlinks, so the URL opens only where the terminal
-  spots URLs in plain text itself), `Recommended: <the full recommendation>`, and the item's
-  description with its paragraphs and list items kept and its links written as `text (url)`. A
-  description too long for the screen is cut so the options stay in view, and ends with
-  `… N more lines not shown`; the plugin measures the screen when it draws the card, so a dialog
-  opened right after a change of height alone may be cut for the old one. Its options are
-  **Accept: <choice>** for a decision or **Done** for an action, **Copy link** when there's a
-  `Link:` line, **Copy <command>** for the first command in backticks, and **Close**. Copying works on the
-  terminal; Claude Code has no clipboard path for the other surfaces yet. Whatever you type under
-  the dialog's Other becomes your answer, `D3: <your text>` in the prompt. Esc closes the dialog
-  and changes nothing.
+- **More:** when the details view has something the card doesn't (a description, a link it
+  spells out as a URL and can copy, a command in backticks it can copy, or a recommendation the
+  card cuts short), the card's text ends with a dim `[more]`: after the question, or after the
+  qualifier when there is one, on its last row when there's room and on a row of its own when the
+  text fills it. A card without `[more]` is the whole item. `[more]`, or a press on the card's
+  label, shows the item in full in the queue pane, in place of the list; from a transcript card
+  the pane opens for it, with the keys, at any terminal width. The view has the card's top row
+  with a `↑↓ PgUp PgDn scroll · Esc closes` hint, then its buttons: **Accept** for a decision or
+  **Done** for an action, **Answer**, **Copy link** when the link is a URL or a reference the
+  plugin can resolve, **Copy <command>** for the first command in backticks, and **Back** to the
+  list (**Close** when the pane opened just for this item). Under them come the question, the
+  link, `Recommended: <the full recommendation>` and the whole description, drawn as markdown
+  (lists, tables and code blocks included), ending in a dim `─ end of D3 ─` line so you can tell
+  you've reached the bottom. Nothing is cut: the pane scrolls with the arrows, PgUp and PgDn, Home
+  and End, and the mouse wheel, and Tab walks the buttons wherever the view is scrolled to.
+  Accept, Done and Answer fill the prompt as the card's buttons do and leave the view; copying
+  works on the terminal, and Claude Code has no clipboard path for the other surfaces yet. Esc
+  closes the pane and changes nothing.
 - **Task list:** where the session has TaskCreate, the items are tasks, so ctrl+t lists them too.
 
 ### Answering
 
 **Accept** puts `D3: go with <the recommendation>` in your prompt, **Done** puts `A2: done`, and
-**Answer** puts `D3: ` for you to finish. The dialog `[more]` opens fills the same lines. Each press adds or replaces that item's line, so one
+**Answer** puts `D3: ` for you to finish. The details view `[more]` opens fills the same lines. Each press adds or replaces that item's line, so one
 message can answer several items; **Accept all** adds a line for every open recommendation. You
 edit and send it like any other message, and the assistant marks each item completed with a
 dated `Ruling (2026-10-08): ...` line. Completed items stay in the task list as the session's

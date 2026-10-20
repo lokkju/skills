@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Counters, Item, Kind, Loop, SessionRecord } from '../types'
+import type { Counters, Details, Item, Kind, Loop, SessionRecord } from '../types'
 import {
   applyUpdate,
   age,
@@ -20,8 +20,8 @@ import {
   subjectOf,
   upsert,
 } from './queue'
-import { dialogQuestion, githubShort, isShortLink, linkHref, plainText } from './markdown'
-import { MORE, dialogExtras, hasMore, moreSplit } from './more'
+import { githubShort, isShortLink, linkHref, plainText } from './markdown'
+import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge } from './handoff'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
@@ -53,14 +53,17 @@ const handoffNudge = atom({ plugin: 'session-decisions', key: 'handoffNudge' } a
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
+const details = atom({ plugin: 'session-decisions', key: 'details' } as const, null as Details | null)
 // Whether this surface docks panes beside the transcript: fixed per session on the terminal and
 // learnt from the footer's drawing. A module variable, since a drawing may not write state.
 let docks = false
-// The screen's size as the last drawing saw it, so More can fit the dialog to it; null until
-// something has drawn on a surface that measures.
-let screen: { rows: number; columns: number } | null = null
+// Whether the queue pane is on screen, as this module last saw it open, draw or close.
+let paneUp = false
+// The screen's height as the last drawing saw it, so the details view can ask for a pane that
+// tall; null until something has drawn on a surface that measures.
+let screenRows: number | null = null
 function measure(site: { viewport?: { rows: number; columns: number } }) {
-  if (site.viewport && site.viewport.rows > 0 && site.viewport.columns > 0) screen = { rows: site.viewport.rows, columns: site.viewport.columns }
+  if (site.viewport && site.viewport.rows > 0) screenRows = site.viewport.rows
 }
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
 // The forge the session's repository is on, read from its git config and remote at session start, so `#12`
@@ -677,13 +680,26 @@ export const register: Register = (on, options) => {
     return { text: listing(list, now, arg === 'all') }
   })
 
-  // A sidebar the person closes stays closed until the queue empties.
+  // A sidebar the person closes stays closed until the queue empties; closing a pane that opened
+  // only to show an item's details doesn't count as closing the sidebar.
   on('ui.close', async ($, e, next) => {
-    if (e.id === PANE && e.origin.kind === 'person') {
+    if (e.id !== PANE) return next(e)
+    const shown = await read($, details)
+    if (shown) await update($, details, () => null)
+    if (e.origin.kind === 'person' && !shown?.owns) {
       await update($, paneDismissed, () => true)
       await update($, autoOpened, () => false)
     }
-    return next(e)
+    const closed = await next(e)
+    paneUp = false
+    return closed
+  })
+
+  // A pane waiting undrawn (opened unasked on a narrow terminal) isn't one the person has seen.
+  on('ui.open', async ($, e, next) => {
+    const opened = await next(e)
+    if (e.id === PANE) paneUp = opened.value?.isPlaced === true
+    return opened
   })
 
   // The footer: a count beside the mode labels that opens the queue. It also learns whether
@@ -755,11 +771,15 @@ export const register: Register = (on, options) => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     measure(e)
+    paneUp = true
     const { Box, Button, Text } = $.ui.resolve(e)
     const list = ordered(await read($, items))
     const settledOpen = await read($, showSettled)
     const plain = await read($, ascii)
     const docked = e.props.placement === 'dock'
+    const shown = await read($, details)
+    const focus = shown ? list.find(item => keyOf(item) === shown.item && isOpen(item)) : undefined
+    if (focus) return drawDetails($, e, focus, shown?.owns === true)
     const open = list.filter(isOpen)
     const settled = list.filter(item => !isOpen(item))
     const accepts = open.flatMap(item => {
@@ -831,8 +851,8 @@ function chip(Text: Elements['Text'], plain: boolean, text: string, color: strin
 
 /**
  * One item. Open: kind chip, label, recommendation tag, age, the question, the qualifier, and its
- * buttons; `bordered` draws a round frame (the accent one for `isNext`). When the dialog has more
- * than the card shows, the text ends with `[more]`, beside its last row when it fits in `width`
+ * buttons; `bordered` draws a round frame (the accent one for `isNext`). When the details view has
+ * more than the card shows, the text ends with `[more]`, beside its last row when it fits in `width`
  * (the columns inside the frame) and on a row of its own otherwise. Settled, or `compact`: one dim
  * line with the ruling.
  */
@@ -875,7 +895,7 @@ async function drawCard(
   const frame = opts.bordered
     ? { borderStyle: 'round', borderColor: opts.isNext ? ACCENT : 'inactive', hover: { borderColor: ACCENT }, paddingX: 1 }
     : {}
-  const more = (press: { surface: Surface }) => void popup($, item, press.surface)
+  const more = () => void showDetails($, item)
   const question = linkRefs(parts.question, forge)
   const qualifier = rec?.qualifier ? linkRefs(rec.qualifier, forge) : null
   // [more] follows whichever line of text comes last: the qualifier when there is one.
@@ -979,35 +999,123 @@ function linkLine(Link: Elements['Link'], Text: Elements['Text'], token: string)
 
 type Surface = Parameters<$['ui']['copy']>[0]['surface']
 
+/** How the details view names an item: its source and id, which a label alone doesn't settle. */
+function keyOf(item: Item): string {
+  return `${item.source}:${item.id}`
+}
+
 /**
- * `[more]`, or the card's label: the item in Claude Code's question dialog. Accept and Done fill the
- * prompt as the card's buttons do, the copy options copy, and text typed under Other becomes the
- * item's answer. A dismissed dialog changes nothing.
+ * `[more]`, or the card's label: the item in full in the queue pane, in place of the list. The pane
+ * opens for it, with the keys, when it isn't open already, as tall as the screen allows; Claude
+ * Code scrolls a pane whose content is taller than it, with the arrows, the page keys, Home, End
+ * and the wheel. A pane that can't be placed leaves things as they were and says why in a toast.
  */
-async function popup($: $, item: Item, surface: Surface): Promise<void> {
-  const parts = splitBody(item.body)
-  const choices: { label: string; run: () => void }[] = []
-  if (item.kind === 'DECIDE' && parts.recommendation) {
-    const choice = shortRecommendation(plainText(parts.recommendation)).choice
-    choices.push({ label: `Accept: ${choice}`, run: answer($, [`${item.label}: go with ${parts.recommendation}`]) })
-  }
-  if (item.kind === 'ACTION') choices.push({ label: 'Done', run: answer($, [`${item.label}: done`]) })
-  // A URL as written, or a reference as its URL on the repository's forge.
-  const { url, code } = dialogExtras(parts, item.description, forge)
-  if (url) choices.push({ label: 'Copy link', run: () => void copy($, url, surface) })
-  if (code && choices.length < 3) {
-    const shown = code.replace(/\s+/g, ' ')
-    choices.push({ label: `Copy ${shown.length > 30 ? `${shown.slice(0, 29)}…` : shown}`, run: () => void copy($, code, surface) })
-  }
-  choices.push({ label: 'Close', run: () => undefined })
-  let picked: string
-  try {
-    const question = dialogQuestion({ ...parts, description: item.description, link: url }, choices.length, screen)
-    picked = (await $.ui.ask(question, { header: item.label, options: choices.map(one => one.label) })).trim()
-  } catch {
+async function showDetails($: $, item: Item): Promise<void> {
+  // Opened before anything else is awaited, so Claude Code counts it as the person's press and
+  // seats it at any width; whether the queue was open already is the module's own record.
+  const owns = !paneUp
+  const opening = $.ui
+    .open({ id: PANE, title: 'Decisions', focus: true, closeOnEscape: true, columns: 52, rows: screenRows ?? 40 })
+    .catch((err: unknown) => ({ isPlaced: false as const, reason: String(err) }))
+  await update($, details, () => ({ item: keyOf(item), owns }))
+  const opened = await opening
+  if (!opened.isPlaced) {
+    await update($, details, () => null)
+    $.ui.toast(`Couldn't show ${item.label}: ${opened.reason}`)
     return
   }
-  const chosen = choices.find(one => one.label === picked)
-  if (chosen) chosen.run()
-  else if (picked) answer($, [`${item.label}: ${picked}`])()
+  await $.ui.scroll({ in: PANE, to: 'start' }).catch(() => undefined)
+}
+
+/** Leave the details view: back to the list, or closed when the pane opened only for it. */
+async function leaveDetails($: $, item: Item, owns: boolean): Promise<void> {
+  await update($, details, () => null)
+  if (owns) {
+    await $.ui.close({ id: PANE }).catch(() => undefined)
+    return
+  }
+  await $.ui.scroll({ in: PANE, to: { key: `slot-${item.source}-${item.id}` }, block: 'start' }).catch(() => undefined)
+}
+
+/**
+ * The details view: the card's top row, its actions (Accept or Done, Answer, Copy link, Copy
+ * <command>, and Back, or Close when the pane opened for this item), then the question, the link,
+ * the whole recommendation and the description, drawn as markdown, and a last line that says the
+ * item ends there. The actions come first so they're in reach however far down the text goes;
+ * Accept, Done and Answer fill the prompt as the card's buttons do and leave the view.
+ */
+async function drawDetails($: $, site: Parameters<$['ui']['resolve']>[0], item: Item, owns: boolean) {
+  const { Box, Button, Link, Markdown, Text } = $.ui.resolve(site) as Elements
+  const plain = await read($, ascii)
+  const now = await $.clock.now()
+  const parts = splitBody(item.body)
+  const choice = parts.recommendation ? shortRecommendation(plainText(parts.recommendation)).choice : null
+  const { url, code } = detailsExtras(parts, item.description, forge)
+  const href = linkHref(url)
+  const stale = item.created !== undefined && now - item.created > DAY
+  const leave = () => leaveDetails($, item, owns)
+  const act = (lines: string[]) => () => {
+    answer($, lines)()
+    void leave()
+  }
+  const shownCode = code ? code.replace(/\s+/g, ' ') : ''
+  const hint = plain ? 'Up/Down PgUp/PgDn scroll, Esc closes' : '↑↓ PgUp PgDn scroll · Esc closes'
+  return (
+    <Box key={`details-${item.source}-${item.id}`} flexDirection="column">
+      <Box key="details-top" flexDirection="row" gap={1}>
+        {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
+        <Text bold>{item.label}</Text>
+        {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
+        <Box flexGrow={1} flexShrink={1} justifyContent="flex-end">
+          <Text key="details-hint" dimColor wrap="truncate-end">
+            {hint}
+          </Text>
+        </Box>
+        {item.created !== undefined && (
+          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+            {age(item.created, now).replace('waiting ', '')}
+          </Text>
+        )}
+      </Box>
+      <Box key="details-actions" flexDirection="row" flexWrap="wrap" columnGap={1}>
+        {item.kind === 'DECIDE' && parts.recommendation && (
+          <Button key="details-accept" label="Accept" variant="primary" onPress={act([`${item.label}: go with ${parts.recommendation}`])} />
+        )}
+        {item.kind === 'ACTION' && <Button key="details-done" label="Done" variant="primary" onPress={act([`${item.label}: done`])} />}
+        <Button key="details-answer" label="Answer" dimColor onPress={act([`${item.label}: `])} />
+        {url && <Button key="details-copy-link" label="Copy link" dimColor onPress={press => void copy($, url, press.surface)} />}
+        {code && (
+          <Button
+            key="details-copy-code"
+            label={`Copy ${shownCode.length > 30 ? `${shownCode.slice(0, 29)}…` : shownCode}`}
+            dimColor
+            onPress={press => void copy($, code, press.surface)}
+          />
+        )}
+        <Button key="details-back" label={owns ? 'Close' : 'Back'} dimColor onPress={() => void leave()} />
+      </Box>
+      <Box key="details-body" flexDirection="column" marginTop={1}>
+        <Markdown key="details-question" text={linkRefs(parts.question, forge)} />
+        {url && (
+          <Text key="details-link" wrap="wrap">
+            {'Link: '}
+            {href ? <Link href={href} label={href} /> : url}
+          </Text>
+        )}
+        {parts.recommendation && (
+          <Box key="details-recommendation" marginTop={1}>
+            <Markdown key="details-recommendation-text" text={`Recommended: ${linkRefs(parts.recommendation, forge)}`} />
+          </Box>
+        )}
+        {item.description.trim() && (
+          <Box key="details-description" marginTop={1}>
+            <Markdown key="details-description-text" text={linkRefs(item.description, forge)} />
+          </Box>
+        )}
+        <Box key="details-end" marginTop={1}>
+          <Text dimColor>{plain ? `-- end of ${item.label} --` : `─ end of ${item.label} ─`}</Text>
+        </Box>
+      </Box>
+    </Box>
+  )
 }
