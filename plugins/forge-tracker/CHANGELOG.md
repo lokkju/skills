@@ -1,5 +1,13 @@
 # Changelog
 
+## [forge-tracker--v2026.10.20.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.18.2...forge-tracker--v2026.10.20.1) (2026-10-20)
+
+### Features
+
+- **forge-tracker:** tell agents to record blocking as native links ([7d71d16](https://github.com/lokkju/skills/commit/7d71d16553ba40ac1ec5c6884f6c3f11434e5e91))
+- **forge-tracker:** propose native links for blocking written as prose in /groom ([e5af74c](https://github.com/lokkju/skills/commit/e5af74c9969df316ee920edd8a5e6d35df7d21e0))
+- **forge-tracker:** add link add|remove for native blocking links ([0673d28](https://github.com/lokkju/skills/commit/0673d28c508403344d931d514342c44d321e7b2b))
+
 ## [forge-tracker--v2026.10.18.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.18.1...forge-tracker--v2026.10.18.2) (2026-10-18)
 
 ### Features
