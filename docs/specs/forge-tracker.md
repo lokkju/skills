@@ -539,14 +539,17 @@ reported as a cycle. The walk passes through every open blocked item and counts 
 aren't person-only; a blocker in another project blocks but isn't walked.
 
 **In flight:** an item is in flight when an open change has a closing reference to it or names it
-(`#N` in its title, or `N` in its branch name), or a pushed branch with no change and at least
+(a reference in its title, or `N` in its branch name), or a pushed branch with no change and at least
 one commit past the default branch names `N`. A branch names `N` only when it's clearly an issue
 number: a whole word at the start or end of a `/`-separated segment (`21-github-adapter`,
 `fix/21`, `sd-26`) or right after `issue`, `gh`, `fix` and similar words (`issue-21-x`). Digits
-inside a version (`cilium-1.20.2`, `v1`), a date (`plans-2026-10-08`), a run id or hash longer than
-six digits, a word with a leading zero, a number in the middle of a name (`phase-2-docs`) and `0`
-aren't issue numbers, and a `dependabot/` or `renovate/` branch names none. `/catchup` groups merged changes by the
-same rule (`forge_tracker/refs.py`). Phase 2's pickup record (branch
+inside a version, dotted or dashed (`cilium-1.20.2`, `v1`, `task-tools-2-1-300`), a date
+(`plans-2026-10-08`), a run id or hash longer than six digits, a word with a leading zero, a
+number in the middle of a name (`phase-2-docs`) and `0` aren't issue numbers, and a `dependabot/`
+or `renovate/` branch names none. A title names `N` only by a reference the forge links: `#N`,
+`owner/repo#N` naming this project, or `GH-N`; a bare number, such as the `300` in "since
+2.1.300", never counts. `/catchup` groups merged changes and `/groom`'s named-only check reads
+titles and branches by the same rules (`forge_tracker/refs.py`). Phase 2's pickup record (branch
 to issue) is the other source; until phase 2 ships, `next.recorded_pickups` returns none and is
 the one place to read it.
 

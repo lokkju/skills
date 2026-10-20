@@ -297,7 +297,7 @@ def check_merged(f: Findings, reads: Mapping[str, Any]) -> None:
             )
 
 
-def check_named(f: Findings, reads: Mapping[str, Any]) -> None:
+def check_named(f: Findings, reads: Mapping[str, Any], project: Optional[str] = None) -> None:
     """A merged change that names an open issue only in its title or branch, with no closing
     reference to it, goes to the unclear bucket (D22), never to proposals."""
     if not _needs(f, "named", reads, "merged", "issues", "closing"):
@@ -306,7 +306,7 @@ def check_named(f: Findings, reads: Mapping[str, Any]) -> None:
     closing = {(r.issue, r.change) for r in reads["closing"].data if r.change_project is None}
     for change in sorted(reads["merged"].data, key=lambda c: c.number):
         via: dict[int, list[str]] = {}
-        for n in refs.title_numbers(change.title):
+        for n in refs.title_numbers(change.title, project):
             via.setdefault(n, []).append("title")
         for n in refs.branch_numbers(change.branch):
             via.setdefault(n, []).append(f"branch {change.branch}")
@@ -742,7 +742,7 @@ def build(
     f = Findings()
     stale = timedelta(days=config.stale_days or DEFAULT_STALE_DAYS)
     check_merged(f, reads)
-    check_named(f, reads)
+    check_named(f, reads, remote.project)
     check_tiers(f, reads, config)
     check_blocked_label(f, reads, config)
     check_closed_blockers(f, reads)

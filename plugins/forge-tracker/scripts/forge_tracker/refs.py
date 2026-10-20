@@ -3,10 +3,15 @@ them and `/next` marks issues in flight with them, so both read names the same w
 
 A branch names an issue only when the number is clearly one: a whole word at the start or end of
 a path segment (`21-github-adapter`, `fix/21`, `sd-26`), or right after a word like `issue` or
-`gh` (`issue-21-x`, `gh-21-x`). Digits inside a version (`cilium-1.20.2`, `v1`,
-`garm-runner-2.338.0-38790455020`), a date (`plans-2026-10-08`), a long build or run id, a word
-with a leading zero, a number in the middle of a name (`phase-2-docs`), and anything on a
-dependency bot's branch (`dependabot/...`, `renovate/...`) aren't issue numbers. Neither is 0.
+`gh` (`issue-21-x`, `gh-21-x`). Digits inside a version, dotted or dashed (`cilium-1.20.2`, `v1`,
+`garm-runner-2.338.0-38790455020`, `task-tools-2-1-300`), a date (`plans-2026-10-08`), a long
+build or run id, a word with a leading zero, a number in the middle of a name (`phase-2-docs`),
+and anything on a dependency bot's branch (`dependabot/...`, `renovate/...`) aren't issue
+numbers. Neither is 0.
+
+A title names an issue only by a reference the forge itself links: `#21`, `owner/repo#21` when
+that is this project, or `GH-21`. A bare number never counts, so the `300` in "since 2.1.300", a
+version such as `v0.17.1`, and a date are all ignored.
 
 `prose_blocks` reads the other kind of reference: blocking an issue body states in words
 (`Blocked by: #17`) instead of as a native link, which `/groom` proposes to link natively.
@@ -17,8 +22,12 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-# `#N` not preceded by a word character or `/`, so `acme/other#9` and `abc#9` don't count.
-HASH_REF = re.compile(r"(?<![\w/])#(\d+)\b")
+# `#N` not preceded by a word character or `/`, so `acme/other#9` and `abc#9` don't count, and
+# not followed by `.digit`, so `#1.2` isn't issue 1.
+HASH_REF = re.compile(r"(?<![\w/])#(\d+)\b(?!\.\d)")
+# `owner/repo#N` (the project is compared with this one) or `GH-N`, GitHub's other short form.
+_PROJECT_REF = re.compile(r"(?<![\w/.-])([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#(\d+)\b(?!\.\d)")
+_GH_REF = re.compile(r"(?<![\w/.-])GH-(\d+)\b(?![.-]\d)", re.IGNORECASE)
 
 # A date as dashed, dotted or underscored parts, with an optional build counter after it.
 _DATE = re.compile(r"(?<![\d.])\d{4}[-._]\d{1,2}[-._]\d{1,2}(?:[-._]\d+)?(?![\d.])")
@@ -36,6 +45,10 @@ def _number(word: str) -> Optional[int]:
     return int(word)
 
 
+def _numeric(words: list[str], position: int) -> bool:
+    return 0 <= position < len(words) and words[position].isdigit()
+
+
 def branch_numbers(branch: str) -> set[int]:
     """The issue numbers a branch name clearly names (see the module docstring)."""
     if branch.startswith(_BOT_PREFIXES):
@@ -49,6 +62,9 @@ def branch_numbers(branch: str) -> set[int]:
             number = _number(word)
             if number is None:
                 continue
+            # Two number words side by side are a dashed version (`2-1-300`, `k3s-1-36`).
+            if _numeric(words, position - 1) or _numeric(words, position + 1):
+                continue
             at_edge = position == 0 or position == len(words) - 1
             after_keyword = position > 0 and words[position - 1].lower() in _KEYWORDS
             if at_edge or after_keyword:
@@ -56,9 +72,14 @@ def branch_numbers(branch: str) -> set[int]:
     return out
 
 
-def title_numbers(title: str) -> set[int]:
-    """`#N` references in a change's title, never `#0`."""
-    return {int(n) for n in HASH_REF.findall(title)} - {0}
+def title_numbers(title: str, project: Optional[str] = None) -> set[int]:
+    """The issues a change's title references (see the module docstring): `#N`, `GH-N`, and
+    `owner/repo#N` when it names `project` (compared without case). Never 0, a number with a
+    leading zero, or one longer than a run id's worth of digits."""
+    found = HASH_REF.findall(title) + _GH_REF.findall(title)
+    if project:
+        found += [n for p, n in _PROJECT_REF.findall(title) if p.lower() == project.lower()]
+    return {number for n in found if (number := _number(n)) is not None}
 
 
 # --- blocking written as prose ------------------------------------------------------------------

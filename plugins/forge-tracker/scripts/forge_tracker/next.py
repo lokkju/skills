@@ -345,6 +345,7 @@ def classify(
     closing = _part(facts, "closing")
     branches = _part(facts, "branches")
     pickups = pickups or {}
+    this_project = facts.get("project")
     result: dict[str, Any] = {
         "items": [],
         "cycles": [],
@@ -434,7 +435,7 @@ def classify(
     for c in changes or []:
         for number in sorted(closes.get(c["number"], ())):
             fly(number, change_entry(c, "closing reference"))
-        for number in sorted(refs.title_numbers(c["title"]) - {c["number"]}):
+        for number in sorted(refs.title_numbers(c["title"], this_project) - {c["number"]}):
             fly(number, change_entry(c, "title"))
         for number in sorted(refs.branch_numbers(c["branch"]) - {c["number"]}):
             fly(number, change_entry(c, "branch name"))

@@ -157,11 +157,11 @@ def gather(
 # --- building the report ----------------------------------------------------------------------
 
 
-def issue_numbers(change: Change) -> list[int]:
-    """Issue numbers a merged change names: its closing references, `#N` in its title, and the
-    numbers its branch clearly names (`refs.branch_numbers`)."""
+def issue_numbers(change: Change, project: Optional[str] = None) -> list[int]:
+    """Issue numbers a merged change names: its closing references, the references in its title
+    (`refs.title_numbers`), and the numbers its branch clearly names (`refs.branch_numbers`)."""
     numbers = set(change.closing_issues)
-    numbers |= refs.title_numbers(change.title)
+    numbers |= refs.title_numbers(change.title, project)
     numbers |= refs.branch_numbers(change.branch)
     numbers.discard(change.number)
     numbers.discard(0)
@@ -322,7 +322,7 @@ def build(
                 "closing_issues": list(c.closing_issues),
                 "url": c.url,
             }
-            for number in issue_numbers(c) or [None]:
+            for number in issue_numbers(c, remote.project) or [None]:
                 groups.setdefault(number, []).append(entry)
         ordered = sorted(n for n in groups if n is not None) + ([None] if None in groups else [])
         merged["groups"] = [
