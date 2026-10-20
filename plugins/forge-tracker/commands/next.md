@@ -152,7 +152,9 @@ A later `/next` shows the saved slate, with its age, until the facts move.
    Keep each item's in-flight marks (an open PR with its draft, conflict and CI state, or a pushed
    branch) and never call a lane with `conflicts: unknown` ready to merge.
 3. **Blocked**: each item and what it waits on. `no blocking links recorded` means the forge
-   records none; an issue whose text says it waits on something isn't counted here.
+   records none; an issue whose text says it waits on something (`Blocked by: #17` in its body)
+   isn't counted here, and may show up as agent-ready. When you know of such an issue, say so,
+   and suggest `/groom`, which proposes the native link.
 4. **Open PRs with no open issue**: each with its draft, conflict, CI and review state. These are
    in flight too; never drop them, and never call one with `conflicts: unknown` ready to merge.
 5. **Flags** last: merged-but-open issues, links to closed blockers and blocked labels with
@@ -172,6 +174,25 @@ Exit status 1 means at least one read failed; the report still printed, nothing 
 reuse, and no slate is shown or saved until a run reads everything. Exit status 2 is a setup
 problem (no origin remote, a forge it can't read yet, a bad `.claude/forge-tracker.local.md`, or
 `gh` not logged in): show the message and stop.
+
+## Recording blocking
+
+`/next` sees blocking only as the forge's native links. Whenever you file an issue that waits on
+another, or find that one does, record it as a link, not as a sentence in the body:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link add 18 --blocked-by 17   # #18 waits on #17
+"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link remove 18 --blocked-by 17
+```
+
+(`--blocked-by owner/repo#17` for a blocker in another project; `gh api -X POST
+repos/{owner}/{repo}/issues/18/dependencies/blocked_by -F issue_id=<#17's id>` is the same write
+without forge-tracker.) It goes through the repo's write-wrapper when one is set, and refuses a
+link that already exists. A line such as `Blocked by: #17` may stay in the body as a gloss for
+people, but never as the only record: `/next` can't see it, and it goes stale silently when #17
+closes. Doing this while running `/next` itself is still an action: `/next` never links
+anything because of its own report, and you link only issues you filed or are working on, or
+when the user asks.
 
 ## In a workspace folder
 

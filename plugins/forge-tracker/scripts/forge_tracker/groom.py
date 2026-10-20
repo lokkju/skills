@@ -3,13 +3,16 @@
 Read-only. Every check reads what it needs, fails on its own, and sorts what it finds three ways:
 
 - **Proposals:** changes the CLI verified, each a named write (`close`, `labels`, `milestone`,
-  `unlink`, `delete-branch`) with its payload and evidence. Nothing is written here; `groom
-  apply` writes the ones the user approved, after checking each is still a current proposal.
+  `unlink`, `delete-branch`, `link-add`) with its payload and evidence. Nothing is written here;
+  `groom apply` writes the ones the user approved, after checking each is still a current
+  proposal.
 - **Unclear:** what looks like drift but couldn't be verified. Never acted on: a change with
   `conflicts: unknown`, a merged change that names an open issue only in its title or branch (no
   closing reference), a branch with commits the default branch doesn't have, a tier label and a
-  milestone that disagree, and every likely duplicate.
-- **Listed for you:** conflicted or stale PRs and placeholder due dates, for the user to judge.
+  milestone that disagree, every likely duplicate, and prose blocking that can't be linked from
+  here (a pull request, another project's issue, a blocker that couldn't be read).
+- **Listed for you:** conflicted or stale PRs, placeholder due dates, and prose blocking on a
+  blocker that has closed, for the user to judge.
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ CHECKS = {
     "tiers": "tier labels and milestones",
     "blocked_label": "blocked label with nothing linked",
     "closed_blockers": "links to closed blockers",
+    "prose_blocks": "blocking written only as prose",
     "decided": "decided but still waiting",
     "branches": "stale branches",
     "changes": "conflicted or stale PRs",
@@ -127,6 +131,29 @@ def gather(adapter: Any, config: Config, now: datetime, workers: int = 6) -> dic
             for number, future in futures2.items():
                 history[number] = future.result()
     reads["history"] = history
+
+    # What each blocker an issue body names in prose is, when it isn't an open issue here (or a
+    # recently closed one, which the recent read already has).
+    blockers: dict[tuple[Optional[str], int], Read] = {}
+    if reads["issues"].ok:
+        known = {i.number for i in reads["issues"].data}
+        if reads["recent"].ok:
+            known |= {i.number for i in reads["recent"].data}
+        project = getattr(adapter, "project", None)
+        wanted = set()
+        for issue in reads["issues"].data:
+            for direction, other, number, _line in refs.prose_blocks(issue.body):
+                other = None if other == project else other
+                if direction == "blocked_by" and (other is not None or number not in known):
+                    wanted.add((other, number))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures3 = {
+                key: pool.submit(attempt, lambda key=key: adapter.issue_ref(key[1], key[0]))
+                for key in sorted(wanted, key=lambda k: (k[0] or "", k[1]))
+            }
+            for key, future in futures3.items():
+                blockers[key] = future.result()
+    reads["prose_blockers"] = blockers
     return reads
 
 
@@ -423,6 +450,87 @@ def check_closed_blockers(f: Findings, reads: Mapping[str, Any]) -> None:
         )
 
 
+def _quoted(line: str) -> str:
+    return repr(line if len(line) <= 80 else line[:77] + "...")
+
+
+def check_prose_blocks(f: Findings, reads: Mapping[str, Any], project: str) -> None:
+    """Blocking an open issue's body states only in words (`Blocked by: #17`, `Blocks #18`),
+    with no native link behind it. `/next` and the other checks read only the links, so the
+    sentence blocks nothing. An open blocker is a `link-add` proposal; a closed one is listed
+    for the user, since the prose is stale and only a person edits a body; anything that can't
+    be linked from here is unclear. Bodies are never edited."""
+    if not _needs(f, "prose_blocks", reads, "issues", "links"):
+        return
+    issues = {i.number: i for i in reads["issues"].data}
+    recent = {i.number: i for i in reads["recent"].data} if reads["recent"].ok else {}
+    native = {(link.blocked, link.blocker_project, link.blocker) for link in reads["links"].data}
+    for issue in sorted(issues.values(), key=lambda i: i.number):
+        for direction, other, number, line in refs.prose_blocks(issue.body):
+            other = None if other == project else other
+            ref = f"{other}#{number}" if other else f"#{number}"
+            says = f"#{issue.number}'s body says {_quoted(line)}"
+            if other is None and number == issue.number:
+                continue
+            if direction == "blocks":
+                if other is not None:
+                    f.unsure(
+                        "prose_blocks",
+                        f"#{issue.number}",
+                        f"{says}: {ref} is in another project; link it there",
+                    )
+                    continue
+                if number not in issues:
+                    continue  # closed, a pull request, or no such issue: nothing waits on it
+                blocked, blocker, blocker_project, blocker_open = number, issue.number, None, True
+                closed_on = None
+            else:
+                blocked, blocker, blocker_project = issue.number, number, other
+                state = issues.get(number) if other is None else None
+                if state is None and other is None and number in recent:
+                    state = recent[number]
+                if state is not None:
+                    blocker_open, closed_on = state.state == "open", state.closed
+                else:
+                    read = reads["prose_blockers"].get((other, number))
+                    if read is None or not read.ok:
+                        reason = read.error if read is not None else "not read"
+                        f.unsure(
+                            "prose_blocks", f"#{issue.number}", f"{says}: {ref} FAILED ({reason})"
+                        )
+                        f.fail("prose_blocks", f"{ref}: {reason}")
+                        continue
+                    if read.data.is_change:
+                        f.unsure(
+                            "prose_blocks",
+                            f"#{issue.number}",
+                            f"{says}: {ref} is a pull request; a blocking link joins two issues",
+                        )
+                        continue
+                    blocker_open, closed_on = read.data.state == "open", read.data.closed
+            if (blocked, blocker_project, blocker) in native:
+                continue
+            if not blocker_open:
+                f.list(
+                    "prose_blocks",
+                    f"#{blocked}",
+                    f"{says}, but {ref} closed {_day(closed_on)} and nothing is linked; the "
+                    "prose is stale",
+                )
+                continue
+            payload: dict[str, Any] = {"issue": blocked, "blocker": blocker}
+            if blocker_project:
+                payload["blocker_project"] = blocker_project
+            blocker_name = f"{blocker_project}#{blocker}" if blocker_project else f"#{blocker}"
+            f.propose(
+                "prose_blocks",
+                f"link-add #{blocked} blocked by {blocker_name}",
+                "link-add",
+                payload,
+                f"{says}; no native link, so /next doesn't see it",
+            )
+
+
 def check_decided(f: Findings, reads: Mapping[str, Any], config: Config) -> None:
     """An issue still carrying needs-human or decision whose newest ruling comment is dated after
     the label was added. The ruling is trusted by its pattern, never by its author (D20)."""
@@ -638,6 +746,7 @@ def build(
     check_tiers(f, reads, config)
     check_blocked_label(f, reads, config)
     check_closed_blockers(f, reads)
+    check_prose_blocks(f, reads, remote.project)
     check_decided(f, reads, config)
     check_branches(f, reads, stale, now, KEEP_BRANCHES + config.keep_branches)
     check_changes(f, reads, stale, now)

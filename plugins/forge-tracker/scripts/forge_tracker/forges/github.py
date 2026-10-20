@@ -17,6 +17,7 @@ from ..model import (
     Comment,
     ForgeError,
     Issue,
+    IssueRef,
     Job,
     Label,
     LabelEvent,
@@ -469,6 +470,40 @@ class GitHub:
         if not isinstance(compare, dict) or "status" not in compare:
             raise ForgeError(f"compare {branch}...{sha[:7]} returned no status")
         return compare["status"] in ("behind", "identical")
+
+    def issue_ref(self, number: int, project: Optional[str] = None) -> IssueRef:
+        """One issue (or pull request) by number, in this project or `project`."""
+        other = project if project and project != self.project else None
+        raw = self.t.get(f"/repos/{other or self.project}/issues/{number}")
+        if not isinstance(raw, dict) or "state" not in raw:
+            raise ForgeError(f"{other or ''}#{number} returned no issue")
+        return IssueRef(
+            number=number,
+            state=raw.get("state") or "open",
+            is_change="pull_request" in raw,
+            id=int(raw["id"]) if raw.get("id") else None,
+            project=other,
+            closed=parse_time(raw.get("closed_at")),
+        )
+
+    def blocked_by(self, number: int) -> list[Link]:
+        """The native links that block one issue, whatever their state, through REST
+        (`GET /issues/{n}/dependencies/blocked_by`)."""
+        out = []
+        for raw in self.t.get_all(f"{self.repo_path}/issues/{number}/dependencies/blocked_by"):
+            repo_url = str(raw.get("repository_url") or "").rstrip("/")
+            project = "/".join(repo_url.split("/")[-2:]) if repo_url else self.project
+            out.append(
+                Link(
+                    blocked=number,
+                    blocker=int(raw["number"]),
+                    blocker_open=raw.get("state") == "open",
+                    kind="native",
+                    blocker_project=None if project == self.project else project,
+                    blocker_closed=parse_time(raw.get("closed_at")),
+                )
+            )
+        return out
 
     def blocking_links(self) -> list[Link]:
         nodes = self.t.graphql_all(

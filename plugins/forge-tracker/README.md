@@ -3,8 +3,8 @@
 Keeps durable work on the issue tracker of the repo it's about, and keeps that tracker honest
 enough to plan from. The design is [docs/specs/forge-tracker.md](../../docs/specs/forge-tracker.md);
 this release has a read-only forge layer for GitHub, `/catchup`, `/next` and `/groom`, plus the
-write operations `/groom` applies. The working rules and the GitLab and Forgejo adapters come in
-later phases.
+write operations `/groom` applies and `forge-tracker link` for recording blocking. The working
+rules and the GitLab and Forgejo adapters come in later phases.
 
 ## Requirements
 
@@ -113,7 +113,9 @@ The CLI classifies every open issue, deterministically:
   An assignee is never a reason: agents share your account, so assignees show as owners.
 - **Blocked:** an open blocker by native link, or the blocked label. A link to a closed blocker
   doesn't block; it's flagged for `/groom`, and so is a blocked label with nothing linked. A
-  person-only item that's blocked is listed under Blocked.
+  person-only item that's blocked is listed under Blocked. Blocking stated only in an issue's
+  body (`Blocked by: #17`) isn't a link, so it isn't seen here; record it with
+  `forge-tracker link add` (see [Writes](#writes)).
 - **Agent-ready:** open, not person-only and not blocked. The agent label isn't required; when
   it's configured, labelled items sort first within their tier. An agent-ready item without the
   agent label is marked `untagged` in the report without a slate (`untagged: true` in `--json`):
@@ -188,6 +190,7 @@ applies only the ones you name.
 | Tier label and milestone (tier label N pairs with milestone prefix N) | `labels` to add the missing tier label; `milestone` when exactly one open milestone fits | a label and milestone that disagree; no single milestone that fits |
 | Blocked label with nothing linked | `unlink` the label | |
 | Link to a closed blocker | `unlink` the link | |
+| Blocking written only as prose: an open issue's body says `Blocked by: #17`, `blocked on #17`, `Depends on #17` or, at a line's start, `Blocks #18` (or `owner/repo#N`), with no native link behind it | `link-add`, when the blocker is an open issue; a closed blocker is listed for you as stale prose | a pull request named as a blocker; a blocked issue in another project; a blocker that couldn't be read |
 | Decided but still waiting: a ruling comment (by `ruling_pattern`) dated after the needs-human or decision label was added | `labels`: remove those, add `decision_made` | an issue whose label history can't be read |
 | Stale branch: no open PR, nothing ahead of the default branch | `delete-branch` (refused at apply time if the branch moved) | a branch with commits the default branch lacks, when idle for `stale_days` or the branch of a merged PR |
 | Conflicted or stale PR | nothing; listed for you | `conflicts: unknown` |
@@ -226,8 +229,24 @@ are named, and each takes a JSON payload:
 | `unlink` | `issue` and either `label` or `blocker` (+ `blocker_project`) | remove the label, or the blocked-by link; refused if the blocker reopened |
 | `delete-branch` | `branch`, `sha` | delete the ref; refused if the branch moved off `sha` or is protected |
 | `label-create` | `name`, `color` (six hex digits), `description` | create the label; refused, with or without a wrapper, if the repo has the name in any case |
+| `link-add` | `issue`, `blocker` (+ `blocker_project`) | `POST /issues/{issue}/dependencies/blocked_by` with the blocker's id; refused, with or without a wrapper, if the link exists, it links an issue to itself, or either side is a pull request or closed |
+| `link-remove` | `issue`, `blocker` (+ `blocker_project`) | `DELETE /issues/{issue}/dependencies/blocked_by/{id}`, whatever the blocker's state; refused if there's no such link |
 
-`forge-tracker write <op>` runs one with its payload on stdin. When the config sets
+`forge-tracker write <op>` runs one with its payload on stdin. For blocking there's a shorter
+form:
+
+```bash
+plugins/forge-tracker/scripts/forge-tracker link add 18 --blocked-by 17      # #18 waits on #17
+plugins/forge-tracker/scripts/forge-tracker link add 18 --blocked-by acme/other#4
+plugins/forge-tracker/scripts/forge-tracker link remove 18 --blocked-by 17
+```
+
+Record blocking this way (or with GitHub's own relationship UI or API), not as a sentence in the
+issue body. `/next` and `/groom` read only the native links, so `Blocked by: #17` in a body
+blocks nothing they can see; `/groom` finds such sentences and proposes the link. A sentence can
+stay as a gloss for people, but it can't be the only record.
+
+When the config sets
 `write_wrapper:`, forge-tracker sends no write of its own: it runs `<wrapper> <op>` in the repo
 root with the same JSON on stdin (plus `repo`), and the wrapper does the write and exits 0, or
 exits non-zero to refuse; its stderr is shown. Every operation, written, refused or failed, is
