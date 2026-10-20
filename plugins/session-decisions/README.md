@@ -281,7 +281,18 @@ numbering and ledger again whatever happens to its id:
 - Backgrounding a session forks it: the job gets a new session id and a copy of the task files.
   A session with no record of its own whose task files hold decision items starts from the record
   of the session those files came from, found by matching task ids and labels.
-- `--fork-session` gives a new id and an empty task list, so the fork starts a fresh queue.
+- Any session that comes back under a new id with its conversation (a restart that resumes it
+  under a new id, a backgrounded job, `--fork-session`) and has no record of its own also looks at
+  its transcript: what `decision_add`, `decision_update` and `decision_close` answered there names
+  the ledger items it had. It starts from the record whose ledger holds every one of them by
+  label, at least one word for word, and closed wherever the transcript closed it; when it also
+  has task files, that record's task list has to match them too. That's how a session whose items
+  are all in the ledger finds its record, and an unrelated session in the same project, whose
+  transcript never had those answers, is never taken for it.
+- Labels the transcript shows, from the ledger or from TaskCreate, are never handed out again,
+  even when no record is found.
+- `--fork-session` gives a new id and an empty task list: its ledger items carry over through the
+  transcript, its task-list items don't.
 
 The task tools can come and go within one session: a restart or resume can drop them, and
 `CLAUDE_CODE_ENABLE_TODO_TOOLS` brings them back. Items added with `decision_add` while they were
@@ -316,10 +327,12 @@ and desktop); the transcript cards, the sidebar and `/decisions` work everywhere
   plugin loaded) is taken to have no TaskUpdate, so `decision_close` settles its task-list items
   in the queue. A teammate that does have TaskUpdate and calls `decision_close` before any task
   tool leaves its task file showing the item open.
-- A forked session is matched to its parent by the task files Claude Code copies into it, which
-  it doesn't document either. A fork whose task files hold no decision items (a session that
-  only used the fallback ledger, say) has nothing to match and starts a fresh queue. The parent's
-  record has to be among the 100 most recently used ones the store keeps.
+- A session under a new id is matched to the one it came from by the task files Claude Code
+  copies into it, which it doesn't document either, and by its transcript as
+  `$.session.messages()` reads it (the newest 4096 messages). One whose task files hold no
+  decision items and whose transcript no longer shows any ledger answer (a compaction summarised
+  them away before the id changed, say) has nothing to match and starts a fresh queue. The
+  earlier session's record has to be among the 100 most recently used ones the store keeps.
 - A forked session takes a copy of its parent's record. Ledger items either one adds or settles
   afterwards stay in that session.
 - A task-list item settled with `decision_close` stays open in its task file, so ctrl+t still

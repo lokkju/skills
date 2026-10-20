@@ -23,7 +23,7 @@ export function nextNumber(counters: Counters, items: readonly Item[], kind: Kin
 }
 
 /** Counters raised to cover every label in `items`, so numbering never repeats one. */
-export function coverLabels(counters: Counters, items: readonly Item[]): Counters {
+export function coverLabels(counters: Counters, items: readonly Pick<Item, 'label'>[]): Counters {
   const out = { ...counters }
   for (const item of items) {
     const letter = item.label[0] as 'D' | 'A'
