@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.20.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.18.1...session-decisions--v2026.10.20.1) (2026-10-20)
+
+### Fixes
+
+- **session-decisions:** show [more] details in a scrollable pane instead of the cut-off dialog ([910374c](https://github.com/lokkju/skills/commit/910374c05df1bc86da7574d707f1e8a8ca5a11a4))
+
 ## [session-decisions--v2026.10.18.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.16.4...session-decisions--v2026.10.18.1) (2026-10-18)
 
 ### Features
