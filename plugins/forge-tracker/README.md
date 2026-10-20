@@ -3,8 +3,10 @@
 Keeps durable work on the issue tracker of the repo it's about, and keeps that tracker honest
 enough to plan from. The design is [docs/specs/forge-tracker.md](../../docs/specs/forge-tracker.md);
 this release has a read-only forge layer for GitHub, `/catchup`, `/next` and `/groom`, plus the
-write operations `/groom` applies and `forge-tracker link` for recording blocking. The working
-rules and the GitLab and Forgejo adapters come in later phases.
+write operations `/groom` applies and `forge-tracker link` for recording blocking. The
+`forge-tracker` skill holds the first working rules: record blocking as a native link, and label
+person-only work when filing it. The rest of the working rules and the GitLab and Forgejo
+adapters come in later phases.
 
 ## Requirements
 
@@ -243,7 +245,8 @@ plugins/forge-tracker/scripts/forge-tracker link remove 18 --blocked-by 17
 ```
 
 Record blocking this way (or with GitHub's own relationship UI or API), not as a sentence in the
-issue body. `/next` and `/groom` read only the native links, so `Blocked by: #17` in a body
+issue body; the `forge-tracker` skill tells agents the same whenever they file or link issues,
+and doesn't pre-approve the write, so each link still asks for permission. `/next` and `/groom` read only the native links, so `Blocked by: #17` in a body
 blocks nothing they can see; `/groom` finds such sentences and proposes the link. A sentence can
 stay as a gloss for people, but it can't be the only record.
 

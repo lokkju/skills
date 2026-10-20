@@ -740,6 +740,14 @@ Approve which? (numbers, all, none)
 `skills/forge-tracker/SKILL.md` tells the assistant how to use the tracker in any session.
 None of it needs the commands.
 
+**Built so far.** The skill exists with two of these rules, blocking and labelling person-only
+work at filing, plus pointers to the three commands (ruling D40, 2026-10-20, following
+[#91](https://github.com/lokkju/skills/issues/91)). It's the seed of phase 2: the blocking rule
+had lived only in `commands/next.md` and `commands/groom.md`, which an agent filing or linking
+issues outside those commands never reads. The skill carries no `allowed-tools`, so every `link`
+write still asks for permission. The rest of this list arrives with phase 2's `write file`,
+`write rule` and `issue --pickup`.
+
 - **Routing.** Work goes on the tracker of the repo it's about. Work about several projects goes
   to `crossProjectTracker`; if that's unset, ask which tracker, every time. Nothing is
   hard-coded.
@@ -766,10 +774,11 @@ None of it needs the commands.
   link add <blocked> --blocked-by <blocker>` (or the forge's own UI or API) when an issue is
   filed or found to wait on another, and `link remove` when that stops being true. `/next` and
   `/groom` read only native links, so `Blocked by: #17` in a body blocks nothing they see, and
-  closing #17 doesn't update the sentence. A sentence may stay as a gloss for people. Until the
-  skill exists, the rule is stated in `commands/next.md` and `commands/groom.md`, and `/groom`'s
-  prose check catches what slips through
-  ([#91](https://github.com/lokkju/skills/issues/91)).
+  closing #17 doesn't update the sentence. A sentence may stay as a gloss for people. The skill
+  states the rule, and so do `commands/next.md` and `commands/groom.md`; `/groom`'s prose check
+  catches what slips through ([#91](https://github.com/lokkju/skills/issues/91)).
+- **Person-only work** is labelled when it's filed, with the repo's configured needs-human or
+  decision label; with neither configured, it's filed unlabelled and the reply says so.
 - **Shared account.** Never infer that the user acted from the account that acted.
 - **Agents** pass `--no-mark` to `/catchup` (or `forge-tracker catchup --no-mark`) when they run
   it for themselves.
@@ -868,7 +877,8 @@ Each phase is a releasable PR or two.
    marketplace entry and the yeet target. This is the smallest slice that's useful on its own,
    and it exercises every rule in #21. Its fixtures come from the GitHub fixtures repo; until
    that repo exists and is seeded, they're recorded from this repo and scrubbed.
-2. **Working rules and hooks.** The skill, `write file` and `write rule` with the write-wrapper,
+2. **Working rules and hooks.** The skill (seeded with the blocking and person-only labelling
+   rules by D40), `write file` and `write rule` with the write-wrapper,
    the SessionStart list, `issue --pickup` and the closing-reference hook. Still GitHub only.
 3. **`/next` on GitHub.** Facts, fingerprint cache, classification, unblock counts, the slate.
    Built before phase 2 by the owner's ruling, so it reads only what the forge shows (labels,
