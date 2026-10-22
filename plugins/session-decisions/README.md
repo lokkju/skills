@@ -86,7 +86,8 @@ write a recommendation isn't ready to ask yet, which is the point.
   with a `↑↓ PgUp PgDn scroll · Esc closes` hint, then its buttons: **Accept** for a decision or
   **Done** for an action, **Answer**, **Copy link** when the link is a URL or a reference the
   plugin can resolve, **Copy <command>** for the first command in backticks, and **Back** to the
-  list (**Close** when the pane opened just for this item). Under them come the question, the
+  list, scrolled where you left it with the focus on that item's label (**Close** when the pane
+  opened just for this item). Under them come the question, the
   link, `Recommended: <the full recommendation>` and the whole description, drawn as markdown
   (lists, tables and code blocks included), ending in a dim `─ end of D3 ─` line so you can tell
   you've reached the bottom. Nothing is cut: the pane scrolls with the arrows, PgUp and PgDn, Home

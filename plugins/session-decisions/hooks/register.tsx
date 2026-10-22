@@ -66,6 +66,12 @@ let screenRows: number | null = null
 function measure(site: { viewport?: { rows: number; columns: number } }) {
   if (site.viewport && site.viewport.rows > 0) screenRows = site.viewport.rows
 }
+// The first row the queue list showed when it was last drawn or scrolled, so Back from the details
+// view puts the list where it was; null until the list has been seen.
+let listOffset: number | null = null
+// While Back restores the list: the row its window started at, where the list's drawing puts a
+// marker for the scroll to bring to the top. A plugin's $.ui.scroll names things, never rows.
+let restoreRow: number | null = null
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
 // Whether the last hydrate found no stored record and no transcript to look for one in, so the
 // next prompt should look again. A module variable: it's about this process, not the queue.
@@ -809,6 +815,13 @@ export const register: Register = (on, options) => {
     )
   })
 
+  // The list's place as the person scrolls it, for Back from the details view to return to.
+  on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
+    const moved = await next(e)
+    if (moved.deny === undefined && !(await read($, details))) listOffset = e.offset
+    return moved
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     measure(e)
     paneUp = true
@@ -820,6 +833,7 @@ export const register: Register = (on, options) => {
     const shown = await read($, details)
     const focus = shown ? list.find(item => keyOf(item) === shown.item && isOpen(item)) : undefined
     if (focus) return drawDetails($, e, focus, shown?.owns === true)
+    if (e.props.scroll && restoreRow === null) listOffset = e.props.scroll.offset
     const open = list.filter(isOpen)
     const settled = list.filter(item => !isOpen(item))
     const accepts = open.flatMap(item => {
@@ -829,6 +843,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
+        {restoreRow !== null && <Box key="list-place" position="absolute" top={restoreRow} left={0} width={1} height={1} />}
         <Box key="head" flexDirection="row" gap={1} marginBottom={1}>
           <Text bold>Decisions</Text>
           {open.length > 0 ? chip(Text, plain, `${open.length} open`, ACCENT) : <Text dimColor>Nothing waiting on you</Text>}
@@ -1094,14 +1109,30 @@ async function showDetails($: $, item: Item): Promise<void> {
   await $.ui.scroll({ in: PANE, to: 'start' }).catch(() => undefined)
 }
 
-/** Leave the details view: back to the list, or closed when the pane opened only for it. */
+/**
+ * Leave the details view: closed when the pane opened only for it, otherwise back to the list where
+ * it was, the window at the row it started at and the focus on the item's label. The list draws a
+ * marker at that row while this runs; focusing waits for the drawing that brings the label, so the
+ * scroll after it finds the marker in the list, not in the details.
+ */
 async function leaveDetails($: $, item: Item, owns: boolean): Promise<void> {
+  const back = owns ? null : listOffset
+  restoreRow = back
   await update($, details, () => null)
   if (owns) {
+    restoreRow = null
     await $.ui.close({ id: PANE }).catch(() => undefined)
     return
   }
-  await $.ui.scroll({ in: PANE, to: { key: `slot-${item.source}-${item.id}` }, block: 'start' }).catch(() => undefined)
+  try {
+    await $.ui.focus({ requestId: PANE, key: `label-${item.label}` }).catch(() => undefined)
+    if (back !== null) await $.ui.scroll({ in: PANE, to: { key: 'list-place' }, block: 'start' }).catch(() => undefined)
+  } finally {
+    restoreRow = null
+  }
+  // An offset the engine moved since it was read (the focus ring walking the list) may not show
+  // the item; this moves only when it doesn't.
+  await $.ui.scroll({ in: PANE, to: { key: `slot-${item.source}-${item.id}` }, block: 'nearest' }).catch(() => undefined)
 }
 
 /**
