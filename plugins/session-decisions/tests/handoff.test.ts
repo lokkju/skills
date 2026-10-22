@@ -204,6 +204,13 @@ describe('prose that only resembles a hand-off', () => {
     expect(handoffs('The report lists the steps you’ll need to run on each host.', [])).toEqual([])
     expect(handoffs('The research agent will flag anything only you can decide.', [])).toEqual([])
     expect(handoffs("It'll come back with a plan and the calls only you can make.", [])).toEqual([])
+    // A third line from issue 99's session: a feature's output, not a step for the user.
+    expect(
+      handoffs(
+        'C, [#103](https://github.com/lokkju/skills/issues/103): a session-start hook that reports stale git worktrees, likely as a small new plugin. It prints the cleanup commands for you to run rather than deleting anything, keeps within a time budget, and does a read-only dry run over your skills and codexpublicus repos.',
+        [],
+      ),
+    ).toEqual([])
     // A future that waits on the user still counts.
     expect(handoffs("It'll need your approval before the deploy runs.", [])).toHaveLength(1)
     expect(handoffs("That'll be your call.", [])).toHaveLength(1)

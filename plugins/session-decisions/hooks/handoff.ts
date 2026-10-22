@@ -65,7 +65,7 @@ const HEDGE = /\b(?:if|unless|in case|should|whenever|until|before|after)\b[^.;:
 // "The report lists the steps you'll need to run". A future that waits on the user ("it'll need
 // your approval", "that'll be your call") still counts.
 const DESCRIBED =
-  /^\s*(?:it|they|this|that|the [\w-]+(?: [\w-]+){0,2})(?:(?:['’]ll| will| would|['’]d) (?!need\b|have to\b|require|wait|block|be (?:left|waiting|blocked|up to|your|on you|over))|\s+(?:lists|lays out|covers|includes|describes|explains|names|shows|asks|outlines|summari[sz]es|gives|proposes|recommends|contains|mentions|flags)\b)/i
+  /^\s*(?:it|they|this|that|the [\w-]+(?: [\w-]+){0,2})(?:(?:['’]ll| will| would|['’]d) (?!need\b|have to\b|require|wait|block|be (?:left|waiting|blocked|up to|your|on you|over))|\s+(?:lists|lays out|covers|includes|describes|explains|names|shows|asks|outlines|summari[sz]es|gives|proposes|recommends|contains|mentions|flags|prints|writes|reports|returns|produces|generates|outputs|emits|suggests|offers|drafts)\b)/i
 
 // A line about the hand-off check itself, such as a note on a false alarm.
 const ABOUT_CHECK = /\bhand-?offs? (?:check|warning|nudge|reminder|toast|alarm)|\bfalse (?:positive|alarm)|\bnot queued:/i
