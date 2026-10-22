@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.10.20.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.20.1...session-decisions--v2026.10.20.2) (2026-10-20)
+
+### Fixes
+
+- **session-decisions:** carry ledger-only queues across a session id change ([759c183](https://github.com/lokkju/skills/commit/759c183c6558ae7ef707e9498f741eb21e61c825))
+
 ## [session-decisions--v2026.10.20.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.18.1...session-decisions--v2026.10.20.1) (2026-10-20)
 
 ### Fixes

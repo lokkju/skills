@@ -1,5 +1,15 @@
 # Changelog
 
+## [forge-tracker--v2026.10.20.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.20.1...forge-tracker--v2026.10.20.2) (2026-10-20)
+
+### Features
+
+- **forge-tracker:** add a working-rules skill that records blocking as native links ([6cc2229](https://github.com/lokkju/skills/commit/6cc2229c951deb803bb6312aaf4b136132282151))
+
+### Fixes
+
+- **forge-tracker:** read issue numbers from titles and branches only by real references ([4483c31](https://github.com/lokkju/skills/commit/4483c31926ba9bd6b2e0468c3ac1eedafae22990))
+
 ## [forge-tracker--v2026.10.20.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.18.2...forge-tracker--v2026.10.20.1) (2026-10-20)
 
 ### Features
