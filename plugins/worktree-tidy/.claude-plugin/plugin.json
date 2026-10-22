@@ -1,0 +1,10 @@
+{
+  "name": "worktree-tidy",
+  "description": "Finds stale git worktrees at session start (merged or closed PRs, old detached checkouts, worktrees whose directory is gone) and tells you, with the commands to remove them. It only reports; removing them stays your call.",
+  "version": "0.0.0",
+  "author": { "name": "lokkju", "url": "https://github.com/lokkju" },
+  "homepage": "https://github.com/lokkju/skills/tree/main/plugins/worktree-tidy",
+  "repository": "https://github.com/lokkju/skills",
+  "license": "PolyForm-Shield-1.0.0",
+  "keywords": ["git", "worktree", "cleanup", "session-start", "hook"]
+}

@@ -1,5 +1,5 @@
-# Ruff settings for the Python in this repo (forge-release, forge-tracker, term-recorder and
-# scripts/).
+# Ruff settings for the Python in this repo (forge-release, forge-tracker, term-recorder,
+# worktree-tidy and scripts/).
 line-length = 100
 # Their READMEs promise python3 3.9 or newer.
 target-version = "py39"
@@ -8,6 +8,7 @@ extend-include = [
   "plugins/forge-release/scripts/github-app-create",
   "plugins/forge-tracker/scripts/forge-tracker",
   "plugins/term-recorder/scripts/term-record",
+  "plugins/worktree-tidy/scripts/worktree-tidy",
 ]
 
 [lint]

@@ -25,6 +25,11 @@
   (`scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
   example step files for Claude Code. Tests run with
   `uv run --no-project --with pytest pytest plugins/term-recorder/tests` and need tmux.
+- `plugins/worktree-tidy/`: a SessionStart hook (`hooks/hooks.json`) that reports stale git
+  worktrees, and a skill for the full list with removal commands. Both run a standard-library
+  Python CLI (`scripts/worktree-tidy`) that only reads; it never removes anything. Tests build
+  temporary repos and worktrees and fake `gh`:
+  `uv run --no-project --with pytest pytest plugins/worktree-tidy/tests`.
 - `scripts/`: repo scripts that aren't part of any plugin. `check-skill-names.py` (below) and
   `delegation-stats.py`, a standard-library `uv run` script that reads a project's Claude Code
   transcripts under `~/.claude/projects/` and prints delegation numbers per session: prompts
@@ -88,8 +93,9 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
 
 - `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, then
   `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
-- `forge-release`, `forge-tracker` and `term-recorder`: `ruff check`, `ruff format --check` and
-  the pytest suite on Python 3.11 and 3.14 (tmux is installed for term-recorder's).
+- `forge-release`, `forge-tracker`, `term-recorder` and `worktree-tidy`: `ruff check`,
+  `ruff format --check` and the pytest suite on Python 3.11 and 3.14 (tmux is installed for
+  term-recorder's).
 - `scripts`: the same ruff checks and `scripts/tests` on Python 3.11 and 3.14.
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
@@ -107,6 +113,8 @@ uvx ruff check plugins/forge-tracker && uvx ruff format --check plugins/forge-tr
 uv run --no-project --with pytest pytest plugins/forge-tracker/tests
 uvx ruff check plugins/term-recorder && uvx ruff format --check plugins/term-recorder
 uv run --no-project --with pytest pytest plugins/term-recorder/tests
+uvx ruff check plugins/worktree-tidy && uvx ruff format --check plugins/worktree-tidy
+uv run --no-project --with pytest pytest plugins/worktree-tidy/tests
 uvx ruff check scripts && uvx ruff format --check scripts
 uv run --no-project --with pytest pytest scripts/tests
 uv run --no-project scripts/check-skill-names.py

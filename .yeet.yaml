@@ -98,3 +98,18 @@ targets:
       - plugins/term-recorder/CHANGELOG.md
       - plugins/term-recorder/README.md
       - plugins/term-recorder/tests
+
+  worktree-tidy:
+    type: path
+    path: plugins/worktree-tidy
+    tag_prefix: worktree-tidy--v
+    version_files:
+      - path: plugins/worktree-tidy/.claude-plugin/plugin.json
+        format: json
+        json_pointer: /version
+    changelog:
+      file: plugins/worktree-tidy/CHANGELOG.md
+    exclude_paths:
+      - plugins/worktree-tidy/CHANGELOG.md
+      - plugins/worktree-tidy/README.md
+      - plugins/worktree-tidy/tests
