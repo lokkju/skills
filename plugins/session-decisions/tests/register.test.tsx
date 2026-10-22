@@ -268,11 +268,17 @@ describe('queue', () => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     expect(await ui.find({ type: 'Text', text: 'revised 2026-10-03' })).toBeDefined()
     await ui.unmount()
-    // Its transcript row draws as the revised card.
+    // Its transcript row is one line naming the revision, and its result row draws nothing.
     const props = { tool_use_id: 'r1', tool: 'mcp__session-decisions__decision_update', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: revised.result } as never
     const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 'r1', props })
-    expect((await row.find({ key: 'question-D1' }))?.text).toBe('serve it pre-gzipped?')
+    expect((await row.find({ key: 'mention-D1' }))?.text).toBe('revised D1')
+    expect(await row.find({ key: 'question-D1' })).toBeUndefined()
     await row.unmount()
+    const result = { tool_use_id: 'r1', tool: 'mcp__session-decisions__decision_update', isErrored: false, output: revised.result } as never
+    const shown = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolResult', requestId: 'r1', props: result })
+    expect(await shown.find({ key: 'decisions-result' })).toBeDefined()
+    expect(await shown.find({ key: 'engine' })).toBeUndefined()
+    await shown.unmount()
     // Validated like decision_add, and refused with nothing to change.
     expect((await call('decision_update', { label: 'D1', text: 'serve it pre-gzipped? [no link]' })).deny).toContain('needs a recommendation')
     expect((await call('decision_update', { label: 'D1' })).deny).toContain('give the new text')
@@ -902,24 +908,48 @@ describe('drawing', () => {
     expect(opened.at(-1)).toEqual({ id: PLUGIN, focus: true })
   })
 
-  test('a TaskCreate row in the transcript draws as its card, on every surface', async ($, on) => {
-    engine(on)
+  test('a TaskCreate row in the transcript is one line naming the item, and its result draws nothing, on every surface', async ($, on) => {
+    const { opened } = engine(on)
     await start($)
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
-    const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: { task: { id: '1', subject: 'D1 DECIDE: x' } } } as never
+    const output = { task: { id: '1', subject: 'D1 DECIDE: x' } }
+    const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output } as never
+    const result = { tool_use_id: 't1', tool: 'TaskCreate', isErrored: false, output } as never
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolUse', requestId: 't1', props })
-      expect(await ui.find({ type: 'Text', text: 'recommends SQLite' })).toBeDefined()
-      expect(await ui.find({ key: 'accept-D1' })).toBeDefined()
+      expect((await ui.find({ key: 'mention-D1' }))?.text).toBe('queued D1')
+      // The card itself isn't drawn in the transcript: no question, chip or buttons.
+      expect(await ui.find({ type: 'Text', text: 'recommends SQLite' })).toBeUndefined()
+      expect(await ui.find({ key: 'accept-D1' })).toBeUndefined()
       await ui.unmount()
+      const shown = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolResult', requestId: 't1', props: result })
+      expect(await shown.find({ key: 'decisions-result' })).toBeDefined()
+      expect(await shown.find({ key: 'engine' })).toBeUndefined()
+      await shown.unmount()
     }
+    // The line opens the item in the queue pane.
+    const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
+    await row.press({ key: 'mention-D1' })
+    expect(opened.at(-1)).toEqual({ id: PLUGIN, focus: true })
+    await row.unmount()
+    // ctrl+o draws the call and its result as the engine does.
+    const full = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props: { ...(props as object), isExpanded: true } as never })
+    expect(await full.find({ key: 'engine' })).toBeDefined()
+    await full.unmount()
+    const fullResult = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolResult', requestId: 't1', props: { ...(result as object), isExpanded: true } as never })
+    expect(await fullResult.find({ key: 'engine' })).toBeDefined()
+    await fullResult.unmount()
+    // Another tool's result is left alone.
+    const other = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolResult', requestId: 'b1', props: { tool_use_id: 'b1', tool: 'Bash', isErrored: false, output: {} } as never })
+    expect(await other.find({ key: 'engine' })).toBeDefined()
+    await other.unmount()
     await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '1', status: 'completed', description: 'Ruling (2026-10-04): SQLite' })
     const settled = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
     expect(await settled.find({ type: 'Text', text: '2026-10-04 · SQLite' })).toBeDefined()
     expect(await settled.find({ key: 'accept-D1' })).toBeUndefined()
   })
 
-  test('a folded tool group with a TaskCreate in it draws the card under the group', async ($, on) => {
+  test('a folded tool group with a TaskCreate in it draws the item line under the group', async ($, on) => {
     engine(on)
     await start($)
     await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
@@ -927,15 +957,15 @@ describe('drawing', () => {
     const calls = [call('ToolSearch', {}), call('TaskCreate', { task: { id: '1', subject: 'D1 DECIDE: x' } })]
     for (const surface of SURFACES) {
       const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'ToolGroup', props: { calls, isActive: false, isExpanded: false } as never })
-      expect(await ui.find({ key: 'accept-D1' })).toBeDefined()
+      expect((await ui.find({ key: 'mention-D1' }))?.text).toBe('queued D1')
       await ui.unmount()
     }
     // Unfolded, the group is ToolUse rows, each drawing its own card.
     const open = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls, isActive: false, isExpanded: true } as never })
-    expect(await open.find({ key: 'accept-D1' })).toBeUndefined()
+    expect(await open.find({ key: 'mention-D1' })).toBeUndefined()
     const running = [call('TaskCreate', undefined)].map(one => ({ ...one, isRunning: true }))
     const live = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolGroup', props: { calls: running, isActive: true, isExpanded: false } as never })
-    expect(await live.find({ key: 'accept-D1' })).toBeUndefined()
+    expect(await live.find({ key: 'mention-D1' })).toBeUndefined()
   })
 
   test('the sidebar opens itself in fullscreen and docks borderless', async ($, on) => {
@@ -969,13 +999,13 @@ describe('markdown', () => {
     }
   })
 
-  test('More on a transcript card opens the pane on the item in full, with its actions, and Accept closes it', async ($, on) => {
+  test('the transcript line opens the pane on the item in full, with its actions, and Accept closes it', async ($, on) => {
     const { filled, copied, opened, panes } = engine(on)
     await start($)
     await create($, SUBJECT, DESCRIPTION)
     const props = { tool_use_id: 't1', tool: 'TaskCreate', input: {}, isRunning: false, isErrored: false, isInterrupted: false, output: { task: { id: '1', subject: 'D1 DECIDE: x' } } } as never
     const row = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'ToolUse', requestId: 't1', props })
-    await row.press({ key: 'more-D1' })
+    await row.press({ key: 'mention-D1' })
     expect(opened.at(-1)).toEqual({ id: PLUGIN, focus: true })
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
     // The list gives way to the item: its question, link, whole recommendation and description, as markdown.
@@ -1068,13 +1098,13 @@ describe('markdown', () => {
     expect(find(drawn, 'more-D1')).toBeUndefined()
     expect(keys(find(find(drawn, 'card-tasks-1')!, 'actions'))).toEqual(['accept-D1', 'answer-D1', 'Box', 'Text'])
     // A one-row question: [more] beside it.
-    expect(keys(find(drawn, 'question-D2-tail'))).toEqual(['question-D2', 'more-D2'])
+    expect(keys(find(drawn, 'question-D2-tail'))).toEqual(['question-D2-tail-text', 'more-D2'])
     // At 48 columns inside the frame, the question wraps and [more] follows its last row.
     expect((find(drawn, 'question-D3-head')?.props as { text: string }).text).toBe('Run the suite on Postgres in CI as well as on')
-    expect(keys(find(drawn, 'question-D3-tail'))).toEqual(['question-D3-tail', 'more-D3'])
+    expect(keys(find(drawn, 'question-D3-tail'))).toEqual(['question-D3-tail-text', 'more-D3'])
     // With a qualifier, [more] follows the qualifier rather than the question.
     expect(find(drawn, 'question-D4')?.type).toBe('Markdown')
-    expect(keys(find(drawn, 'qualifier-D4-tail'))).toEqual(['qualifier-D4', 'more-D4'])
+    expect(keys(find(drawn, 'qualifier-D4-tail'))).toEqual(['qualifier-D4-tail-text', 'more-D4'])
     // A command in backticks is something the details view offers to copy.
     expect((await ui.find({ key: 'more-A1' }))?.text).toBe('[more]')
   })

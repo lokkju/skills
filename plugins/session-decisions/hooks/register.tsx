@@ -33,7 +33,7 @@ const PANE = 'session-decisions'
 const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
-// The tools whose transcript row draws as its item's card.
+// The tools whose transcript row draws as one line naming its item, and whose result draws nothing.
 const CARD_TOOLS = ['TaskCreate', ADD_TOOL, UPDATE_TOOL] as const
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
 const KEEP_RECORDS = 100
@@ -66,6 +66,12 @@ let screenRows: number | null = null
 function measure(site: { viewport?: { rows: number; columns: number } }) {
   if (site.viewport && site.viewport.rows > 0) screenRows = site.viewport.rows
 }
+// The first row the queue list showed when it was last drawn or scrolled, so Back from the details
+// view puts the list where it was; null until the list has been seen.
+let listOffset: number | null = null
+// While Back restores the list: the row its window started at, where the list's drawing puts a
+// marker for the scroll to bring to the top. A plugin's $.ui.scroll names things, never rows.
+let restoreRow: number | null = null
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
 // Whether the last hydrate found no stored record and no transcript to look for one in, so the
 // next prompt should look again. A module variable: it's about this process, not the queue.
@@ -108,20 +114,12 @@ const KIND_COLOR = { DECIDE: 'warning', ACTION: 'suggestion' } as const
 const CARD_FRAME = 4
 
 /**
- * The columns inside a transcript card's frame, which spans the conversation's width (Claude Code
- * 2.1.300); null when the drawing has no viewport.
- */
-function transcriptWidth(site: { viewport?: { columns: number } }): number | null {
-  return site.viewport && site.viewport.columns > 0 ? site.viewport.columns - CARD_FRAME : null
-}
-
-/**
  * The item a finished TaskCreate, decision_add or decision_update call made or changed, found by
  * the task id or label in its output; undefined for any other call or one that didn't finish.
  */
 function rowItem(
   list: readonly Item[],
-  call: { tool: string; isRunning: boolean; isErrored: boolean; isInterrupted: boolean; output?: unknown },
+  call: { tool: string; isRunning?: boolean; isErrored: boolean; isInterrupted?: boolean; output?: unknown },
 ): Item | undefined {
   if (call.isRunning || call.isErrored || call.isInterrupted) return undefined
   if (call.tool === 'TaskCreate') {
@@ -771,27 +769,36 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // In the transcript, a finished TaskCreate, decision_add or decision_update row draws as its item's card.
+  // The queue has its own places (the sidebar, the footer, /decisions), so the transcript keeps one
+  // line where an item was queued or revised: `queued D3`, which opens it, and `✓ D3 · <ruling>`
+  // once settled. The tool's result row, the labelled subject the model reads, draws nothing, so
+  // the item isn't printed twice; ctrl+o still shows the call and its result in full.
   for (const tool of CARD_TOOLS) {
     on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
       measure(e)
+      if (e.props.isExpanded) return next(e)
       const item = rowItem(await read($, items), e.props)
       if (!item) return next(e)
-      return drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item), width: transcriptWidth(e) })
+      return drawMention($, e, item, tool === UPDATE_TOOL ? 'revised' : 'queued')
+    })
+    on('ui.render', { component: 'ToolResult', props: { tool } }, async ($, e, next) => {
+      if (e.props.isExpanded || !rowItem(await read($, items), e.props)) return next(e)
+      const { Box } = $.ui.resolve(e)
+      return <Box key="decisions-result" />
     })
   }
 
   // Claude Code 2.1.286 folds a TaskCreate call into a tool group with the calls around it (a
   // ToolSearch that loaded it, say), and a folded group of those draws as nothing at all, so its
-  // card would show only in ctrl+o. A folded group draws as usual with its items' cards under it;
+  // line would show only in ctrl+o. A folded group draws as usual with its items' lines under it;
   // an unfolded one is ToolUse rows, which draw them already.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
     if (e.props.isExpanded) return next(e)
     const list = await read($, items)
-    const found: Item[] = []
+    const found: { item: Item; verb: 'queued' | 'revised' }[] = []
     for (const call of e.props.calls) {
       const item = rowItem(list, call)
-      if (item && !found.includes(item)) found.push(item)
+      if (item && !found.some(one => one.item === item)) found.push({ item, verb: call.tool === UPDATE_TOOL ? 'revised' : 'queued' })
     }
     if (found.length === 0) return next(e)
     measure(e)
@@ -801,14 +808,21 @@ export const register: Register = (on, options) => {
       <Box flexDirection="column">
         {below}
         {await Promise.all(
-          found.map(async item => (
+          found.map(async ({ item, verb }) => (
             <Box key={`group-${item.source}-${item.id}`} flexDirection="column">
-              {await drawCard($, e, item, { bordered: true, isNext: isOpen(item), compact: !isOpen(item), width: transcriptWidth(e) })}
+              {await drawMention($, e, item, verb)}
             </Box>
           )),
         )}
       </Box>
     )
+  })
+
+  // The list's place as the person scrolls it, for Back from the details view to return to.
+  on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
+    const moved = await next(e)
+    if (moved.deny === undefined && !(await read($, details))) listOffset = e.offset
+    return moved
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -822,6 +836,7 @@ export const register: Register = (on, options) => {
     const shown = await read($, details)
     const focus = shown ? list.find(item => keyOf(item) === shown.item && isOpen(item)) : undefined
     if (focus) return drawDetails($, e, focus, shown?.owns === true)
+    if (e.props.scroll && restoreRow === null) listOffset = e.props.scroll.offset
     const open = list.filter(isOpen)
     const settled = list.filter(item => !isOpen(item))
     const accepts = open.flatMap(item => {
@@ -831,6 +846,7 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column">
+        {restoreRow !== null && <Box key="list-place" position="absolute" top={restoreRow} left={0} width={1} height={1} />}
         <Box key="head" flexDirection="row" gap={1} marginBottom={1}>
           <Text bold>Decisions</Text>
           {open.length > 0 ? chip(Text, plain, `${open.length} open`, ACCENT) : <Text dimColor>Nothing waiting on you</Text>}
@@ -959,11 +975,14 @@ async function drawCard(
       )
     }
     const { head, tail } = ending.split
+    // The tail shrinks and wraps when the width it was measured at is more than the card has.
     return (
       <Box key={`${key}-end`} flexDirection="column">
         {head && drawn(`${key}-head`, head)}
         <Box key={`${key}-tail`} flexDirection="row" gap={1}>
-          {drawn(head ? `${key}-tail` : key, tail)}
+          <Box key={`${key}-tail-text`} flexShrink={1}>
+            {drawn(head ? `${key}-tail` : key, tail)}
+          </Box>
           {ending.button}
         </Box>
       </Box>
@@ -1002,6 +1021,30 @@ async function drawCard(
         <Box flexGrow={1} />
         {short && shortLink(Link, Text, parts.link)}
       </Box>
+    </Box>
+  )
+}
+
+/**
+ * An item's one line in the transcript, where it was queued or revised: `queued D3` (or `revised
+ * D3`) beside a glyph in its kind's color, the label opening the item in the details view; once
+ * settled, the dim `✓ D3 · <ruling>` line the queue draws for it.
+ */
+async function drawMention($: $, site: Parameters<$['ui']['resolve']>[0], item: Item, verb: 'queued' | 'revised') {
+  if (!isOpen(item)) return drawCard($, site, item, { bordered: false, isNext: false, compact: true, width: null })
+  const { Box, Button, Text } = $.ui.resolve(site) as Elements
+  const plain = await read($, ascii)
+  return (
+    <Box key={`mention-${item.source}-${item.id}`} flexDirection="row" gap={1}>
+      <Text color={KIND_COLOR[item.kind]}>{plain ? '*' : '●'}</Text>
+      <Button
+        key={`mention-${item.label}`}
+        plain
+        dimColor
+        label={`${verb} ${item.label}`}
+        hover={{ bold: true }}
+        onPress={() => void showDetails($, item)}
+      />
     </Box>
   )
 }
@@ -1069,14 +1112,30 @@ async function showDetails($: $, item: Item): Promise<void> {
   await $.ui.scroll({ in: PANE, to: 'start' }).catch(() => undefined)
 }
 
-/** Leave the details view: back to the list, or closed when the pane opened only for it. */
+/**
+ * Leave the details view: closed when the pane opened only for it, otherwise back to the list where
+ * it was, the window at the row it started at and the focus on the item's label. The list draws a
+ * marker at that row while this runs; focusing waits for the drawing that brings the label, so the
+ * scroll after it finds the marker in the list, not in the details.
+ */
 async function leaveDetails($: $, item: Item, owns: boolean): Promise<void> {
+  const back = owns ? null : listOffset
+  restoreRow = back
   await update($, details, () => null)
   if (owns) {
+    restoreRow = null
     await $.ui.close({ id: PANE }).catch(() => undefined)
     return
   }
-  await $.ui.scroll({ in: PANE, to: { key: `slot-${item.source}-${item.id}` }, block: 'start' }).catch(() => undefined)
+  try {
+    await $.ui.focus({ requestId: PANE, key: `label-${item.label}` }).catch(() => undefined)
+    if (back !== null) await $.ui.scroll({ in: PANE, to: { key: 'list-place' }, block: 'start' }).catch(() => undefined)
+  } finally {
+    restoreRow = null
+  }
+  // An offset the engine moved since it was read (the focus ring walking the list) may not show
+  // the item; this moves only when it doesn't.
+  await $.ui.scroll({ in: PANE, to: { key: `slot-${item.source}-${item.id}` }, block: 'nearest' }).catch(() => undefined)
 }
 
 /**
