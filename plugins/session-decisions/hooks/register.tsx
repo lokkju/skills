@@ -24,7 +24,7 @@ import { type Message, type Trail, ledgerMatches, trailOf } from './lineage'
 import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
-import { handoffs, nudge } from './handoff'
+import { handoffs, nudge, unknownLabels } from './handoff'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -518,13 +518,16 @@ export const register: Register = (on, options) => {
     const reply = String(e.last_assistant_message ?? '')
     if (!reply) return result
     const since = await read($, turnStarted)
-    const queue = (await read($, items)).filter(item => isOpen(item) || (item.created ?? 0) >= since)
-    const found = handoffs(reply, queue)
+    const all = await read($, items)
+    const queue = all.filter(item => isOpen(item) || (item.created ?? 0) >= since)
+    const known = all.map(item => item.label)
+    const found = handoffs(reply, queue, { known })
     if (found.length === 0) return result
-    await update($, handoffNudge, () => nudge(found))
+    const missing = unknownLabels(reply, known)
+    await update($, handoffNudge, () => nudge(found, missing))
     // Short, since a toast is narrow: the first line names the count and starts the first hand-off.
     const count = found.length === 1 ? 'A hand-off' : `${found.length} hand-offs`
-    $.ui.toast(`${count} not queued: ${plainText(found[0] ?? '')}`)
+    $.ui.toast(missing.length > 0 ? `${missing.join(', ')} named but not in the queue` : `${count} not queued: ${plainText(found[0] ?? '')}`)
     return result
   })
 

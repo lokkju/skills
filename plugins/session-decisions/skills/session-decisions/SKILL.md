@@ -1,19 +1,49 @@
 ---
 name: session-decisions
-description: "Use whenever you need a decision, an answer, or an action from the user before you can continue; when the user answers one; and when a session is wrapping up or being handed off. Keeps those items in the session task list as D1, D2, ... (decisions) and A1, A2, ... (actions only the user can do), so none get lost in long messages."
+description: "Use whenever a step waits on the user (a secret to store, a prompt to approve, access only they have, a merge), or you need a decision or an answer from them, even when it doesn't block your own work; when the user answers one; and when a session is wrapping up or being handed off. Keeps those items in the session task list as D1, D2, ... (decisions) and A1, A2, ... (actions only the user can do), so none get lost in long messages."
 ---
 
 # Session decisions
 
 The user reads the decision queue (the cards, the decisions sidebar and footer, `/decisions`, and
-ctrl+t where the session has task tools) as the list of things waiting on them. Every question you
-need answered, and every step only they can do, goes there in the same turn you ask it. The message still carries the detail; the queue is so nothing gets lost.
+ctrl+t where the session has task tools) as the list of things waiting on them. Every step only
+they can do, and every question you need answered, goes there in the same turn you raise it. The
+message still carries the detail; the queue is so nothing gets lost.
 
-Anything you hand back to the user counts, including a merge or a step on their hosts that you
-could do yourself if asked: a reply that ends with "left for you" or "you'll need to" items that
-aren't queued gets flagged to the user, and you're reminded on the next turn.
+## Actions only the user can take
 
-## Before you ask
+An `ACTION` is any step that waits on the user: a secret or credential to put somewhere, a prompt
+or security key to approve, access or an account only they have, a payment or a physical step, a
+merge, a step on their hosts that you could do yourself if asked. It is the item most likely to go
+unqueued, because it never blocks you: a question stops your work until it's answered, so you
+queue it to get unblocked, but you can keep working around an action indefinitely while the thing
+it blocks sits in a paragraph.
+
+Queue it when you find it, even when:
+
+- it arrived as the answer to "what do you recommend?". An answer of "put the client secret in
+  Vault at this path" creates an action; it doesn't settle one.
+- it's routine. An SSH key prompt to approve on every push is an action each time it's pending.
+- you've already written it down. Describing it in prose, a "what's next" list, a handoff or a
+  compaction summary doesn't queue it; only TaskCreate (or `decision_add`) does.
+
+For example, when a restart is blocked on a secret only the user can store:
+
+```text
+ACTION: put the client secret in Vault so the build can restart [no link]
+```
+
+with the path, the reason and any caveat in the description.
+
+Create the item before you write the sentence that names it. Never write `D<n>` or `A<n>` for an
+item you haven't created yet; the hook picks the label, and a label in prose with no item behind
+it is a promise the queue doesn't keep.
+
+A reply that hands the user a step without queuing it ("left for you", "you'll need to", "I can't
+write to Vault for you", "say the word and I'll push"), or names a label the queue doesn't hold,
+gets flagged to the user, and you're reminded on the next turn.
+
+## Before you ask a question
 
 Ask only when the answer blocks the work and can't be settled from the request, the code, the
 project's instructions, or a sensible default. A decision has options and a recommendation. If you

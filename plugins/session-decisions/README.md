@@ -130,17 +130,32 @@ your next message the assistant is told which lines they were and to queue whate
 waiting on you. It never blocks or rewrites the reply, and costs no extra
 model call.
 
-It looks for two things: the list items under a hand-off heading (`Left for you:`, `Next steps for
-you:`, `You'll need to:`, `## What you need to do`), and a line that hands a step over by itself
-(`You'll need to merge it once CI passes`, `left for you`, `your call`, `please merge #12`, `run
-these on each host`). To keep false alarms rare, it skips:
+It looks for three things:
 
-- a line that names a label (`A3: rotate the key`), or that an item already covers: an open item,
-  or one queued this turn, that shares a reference (`#41`, `!4`, a URL) with it, or most of its
-  words;
+- the list items under a hand-off heading (`Left for you:`, `Next steps for you:`, `You'll need
+  to:`, `## What you need to do`);
+- a line that hands a step over by itself (`You'll need to merge it once CI passes`, `left for
+  you`, `your call`, `please merge #12`, `run these on each host`), including the user-only steps
+  an assistant tends to leave in prose because they never block its own work: `the only thing
+  blocking the build restart`, `I cannot write to Vault for you`, `I don't have access to the
+  registry`, `say the word and I'll push`, `approve the SSH key prompt`, `put the client secret in
+  Vault`, `the push needs your approval`;
+- a label the reply names that isn't in the session's queue (`A24 is in the queue for that`, with
+  no A24), which means the item was never created. The toast says so (`A24 named but not in the
+  queue`), and the reminder tells the assistant to create it.
+
+To keep false alarms rare, it skips:
+
+- a line that names a label in the queue (`A3: rotate the key`), or that an item already covers:
+  an open item, or one queued this turn, that shares a reference (`#41`, `!4`, a URL) with it, or
+  most of its words;
 - conditional, negated and questioning phrasing (`if you need to roll back`, `you won't need to`,
   `will you need to review it first?`);
-- code blocks and quoted lines;
+- code blocks, quoted lines, and a phrase inside quotes or backticks;
+- a sentence about what another agent, a document or a tool will produce (`It'll lay out the
+  options and the questions only you can answer`, `The report lists the steps you'll need to
+  run`), and `only you can answer` or `decide` with nothing after it;
+- a line about the check itself, such as a note that it raised a false alarm;
 - a heading that's really a sentence (`For you to compare, the two plans are:`), and a bare `Next
   steps:`, which is usually the assistant's own plan.
 

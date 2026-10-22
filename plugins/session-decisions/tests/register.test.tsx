@@ -467,7 +467,7 @@ describe('hand-off check', () => {
     await create($, 'ACTION: merge #41 and #42 [#41]')
     await create($, 'ACTION: run the backfill on each host [no link]')
     await stop($, HANDOFF)
-    await stop($, 'Left for you:\n- A3: rotate the key')
+    await stop($, 'Left for you:\n- A2: rotate the key')
     await stop($, 'Done: merged #41 and ran the backfill. If you need to roll back, run `git revert HEAD`.')
     expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
     expect((await prompt($)).additionalContext).toBeUndefined()
@@ -482,6 +482,23 @@ describe('hand-off check', () => {
     await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'A1', ruling: 'done' })
     await stop($, 'Left for you:\n- Run the backfill on each host')
     expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
+  })
+
+  test('a label the reply names but nobody created is flagged; a settled one is not', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await create($, 'ACTION: put the client secret in Vault [no link]')
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'DECIDE', text: 'ship it? (recommend yes) [no link]' })
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'l2', label: 'D1', ruling: 'yes' })
+    await stop($, 'A1 is the secret; D1 is settled.')
+    expect(toasts.filter(toast => toast.includes('not'))).toEqual([])
+    await stop($, "I've queued it as D33 with that scope proposal.")
+    expect(toasts.at(-1)).toBe('D33 named but not in the queue')
+    const text = (await prompt($)).additionalContext?.join('\n') ?? ''
+    expect(text).toContain("- I've queued it as D33 with that scope proposal.")
+    expect(text).toContain('Your reply named D33')
   })
 
   test('a Stop hook continuation is left alone', async ($, on) => {
