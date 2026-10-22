@@ -2,8 +2,8 @@
 
 **A queue for everything your assistant is waiting on you for.** Questions an assistant asks get
 buried in long messages and scroll away; this plugin pins each one as a numbered card (`D1` for a
-decision, `A1` for something only you can do) in the transcript, a sidebar and the footer, with a
-recommendation you can accept in one click.
+decision, `A1` for something only you can do) in a sidebar and the footer, with a recommendation
+you can accept in one click.
 
 ![A Claude Code session queues its decisions while planning a SQLite to Postgres move; Accept all answers them in one message, and the sidebar drops to the two actions still waiting](docs/demo.gif)
 
@@ -43,10 +43,12 @@ write a recommendation isn't ready to ask yet, which is the point.
 
 ### Seeing
 
-- **Transcript:** the row where the assistant asked becomes the item's card, and shrinks to
-  `✓ D3 · <ruling>` once it's settled. Claude Code folds a TaskCreate call into a group with the
-  calls around it, which draws nothing on the main view, so the card draws in that group's place;
-  this works the same at any terminal size, in fullscreen and on the main screen.
+- **Transcript:** the queue has its own places, so the row where the assistant asked is one line,
+  `● queued D3` (`revised D3` where it revised a `decision_add` item), and `✓ D3 · <ruling>` once
+  it's settled. Click the label to open the item in full. The tool's result, the labelled subject
+  the assistant reads, isn't drawn, so the item never shows twice; ctrl+o shows the call and its
+  result whole. Claude Code folds a TaskCreate call into a group with the calls around it, which
+  draws nothing on the main view, so the line draws in that group's place.
 - **Sidebar:** in fullscreen, the first new item opens the queue beside the transcript (Claude
   Code only seats a pane it wasn't asked for from 144 columns). Close it and it stays closed
   until the queue empties, and then closes itself.
@@ -79,7 +81,7 @@ write a recommendation isn't ready to ask yet, which is the point.
   card cuts short), the card's text ends with a dim `[more]`: after the question, or after the
   qualifier when there is one, on its last row when there's room and on a row of its own when the
   text fills it. A card without `[more]` is the whole item. `[more]`, or a press on the card's
-  label, shows the item in full in the queue pane, in place of the list; from a transcript card
+  label, shows the item in full in the queue pane, in place of the list; from the transcript line
   the pane opens for it, with the keys, at any terminal width. The view has the card's top row
   with a `↑↓ PgUp PgDn scroll · Esc closes` hint, then its buttons: **Accept** for a decision or
   **Done** for an action, **Answer**, **Copy link** when the link is a URL or a reference the
@@ -304,7 +306,7 @@ offered, `decision_close` refuses task-list items and points the assistant at Ta
 status TaskUpdate sets replaces the plugin's ruling.
 
 On VS Code and mobile there's no footer count (Claude Code only raises the footer on the terminal
-and desktop); the transcript cards, the sidebar and `/decisions` work everywhere.
+and desktop); the transcript lines, the sidebar and `/decisions` work everywhere.
 
 ## Limits
 
