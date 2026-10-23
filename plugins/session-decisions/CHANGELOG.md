@@ -1,5 +1,16 @@
 # Changelog
 
+## [session-decisions--v2026.10.23.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.20.2...session-decisions--v2026.10.23.1) (2026-10-23)
+
+### Fixes
+
+- **session-decisions:** draw [more] in the accent color, underlined, not dim ([a03f077](https://github.com/lokkju/skills/commit/a03f077e0656e9e122efc8254820b92cbf531b1a))
+- **session-decisions:** Back from the details view keeps the list's place ([b8bb2a0](https://github.com/lokkju/skills/commit/b8bb2a0ecf1454d582ddb116e79b98898cca17da))
+- **session-decisions:** draw a queued item once, as one line in the transcript ([1c8e804](https://github.com/lokkju/skills/commit/1c8e804b06d2fca683e6ee264b2ebec221165fc7))
+- **session-decisions:** don't flag a feature's output described as "it prints ... for you to run" ([5c4fdea](https://github.com/lokkju/skills/commit/5c4fdeac0f6118721876f563a337df13ce58dd55))
+- **session-decisions:** lead the skill with actions only the user can take ([655abd7](https://github.com/lokkju/skills/commit/655abd751e000ad0316bd0a57849421290d5fb2e))
+- **session-decisions:** flag user-only steps in prose and labels never queued ([378cf99](https://github.com/lokkju/skills/commit/378cf996249b57dfb2df49cad04958edb25c9ac3))
+
 ## [session-decisions--v2026.10.20.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.20.1...session-decisions--v2026.10.20.2) (2026-10-20)
 
 ### Fixes
