@@ -1,15 +1,21 @@
-"""Find a scope's repos and sort each linked worktree into stale, needs-a-look or leave-alone.
+"""Find a scope's repos and sort each linked worktree into in use, stale, needs-a-look or
+leave-alone.
+
+In use (listed with the evidence and judged no further): a process other than this scanner has
+its working directory inside it, or a Claude Code session or agent transcript for it changed
+within the session window (24 hours by default). inuse.py has the details.
 
 Stale (listed with removal commands):
-  merged    its branch's newest PR merged, no PR from it is open, the branch is gone from the
-            remote, the checkout's commit is in the PR, and the worktree is clean
-  closed    the same with a PR closed without merging
+  merged    its branch's newest PR merged, no PR from it is open, the checkout's commit is in
+            the PR, and the worktree is clean; the why-text says so when the branch is still on
+            the remote
+  closed    a PR closed without merging, the same otherwise, and the branch gone from the remote
   detached  a detached checkout, clean, on a commit some branch or tag has, unused for N days
   prunable  git already knows its directory is gone (`git worktree prune` clears it)
 
-Needs a look (listed, no commands): merged or closed but dirty, carrying commits the PR
-doesn't have, or with its branch still on the remote; detached and dirty or on a commit no ref
-has; and directories under .claude/worktrees/ or .wt/ that git doesn't list as worktrees.
+Needs a look (listed, no commands): merged or closed but dirty or carrying commits the PR
+doesn't have; closed with its branch still on the remote; detached and dirty or on a commit no
+ref has; and directories under .claude/worktrees/ or .wt/ that git doesn't list as worktrees.
 
 Never touched: a repo's main checkout, the worktree the session is in, locked worktrees, and
 branches with an open PR or none at all.
@@ -22,7 +28,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from . import forge, gitio
+from . import forge, gitio, inuse
 from .gitio import Deadline, OutOfTime
 
 DEFAULT_DAYS = 7
@@ -32,7 +38,7 @@ SCRATCH_DIRS = (os.path.join(".claude", "worktrees"), ".wt")
 @dataclass
 class Item:
     path: str
-    kind: str  # merged, closed, detached, prunable, or "look"
+    kind: str  # merged, closed, detached, prunable, "look" or "in use"
     why: str
     branch: Optional[str] = None
     submodules: bool = False
@@ -44,6 +50,7 @@ class RepoReport:
     name: str
     stale: list[Item] = field(default_factory=list)
     look: list[Item] = field(default_factory=list)
+    in_use: list[Item] = field(default_factory=list)
     linked: int = 0  # linked worktrees, the main checkout not counted
     unchecked: list[str] = field(default_factory=list)  # worktree paths left unclassified
     forge_note: Optional[str] = None  # why PRs couldn't be checked, when they couldn't
@@ -58,6 +65,7 @@ class Scan:
     out_of_time: bool = False
     not_reached: list[str] = field(default_factory=list)  # repos the budget didn't reach
     elapsed: float = 0.0
+    in_use_note: Optional[str] = None  # why the process check couldn't run, when it couldn't
 
     def stale(self) -> list[tuple[RepoReport, Item]]:
         return [(r, i) for r in self.repos for i in r.stale]
@@ -99,7 +107,7 @@ def _inside(path: str, parent: str) -> bool:
     return path == parent or path.startswith(parent.rstrip(os.sep) + os.sep)
 
 
-def _orphans(main: str, registered: set[str]) -> list[Item]:
+def _orphans(main: str, registered: set[str], activity: Optional[inuse.Activity]) -> list[Item]:
     found = []
     for scratch in SCRATCH_DIRS:
         base = os.path.join(main, scratch)
@@ -110,6 +118,10 @@ def _orphans(main: str, registered: set[str]) -> list[Item]:
         for name in names:
             path = os.path.join(base, name)
             if not os.path.isdir(path) or os.path.realpath(path) in registered:
+                continue
+            using = activity.evidence(path) if activity else None
+            if using:
+                found.append(Item(path, "in use", using))
                 continue
             try:
                 empty = not os.listdir(path)
@@ -129,6 +141,7 @@ def scan_repo(
     refresh: bool = False,
     ttl: float = forge.DEFAULT_TTL,
     gh: str = "gh",
+    activity: Optional[inuse.Activity] = None,
 ) -> RepoReport:
     trees = gitio.worktrees(start, deadline)
     main = trees[0]
@@ -143,8 +156,12 @@ def scan_repo(
         if tree.prunable is not None:
             why = "its directory is gone" + (f" ({tree.prunable})" if tree.prunable else "")
             report.stale.append(Item(tree.path, "prunable", why, tree.branch))
-        elif tree.locked is not None or _inside(cwd, tree.path) or tree.bare:
             continue
+        if tree.locked is not None or _inside(cwd, tree.path) or tree.bare:
+            continue
+        using = activity.evidence(tree.path) if activity else None
+        if using:
+            report.in_use.append(Item(tree.path, "in use", using, tree.branch))
         elif tree.branch:
             branch_trees.append(tree)
         elif tree.detached and tree.head:
@@ -168,7 +185,8 @@ def scan_repo(
         report.unchecked.extend(p for p in pending if p not in done and p not in report.unchecked)
 
     if not main.bare:
-        report.look.extend(_orphans(main.path, registered))
+        for item in _orphans(main.path, registered, activity):
+            (report.in_use if item.kind == "in use" else report.look).append(item)
     return report
 
 
@@ -206,10 +224,11 @@ def _classify_branches(report, branch_trees, candidates, done, deadline, offline
         kind = "merged" if pr.state == "MERGED" else "closed"
         label = f"PR #{pr.number} {kind}"
         if info.on_remote:
-            why = f"{label}; branch still on the remote"
-            report.look.append(Item(tree.path, "look", why, tree.branch))
-            done.add(tree.path)
-            continue
+            label += "; branch still on the remote"
+            if kind == "closed":
+                report.look.append(Item(tree.path, "look", label, tree.branch))
+                done.add(tree.path)
+                continue
         inside = gitio.contains(tree.path, tree.head, pr.head, deadline)
         if inside is True:
             candidates.append((tree, kind, label))
@@ -251,10 +270,18 @@ def scan(
     refresh: bool = False,
     ttl: float = forge.DEFAULT_TTL,
     gh: str = "gh",
+    session_hours: float = inuse.DEFAULT_SESSION_HOURS,
+    proc_root: str = inuse.PROC,
+    projects: Optional[str] = None,
 ) -> Scan:
+    """`proc_root` and `projects` (Claude Code's transcript folder) are for tests."""
     started = time.monotonic()
     deadline = Deadline(budget)
     result = Scan(roots=[os.path.abspath(r) for r in roots], repos=[])
+    activity = inuse.Activity.gather(
+        proc_root, projects, session_hours, timeout=max(0.5, min(5.0, deadline.left()))
+    )
+    result.in_use_note = activity.note
     try:
         starts = discover(roots, deadline)
     except OutOfTime:
@@ -265,7 +292,7 @@ def scan(
             result.not_reached = starts[index:]
             break
         try:
-            report = scan_repo(start, deadline, cwd, days, offline, refresh, ttl, gh)
+            report = scan_repo(start, deadline, cwd, days, offline, refresh, ttl, gh, activity)
         except OutOfTime:
             result.out_of_time = True
             result.not_reached = starts[index:]
