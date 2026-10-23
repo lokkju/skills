@@ -25,6 +25,7 @@ import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge, unknownLabels } from './handoff'
+import { RECONCILE, brief, inventory } from './reconcile'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -33,6 +34,7 @@ const PANE = 'session-decisions'
 const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
+const LIST_TOOL = 'mcp__session-decisions__decision_list'
 // The tools whose transcript row draws as one line naming its item, and whose result draws nothing.
 const CARD_TOOLS = ['TaskCreate', ADD_TOOL, UPDATE_TOOL] as const
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
@@ -427,8 +429,8 @@ export const register: Register = (on, options) => {
     const quietly = (work: Promise<unknown>) => work.catch(() => undefined)
     await quietly($.command.register({
       name: 'decisions',
-      description: "Show this session's open decisions (D) and actions (A); 'all' adds settled ones, 'pane' opens the panel, 'wrap' settles each before the session ends.",
-      argumentHint: '[all | pane | wrap]',
+      description: "Show this session's open decisions (D) and actions (A); 'all' adds settled ones, 'pane' opens the panel, 'reconcile' closes or revises the ones the session has settled, 'wrap' settles each before the session ends.",
+      argumentHint: '[all | pane | reconcile | wrap]',
       immediate: true,
     }))
     await quietly($.tool.register({
@@ -471,6 +473,12 @@ export const register: Register = (on, options) => {
         },
         required: ['label', 'ruling'],
       },
+    }))
+    await quietly($.tool.register({
+      name: 'decision_list',
+      description:
+        "Lists this session's open decision-queue items, task-list and fallback-ledger alike (label, kind, age, link, text), and the lines of the user's messages that name them, for reconciling the queue.",
+      inputSchema: { type: 'object', properties: {} },
     }))
     if (forgeHosts.notes.length) $.ui.toast(`session-decisions: forge_hosts ignores ${forgeHosts.notes.join('; ')}`)
     const found = await repoForge($, forgeHosts.hosts)
@@ -700,6 +708,10 @@ export const register: Register = (on, options) => {
     }
   })
 
+  on('tool.call', { tool: LIST_TOOL }, async $ => {
+    return { result: brief(await read($, items), await conversation($), await $.clock.now()) }
+  })
+
   on('command.run', { command: 'decisions' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
     const list = await read($, items)
@@ -711,10 +723,16 @@ export const register: Register = (on, options) => {
         .catch((err: unknown) => ({ isPlaced: false as const, reason: String(err) }))
       return { text: opened.isPlaced ? 'Decisions pane opened.' : `${listing(list, now)}\n\n(The pane can't be shown here: ${opened.reason})` }
     }
+    if (arg === 'reconcile') {
+      if (!list.some(isOpen)) return { text: 'No open decisions or actions; nothing to reconcile.' }
+      const text = brief(list, await conversation($), now)
+      submitSoon($, `${RECONCILE}\n\n${text}`)
+      return { text: inventory(list, now) }
+    }
     if (arg === 'wrap') {
       const open = list.filter(isOpen)
       if (open.length === 0) return { text: 'No open decisions or actions; nothing to wrap up.' }
-      void $.prompt.submit({ text: `${WRAP}\n\n${listing(list, now)}` }).catch(() => undefined)
+      submitSoon($, `${WRAP}\n\n${listing(list, now)}`)
       return { text: listing(list, now) }
     }
     return { text: listing(list, now, arg === 'all') }
@@ -879,6 +897,17 @@ export const register: Register = (on, options) => {
           ))}
       </Box>
     )
+  })
+}
+
+/**
+ * Send a prompt once the command that asked for it has answered. The host refuses a submit from
+ * inside a `command.run` hook, since the prompt would wait on the turn that hook holds; a timer
+ * runs it after the hook returns, and the host starts the turn once the session is idle.
+ */
+function submitSoon($: $, text: string): void {
+  $.clock.after(0, () => {
+    void $.prompt.submit({ text }).catch((err: unknown) => $.ui.toast(`session-decisions: couldn't send the prompt: ${String(err)}`))
   })
 }
 

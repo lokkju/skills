@@ -113,7 +113,24 @@ record; `Settled (n)` in the sidebar shows them.
 | `/decisions` | Lists the open items |
 | `/decisions all` | Adds the settled ones, with their rulings |
 | `/decisions pane` | Opens the sidebar |
+| `/decisions reconcile` | Has the assistant check every open item against the session and propose, in one table, which to close, revise or keep |
 | `/decisions wrap` | Has the assistant settle every open item before the session ends: escalate it to the tracker, carry it into the handoff, or drop it |
+
+### Reconciling
+
+Long sessions leave items open after the conversation has moved past them: a question you
+answered without its label, an `A4: done` sent while the assistant was busy, a recommendation
+that stopped fitting once you added three more disks. `/decisions reconcile` prints the open items
+as a table (label, kind, how long each has waited, link, text) and sends the assistant a reconcile
+request with that table and every line of your own messages that names one of the labels.
+
+The assistant checks each item for evidence that it's settled (your words answering it, by label
+or by subject; a merged pull request or closed issue it links to; a later item that supersedes
+it) and answers with one table: close, with your words or the forge state quoted as the ruling;
+update, with the new subject; or keep. It never closes an item on its own judgment, and keep is
+the answer whenever the evidence is ambiguous. Once you say yes, it applies every change in one
+message. The plugin's `decision_list` tool hands the assistant the same table and lines, so it can
+reconcile when you ask in your own words.
 
 ### After compaction
 

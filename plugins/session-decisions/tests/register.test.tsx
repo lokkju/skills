@@ -1281,3 +1281,53 @@ describe('link and label forms', () => {
     expect((await ui.find({ key: 'question-D1' }))?.text).toBe('merge before #9?')
   })
 })
+
+describe('reconcile', () => {
+  test('/decisions reconcile sends the brief, with what the person wrote about each item', async ($, on) => {
+    const { submitted, session, toasts, clock } = engine(on)
+    await start($)
+    await create($, 'DECIDE: btrfs or zfs? (recommend zfs) [no link]')
+    await create($, 'ACTION: add the disks to the pool [#12]')
+    session.messages = [{ role: 'user', text: 'A1: done', toolUses: [] }]
+    const ran = await $.command.run({ command: 'decisions', args: 'reconcile', ...RUN })
+    expect(ran.text).toContain('| D1 | DECIDE | 0m | none | btrfs or zfs? (recommend zfs) |')
+    // The host refuses a submit from inside the command, so it goes out once the command has answered.
+    expect(submitted).toEqual([])
+    await clock.advance(1)
+    expect(toasts.filter(text => text.includes("couldn't send"))).toEqual([])
+    expect(submitted).toHaveLength(1)
+    expect(submitted[0]?.startsWith("Reconcile this session's decision queue")).toBe(true)
+    expect(submitted[0]).toContain('| A1 | ACTION | 0m | #12 | add the disks to the pool |')
+    expect(submitted[0]).toContain('- A1: "A1: done"')
+  })
+
+  test('/decisions wrap sends its prompt once the command has answered', async ($, on) => {
+    const { submitted, clock, toasts } = engine(on)
+    await start($)
+    await create($, 'ACTION: add the disks to the pool [#12]')
+    const ran = await $.command.run({ command: 'decisions', args: 'wrap', ...RUN })
+    expect(ran.text).toContain('A1 ACTION: add the disks to the pool [#12]')
+    await clock.advance(1)
+    expect(toasts.filter(text => text.includes("couldn't send"))).toEqual([])
+    expect(submitted.map(text => text.split('\n')[0]?.slice(0, 38))).toEqual(["Wrap up this session's decision queue,"])
+  })
+
+  test('/decisions reconcile with nothing open sends nothing', async ($, on) => {
+    const { submitted } = engine(on)
+    await start($)
+    const ran = await $.command.run({ command: 'decisions', args: 'reconcile', ...RUN })
+    expect(ran.text).toBe('No open decisions or actions; nothing to reconcile.')
+    expect(submitted).toEqual([])
+  })
+
+  test('decision_list answers the open items from both sources', async ($, on) => {
+    const { offered } = engine(on)
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    offered.tools = []
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: 'l1', kind: 'DECIDE', text: 'ship it? (recommend yes) [#4]' })
+    const listed = await $.tool.call({ tool: 'mcp__session-decisions__decision_list', tool_use_id: 'l2' })
+    expect(listed.result).toContain('| A1 | ACTION | 0m | none | run gh auth login |')
+    expect(listed.result).toContain('| D1 (ledger) | DECIDE | 0m | #4 | ship it? (recommend yes) |')
+  })
+})
