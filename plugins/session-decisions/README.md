@@ -253,6 +253,15 @@ Claude Code with function hooks, which interactive sessions and background jobs 
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 
+Function hooks also need workspace trust. A session in a folder whose trust prompt you haven't
+accepted runs with no hooks at all: no plugin's, and not this one, so there's no TaskCreate check
+and no `decision_add`. Claude Code 2.1.302 would start a background job in such a folder (a repo
+you'd just cloned, say) and run it that way for its whole life
+([#107](https://github.com/lokkju/skills/issues/107)); 2.1.306 refuses to start one there and
+tells you to run `claude` in the folder once first. Resuming the job after you've accepted the
+prompt loads the plugin. Until then the skill has the assistant keep its items as a labelled list
+in its replies.
+
 Not every session gets TaskCreate. For models newer than Claude 4.x, Claude Code turns the task
 tools on only for background jobs, a launch tool list that names them, or
 `CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). Since Claude Code

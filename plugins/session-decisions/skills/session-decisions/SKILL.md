@@ -86,6 +86,14 @@ would. ctrl+t doesn't list ledger items, so end each reply that leaves ledger it
 short list of them. Ledger items stay in the ledger if the task tools come back later; keep closing
 them with `decision_close`.
 
+If tool search finds neither TaskCreate nor `decision_add`, the plugin isn't loaded (a session in
+a folder that hasn't been trusted runs without it), and your reply is the only queue. Tell the
+user once that the queue isn't running, number items yourself from D1 and A1, and write each one
+in the subject form above with its context underneath; the written item is the item. End every
+reply that leaves items open with an `Open items` list of all of them, state each ruling once as
+its item leaves the list, and restate the list at hand-off. If the tools appear later in the
+session, create each open item there.
+
 ## When an open item changes
 
 A follow-up question or a partial answer isn't a ruling. Leave the item open and revise it in the
