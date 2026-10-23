@@ -1,6 +1,6 @@
 ---
 name: session-decisions
-description: "Use whenever a step waits on the user (a secret to store, a prompt to approve, access only they have, a merge), or you need a decision or an answer from them, even when it doesn't block your own work; when the user answers one; and when a session is wrapping up or being handed off. Keeps those items in the session task list as D1, D2, ... (decisions) and A1, A2, ... (actions only the user can do), so none get lost in long messages."
+description: "Use whenever a step waits on the user (a secret to store, a prompt to approve, access only they have, a merge), or you need a decision or an answer from them, even when it doesn't block your own work; when the user answers one; when the open items need reconciling with what the session has settled; and when a session is wrapping up or being handed off. Keeps those items in the session task list as D1, D2, ... (decisions) and A1, A2, ... (actions only the user can do), so none get lost in long messages."
 ---
 
 # Session decisions
@@ -129,6 +129,32 @@ The user may answer by pressing Accept, Done or Answer in the decisions pane. Th
 prompt with `D3: go with <choice>`, `A2: done` or `D3: `, which they edit and send like any other
 answer; record it the same way. Their buttons add one line per item, so a single message can
 answer several items; record each one.
+
+## Reconciling the queue
+
+In a long session, items go stale behind the conversation: the user answers one in passing
+without its label, says "A4: done" while you're busy with something else, or keeps adding facts to
+a question until its recommendation no longer fits. When the user runs `/decisions reconcile` or
+asks you to clean up the queue, and whenever you notice several open items that look settled, go
+through every open item in one pass:
+
+1. Get the open set from `mcp__session-decisions__decision_list` (or the brief
+   `/decisions reconcile` sends): each item's label, kind, age, link and text, and the lines of the
+   user's own messages that name it. Don't rebuild it from memory or old reminders.
+2. For each item, look for evidence that it's settled: the user's own words answering it, by label
+   or by subject; the state of what it links to, which you check now (a merged pull request or a
+   closed issue); or a later item that supersedes it.
+3. Propose, in one table with a row per item: **close**, with the ruling quoted from the user's
+   message or the forge state named ("#12 merged 2026-10-21"); **update**, with the new subject
+   when the question or recommendation has drifted; or **keep**. Put the evidence in its own
+   column.
+4. Change nothing until the user answers. Then apply everything they approved in one message,
+   every TaskUpdate (or `decision_close` and `decision_update` for ledger items) as a parallel
+   call, and report what changed in a line per item.
+
+Never close an item on your own judgment. A close needs the user's words or a linked forge state;
+your belief that the work is done is not a ruling. When the evidence is ambiguous, the row says
+keep, and the evidence column says what you found.
 
 ## Wrapping up
 
