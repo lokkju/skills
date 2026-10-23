@@ -209,7 +209,7 @@ def test_recent_agent_transcript_makes_it_in_use(repo, gh, tmp_path):
     transcript(projects, repo.path / "nope", "agent-other", agent=True)
     result = run_scan([repo.path], projects=str(projects))
     assert kinds(result) == {}
-    assert result.repos[0].in_use[0].why == "agent-abc active 30m ago"
+    assert result.repos[0].in_use[0].why == "subagent agent-abc active 30m ago"
 
 
 def test_process_check_that_cant_run_says_so(repo, gh, tmp_path, monkeypatch):
@@ -396,6 +396,16 @@ def test_locked_and_current_worktrees_are_left_alone(repo, gh):
         merged(gh, name, repo.commit(wt, name))
     result = run_scan([repo.path], cwd=here)
     assert kinds(result) == {}
+    assert {Path(i.path).name: i.why for i in result.repos[0].in_use} == {
+        "locked": "locked",
+        "here": "this session's working directory",
+    }
+    git(repo.path, "worktree", "lock", "--reason", "claude agent x (pid 1)", str(here))
+    result = run_scan([repo.path], cwd=locked)
+    assert {Path(i.path).name: i.why for i in result.repos[0].in_use} == {
+        "locked": "this session's working directory; locked",
+        "here": "locked: claude agent x (pid 1)",
+    }
 
 
 def test_main_checkout_is_never_listed(repo, gh):

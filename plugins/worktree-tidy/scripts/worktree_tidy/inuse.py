@@ -229,5 +229,5 @@ class Activity:
         agents = sorted(self.agents.get(real, []), key=lambda s: -s[1])
         if agents:
             aid, mtime = agents[0]
-            parts.append(f"{aid} active {ago(self.now - mtime)}")
+            parts.append(f"subagent {aid} active {ago(self.now - mtime)}")
         return "; ".join(parts) or None

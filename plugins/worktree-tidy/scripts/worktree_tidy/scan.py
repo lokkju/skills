@@ -1,9 +1,11 @@
 """Find a scope's repos and sort each linked worktree into in use, stale, needs-a-look or
 leave-alone.
 
-In use (listed with the evidence and judged no further): a process other than this scanner has
-its working directory inside it, or a Claude Code session or agent transcript for it changed
-within the session window (24 hours by default). inuse.py has the details.
+In use (listed with the evidence and judged no further): the session's own worktree, a locked
+one (`git worktree lock`; Claude Code locks the worktrees it creates while a session or agent
+is in them), one where a process other than this scanner has its working directory, and one
+whose Claude Code session or agent transcript changed within the session window (24 hours by
+default). inuse.py has the details.
 
 Stale (listed with removal commands):
   merged    its branch's newest PR merged, no PR from it is open, the checkout's commit is in
@@ -17,8 +19,7 @@ Needs a look (listed, no commands): merged or closed but dirty or carrying commi
 doesn't have; closed with its branch still on the remote; detached and dirty or on a commit no
 ref has; and directories under .claude/worktrees/ or .wt/ that git doesn't list as worktrees.
 
-Never touched: a repo's main checkout, the worktree the session is in, locked worktrees, and
-branches with an open PR or none at all.
+Never touched or listed: a repo's main checkout, and branches with an open PR or none at all.
 """
 
 from __future__ import annotations
@@ -157,10 +158,16 @@ def scan_repo(
             why = "its directory is gone" + (f" ({tree.prunable})" if tree.prunable else "")
             report.stale.append(Item(tree.path, "prunable", why, tree.branch))
             continue
-        if tree.locked is not None or _inside(cwd, tree.path) or tree.bare:
+        if tree.bare:
             continue
+        held = []
+        if _inside(cwd, tree.path):
+            held.append("this session's working directory")
+        if tree.locked is not None:
+            held.append(f"locked: {tree.locked}" if tree.locked else "locked")
         using = activity.evidence(tree.path) if activity else None
-        if using:
+        if held or using:
+            using = "; ".join(held + ([using] if using else []))
             report.in_use.append(Item(tree.path, "in use", using, tree.branch))
         elif tree.branch:
             branch_trees.append(tree)
