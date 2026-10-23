@@ -1283,7 +1283,7 @@ describe('link and label forms', () => {
 })
 
 describe('reconcile', () => {
-  test('/decisions reconcile sends the brief, with what the person wrote about each item', async ($, on) => {
+  test('/decisions reconcile shows the brief, notes it for the model, and asks for the pass', async ($, on) => {
     const { submitted, session, toasts, clock } = engine(on)
     await start($)
     await create($, 'DECIDE: btrfs or zfs? (recommend zfs) [no link]')
@@ -1291,14 +1291,15 @@ describe('reconcile', () => {
     session.messages = [{ role: 'user', text: 'A1: done', toolUses: [] }]
     const ran = await $.command.run({ command: 'decisions', args: 'reconcile', ...RUN })
     expect(ran.text).toContain('| D1 | DECIDE | 0m | none | btrfs or zfs? (recommend zfs) |')
+    expect(ran.text).toContain('| A1 | ACTION | 0m | #12 | add the disks to the pool |')
+    expect(ran.text).toContain('- A1: "A1: done"')
+    expect(ran.context).toEqual([ran.text])
     // The host refuses a submit from inside the command, so it goes out once the command has answered.
     expect(submitted).toEqual([])
     await clock.advance(1)
     expect(toasts.filter(text => text.includes("couldn't send"))).toEqual([])
     expect(submitted).toHaveLength(1)
     expect(submitted[0]?.startsWith("Reconcile this session's decision queue")).toBe(true)
-    expect(submitted[0]).toContain('| A1 | ACTION | 0m | #12 | add the disks to the pool |')
-    expect(submitted[0]).toContain('- A1: "A1: done"')
   })
 
   test('/decisions wrap sends its prompt once the command has answered', async ($, on) => {

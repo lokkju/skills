@@ -25,7 +25,7 @@ import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge, unknownLabels } from './handoff'
-import { RECONCILE, brief, inventory } from './reconcile'
+import { RECONCILE, brief } from './reconcile'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -725,9 +725,11 @@ export const register: Register = (on, options) => {
     }
     if (arg === 'reconcile') {
       if (!list.some(isOpen)) return { text: 'No open decisions or actions; nothing to reconcile.' }
+      // The person sees the brief once, as the command's output; the model reads it as the
+      // command's note, ahead of the short request that starts its turn.
       const text = brief(list, await conversation($), now)
-      submitSoon($, `${RECONCILE}\n\n${text}`)
-      return { text: inventory(list, now) }
+      submitSoon($, RECONCILE)
+      return { text, context: [text] }
     }
     if (arg === 'wrap') {
       const open = list.filter(isOpen)

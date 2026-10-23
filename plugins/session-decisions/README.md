@@ -121,8 +121,8 @@ record; `Settled (n)` in the sidebar shows them.
 Long sessions leave items open after the conversation has moved past them: a question you
 answered without its label, an `A4: done` sent while the assistant was busy, a recommendation
 that stopped fitting once you added three more disks. `/decisions reconcile` prints the open items
-as a table (label, kind, how long each has waited, link, text) and sends the assistant a reconcile
-request with that table and every line of your own messages that names one of the labels.
+as a table (label, kind, how long each has waited, link, text), followed by every line of your own
+messages that names one of their labels, and asks the assistant to reconcile them.
 
 The assistant checks each item for evidence that it's settled (your words answering it, by label
 or by subject; a merged pull request or closed issue it links to; a later item that supersedes
