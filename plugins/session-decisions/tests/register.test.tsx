@@ -1074,6 +1074,7 @@ describe('markdown', () => {
     await create($, 'DECIDE: Keep SQLite for the tests? (recommend yes) [#3]', 'It runs in memory.')
     await create($, 'DECIDE: Run the suite on Postgres in CI as well as on SQLite locally? (recommend yes) [#4]', 'Slower.')
     await create($, 'DECIDE: Which driver? (recommend psycopg 3, for async) [#5]', 'Async.')
+    await create($, 'DECIDE: Keep the café build? (recommend yes) [#6]', 'Menus.')
     await create($, 'ACTION: run `uv sync` [no link]', '')
     const ui = await $.ui.mount({
       plugin: PLUGIN,
@@ -1082,7 +1083,7 @@ describe('markdown', () => {
       requestId: PLUGIN,
       props: { bodyColumns: 52, placement: 'inline' } as never,
     })
-    type Node = { type: string; props?: Record<string, unknown>; children?: (Node | string)[] }
+    type Node = { type: string; props?: Record<string, unknown>; hover?: Record<string, unknown>; children?: (Node | string)[] }
     const find = (node: Node | string, key: string): Node | undefined => {
       if (typeof node === 'string') return undefined
       if (node.props?.key === key) return node
@@ -1105,8 +1106,21 @@ describe('markdown', () => {
     // With a qualifier, [more] follows the qualifier rather than the question.
     expect(find(drawn, 'question-D4')?.type).toBe('Markdown')
     expect(keys(find(drawn, 'qualifier-D4-tail'))).toEqual(['qualifier-D4-tail-text', 'more-D4'])
+    // A line whose width can't be told from its text: [more] on a row of its own.
+    expect(keys(find(drawn, 'question-D5-end'))).toEqual(['question-D5', 'more-D5'])
     // A command in backticks is something the details view offers to copy.
     expect((await ui.find({ key: 'more-A1' }))?.text).toBe('[more]')
+    // [more] is never dim: it's drawn in the accent color and underlined, so it reads as a control
+    // after the question (normal text) and after the qualifier (dim text) alike, and on its own row.
+    expect(find(drawn, 'qualifier-D4-tail-text')?.children?.[0]).toMatchObject({ props: { dimColor: true } })
+    expect((find(drawn, 'question-D2-tail-text')?.children?.[0] as Node).props?.dimColor).toBeUndefined()
+    for (const label of ['D2', 'D3', 'D4', 'D5', 'A1']) {
+      const button = find(drawn, `more-${label}`)!
+      expect(button.type).toBe('Button')
+      expect(button).toMatchObject({ props: { label: '[more]', plain: true }, hover: { bold: true } })
+      expect(button.props?.dimColor).toBeUndefined()
+      expect(button.children).toEqual([{ type: 'Text', props: { color: 'claude', underline: true }, children: ['[more]'] }])
+    }
   })
 
   test('a settled row and the toast use plain text', async ($, on) => {

@@ -956,11 +956,19 @@ async function drawCard(
   const more = () => void showDetails($, item)
   const question = linkRefs(parts.question, forge)
   const qualifier = rec?.qualifier ? linkRefs(rec.qualifier, forge) : null
-  // [more] follows whichever line of text comes last: the qualifier when there is one.
+  // [more] follows whichever line of text comes last: the qualifier when there is one. It is drawn
+  // in the accent color and underlined, so it reads as a control beside the question (normal text)
+  // and beside the qualifier (dim text) alike.
   const ending = hasMore({ parts, description: item.description }, forge)
     ? {
         split: moreSplit(qualifier ?? question, opts.width),
-        button: <Button key={`more-${item.label}`} plain dimColor label={MORE} hover={{ bold: true }} onPress={more} />,
+        button: (
+          <Button key={`more-${item.label}`} plain label={MORE} hover={{ bold: true }} onPress={more}>
+            <Text color={ACCENT} underline>
+              {MORE}
+            </Text>
+          </Button>
+        ),
       }
     : null
   const line = (key: string, text: string, dim: boolean) => {
