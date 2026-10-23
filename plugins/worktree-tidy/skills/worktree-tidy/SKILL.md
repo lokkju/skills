@@ -18,25 +18,32 @@ the PRs of the worktrees' branches, cached for ten minutes.
 ```
 
 `--offline` skips GitHub (only detached and prunable worktrees can then be stale), `--days N`
-changes how long a detached checkout has to sit unused (default 7), and `--json` prints the same
-report as data.
+changes how long a detached checkout has to sit unused (default 7), `--session-hours N` how
+recently a Claude Code transcript for a worktree must have changed for it to count as in use
+(default 24), and `--json` prints the same report as data.
 
 ## What to tell the user
 
-Show the stale list and the "look at" list grouped by repo, then the commands in one code block,
-as printed. Say what each group means when it isn't obvious:
+Show the stale, "look at" and "in use" lists grouped by repo, then the commands in one code
+block, as printed. Say what each group means when it isn't obvious:
 
-- **merged / closed**: the branch's newest PR merged (or closed), no PR from it is open, the
-  branch is gone from the remote, the checkout's commit is in the PR, and the worktree is clean.
+- **in use**: something is using it, so it wasn't judged at all: it's this session's worktree,
+  it's locked, a process has its working directory there (named by pid and command), or a Claude
+  Code session or agent transcript for it changed within the window (named, with how long ago).
+- **merged**: the branch's newest PR merged, no PR from it is open, the checkout's commit is in
+  the PR, and the worktree is clean. "branch still on the remote" means the remote branch
+  survives; the commands delete only the local one.
+- **closed**: the same for a PR closed unmerged, with the branch gone from the remote.
 - **detached**: a clean detached checkout on a commit a branch or tag has, unused for the
   configured number of days.
 - **prunable**: git already knows the directory is gone; `git worktree prune` clears it.
 - **look at**: close to stale but not safe to call it: uncommitted changes, commits the PR
-  doesn't have, the branch still on the remote, a detached commit no branch has, or a directory
-  under `.claude/worktrees/` or `.wt/` that git doesn't list.
+  doesn't have, a closed PR whose branch is still on the remote, a detached commit no branch has,
+  or a directory under `.claude/worktrees/` or `.wt/` that git doesn't list.
 
 A "couldn't check PRs" line means gh failed for that repo; its branch worktrees weren't judged
-either way, never treated as merged.
+either way, never treated as merged. A "couldn't look for processes" line means neither `/proc`
+nor `lsof` worked, so tell the user a stale worktree may still have a program running in it.
 
 ## Removal is the user's call
 

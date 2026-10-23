@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -80,12 +81,177 @@ def test_unknown_pr_head_is_a_look(repo, gh):
     assert "couldn't confirm" in looks(result)["feat"]
 
 
-def test_branch_still_on_remote_is_a_look(repo, gh):
+def test_merged_with_branch_still_on_remote_is_stale(repo, gh):
     wt = repo.worktree(".wt/feat", "feat")
     merged(gh, "feat", repo.commit(wt), remote=True)
     result = run_scan([repo.path])
+    assert kinds(result) == {"feat": "merged"}
+    assert result.repos[0].stale[0].why == "PR #1 merged; branch still on the remote"
+
+
+def test_merged_on_remote_but_dirty_is_a_look(repo, gh):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt), remote=True)
+    (wt / "scratch.txt").write_text("unsaved\n")
+    result = run_scan([repo.path])
     assert kinds(result) == {}
-    assert "still on the remote" in looks(result)["feat"]
+    assert looks(result)["feat"].startswith("PR #1 merged; branch still on the remote; 1 changed")
+
+
+def test_closed_with_branch_still_on_remote_is_a_look(repo, gh):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt), remote=True, state="CLOSED")
+    result = run_scan([repo.path])
+    assert kinds(result) == {}
+    assert looks(result)["feat"] == "PR #1 closed; branch still on the remote"
+
+
+def fake_proc(base, *entries):
+    """A stand-in for /proc: (pid, cwd, comm) entries; a cwd of None makes an unreadable one."""
+    root = base / "proc"
+    root.mkdir(exist_ok=True)
+    (root / "self").mkdir(exist_ok=True)
+    for pid, cwd, comm in entries:
+        d = root / str(pid)
+        d.mkdir()
+        (d / "comm").write_text(comm + "\n")
+        if cwd is not None:
+            (d / "cwd").symlink_to(os.path.realpath(cwd))
+    return root
+
+
+def transcript(projects, path, name, hours_ago=0.0, agent=False):
+    """A Claude Code transcript for `path`, last written `hours_ago`."""
+    if agent:
+        sub = projects / "-somewhere-else" / "parent-session" / "subagents"
+        sub.mkdir(parents=True, exist_ok=True)
+        (sub / f"{name}.meta.json").write_text(json.dumps({"worktreePath": str(path)}))
+        file = sub / f"{name}.jsonl"
+    else:
+        folder = projects / scan.inuse.encode(str(path))
+        folder.mkdir(parents=True, exist_ok=True)
+        file = folder / f"{name}.jsonl"
+    file.write_text("{}\n")
+    stamp = time.time() - hours_ago * 3600
+    os.utime(file, (stamp, stamp))
+
+
+def test_encode_matches_claude_code():
+    assert (
+        scan.inuse.encode("/home/u/p/skills/.claude/worktrees/x")
+        == "-home-u-p-skills--claude-worktrees-x"
+    )
+
+
+def test_process_in_a_merged_worktree_makes_it_in_use(repo, gh, tmp_path):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt))
+    (wt / "sub").mkdir()
+    proc = fake_proc(
+        tmp_path,
+        (4242, wt / "sub", "vim"),  # a subdirectory counts
+        (4243, None, "hidden"),  # unreadable: skipped
+        (os.getpid(), wt, "python3"),  # the scanner itself: ignored
+        (4244, tmp_path, "bash"),  # elsewhere
+    )
+    result = run_scan([repo.path], proc_root=str(proc))
+    assert kinds(result) == {} and looks(result) == {}
+    (item,) = result.repos[0].in_use
+    assert item.kind == "in use" and item.branch == "feat"
+    assert item.why == "pid 4242 (vim) running in it"
+    assert result.in_use_note is None
+    assert gh.calls() == []  # nothing left to ask GitHub about
+    assert "  in use: .wt/feat [feat]: pid 4242 (vim) running in it" in cli.render(result)
+    assert "1 in use" in cli.summary(result)
+    assert cli.commands(result) == []
+
+
+def test_in_use_beats_needs_a_look(repo, gh, tmp_path):
+    wt = repo.worktree(".claude/worktrees/scratch", detach=True)
+    repo.commit(wt)
+    repo.age(wt, 10)
+    orphan = repo.path / ".wt" / "leftover"
+    orphan.mkdir(parents=True)
+    proc = fake_proc(tmp_path, (7, wt, "node"), (8, orphan, "zsh"))
+    result = run_scan([repo.path], proc_root=str(proc))
+    assert looks(result) == {}
+    assert {Path(i.path).name: i.why for i in result.repos[0].in_use} == {
+        "scratch": "pid 7 (node) running in it",
+        "leftover": "pid 8 (zsh) running in it",
+    }
+
+
+def test_recent_session_transcript_makes_it_in_use(repo, gh, tmp_path):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt))
+    projects = tmp_path / "claude" / "projects"
+    transcript(projects, wt, "1111-session", hours_ago=2)
+    result = run_scan([repo.path])
+    assert kinds(result) == {}
+    assert result.repos[0].in_use[0].why == "session 1111-session active 2h ago"
+
+
+def test_old_session_transcript_is_ignored_unless_the_window_covers_it(repo, gh, tmp_path):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt))
+    transcript(tmp_path / "claude" / "projects", wt, "old", hours_ago=30)
+    assert kinds(run_scan([repo.path])) == {"feat": "merged"}
+    result = run_scan([repo.path], session_hours=48)
+    assert kinds(result) == {}
+    assert result.repos[0].in_use[0].why == "session old active 1d ago"
+
+
+def test_recent_agent_transcript_makes_it_in_use(repo, gh, tmp_path):
+    wt = repo.worktree(".claude/worktrees/agent-abc", "worktree-agent-abc")
+    merged(gh, "worktree-agent-abc", repo.commit(wt))
+    projects = tmp_path / "elsewhere"
+    transcript(projects, wt, "agent-abc", hours_ago=0.5, agent=True)
+    transcript(projects, repo.path / "nope", "agent-other", agent=True)
+    result = run_scan([repo.path], projects=str(projects))
+    assert kinds(result) == {}
+    assert result.repos[0].in_use[0].why == "subagent agent-abc active 30m ago"
+
+
+def test_process_check_that_cant_run_says_so(repo, gh, tmp_path, monkeypatch):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt))
+    monkeypatch.setattr(scan.inuse, "_from_lsof", lambda *a: None)
+    result = run_scan([repo.path], proc_root=str(tmp_path / "no-proc"))
+    assert kinds(result) == {"feat": "merged"}
+    assert result.in_use_note == (
+        f"couldn't look for processes using worktrees (no {tmp_path / 'no-proc'}, lsof failed)"
+    )
+    assert "may still have a program running in it" in cli.render(result)
+
+
+def test_processes_without_lsof(tmp_path):
+    procs, note = scan.inuse.processes(str(tmp_path / "none"), lsof=str(tmp_path / "no-lsof"))
+    assert procs is None and note.startswith("couldn't look for processes")
+
+
+def test_processes_from_lsof(tmp_path):
+    lsof = tmp_path / "lsof"
+    lsof.write_text(
+        "#!/bin/sh\nprintf 'p10\\ncvim\\nfcwd\\nn/work/a\\np11\\ncbash\\nfcwd\\nn/work/b\\n'\n"
+    )
+    lsof.chmod(0o755)
+    procs, note = scan.inuse.processes(str(tmp_path / "none"), skip={11}, lsof=str(lsof))
+    assert note is None
+    assert [(p.pid, p.command, p.cwd) for p in procs] == [(10, "vim", "/work/a")]
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc/self"), reason="needs procfs")
+def test_real_process_in_a_worktree(repo, gh):
+    wt = repo.worktree(".wt/feat", "feat")
+    merged(gh, "feat", repo.commit(wt))
+    child = subprocess.Popen(["sleep", "30"], cwd=wt)
+    try:
+        result = run_scan([repo.path])
+    finally:
+        child.kill()
+        child.wait()
+    assert kinds(result) == {}
+    assert result.repos[0].in_use[0].why == f"pid {child.pid} (sleep) running in it"
 
 
 def test_open_pr_or_no_pr_is_left_alone(repo, gh):
@@ -230,6 +396,16 @@ def test_locked_and_current_worktrees_are_left_alone(repo, gh):
         merged(gh, name, repo.commit(wt, name))
     result = run_scan([repo.path], cwd=here)
     assert kinds(result) == {}
+    assert {Path(i.path).name: i.why for i in result.repos[0].in_use} == {
+        "locked": "locked",
+        "here": "this session's working directory",
+    }
+    git(repo.path, "worktree", "lock", "--reason", "claude agent x (pid 1)", str(here))
+    result = run_scan([repo.path], cwd=locked)
+    assert {Path(i.path).name: i.why for i in result.repos[0].in_use} == {
+        "locked": "this session's working directory; locked",
+        "here": "locked: claude agent x (pid 1)",
+    }
 
 
 def test_main_checkout_is_never_listed(repo, gh):

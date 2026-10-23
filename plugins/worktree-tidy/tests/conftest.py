@@ -70,7 +70,9 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(gitconfig))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))  # no real transcripts
     for name in (
+        "WORKTREE_TIDY_SESSION_HOURS",
         "WORKTREE_TIDY_ROOTS",
         "WORKTREE_TIDY_OFFLINE",
         "WORKTREE_TIDY_BUDGET",
