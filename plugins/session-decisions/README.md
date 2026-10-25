@@ -266,7 +266,11 @@ it, and the plugin carries on as if that key weren't set.
 
 ## Requirements
 
-Claude Code with function hooks, which interactive sessions and background jobs load. A plain
+Claude Code 2.1.300 or newer (`MIN_CLAUDE_CODE` in `hooks/version.ts`). On an older build the
+plugin says so in a toast and a transcript line, tells the assistant it's off, and stays off: no
+pane, footer, `/decisions`, labels or checks until you run `claude update`.
+
+It needs function hooks, which interactive sessions and background jobs load. A plain
 `claude -p` run doesn't load them unless `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` is set; there the
 skill tells the assistant to number items itself.
 

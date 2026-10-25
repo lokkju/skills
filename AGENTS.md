@@ -76,6 +76,19 @@ every plugin with pending changes. Merging that PR ships the release: yeet tags 
 creates its GitHub Release from the changelog entry. To edit release notes, edit the changelog on
 the release branch before merging.
 
+## Minimum Claude Code
+
+A plugin that depends on host features (function hooks, mod elements, `$` APIs) declares the oldest
+Claude Code it runs on. session-decisions keeps it in `hooks/version.ts` as `MIN_CLAUDE_CODE`; the
+plugin manifest has no field for it, so the module checks `$.session.version()` at session start.
+
+Keep the minimum recent. When a newer Claude Code has a feature we want or should be using, raise
+the minimum and use the feature; don't contort code to keep older builds working. Below the
+minimum the plugin refuses loudly rather than half working: session-decisions shows a toast and a
+transcript line naming the version it needs, tells the model at SessionStart, registers nothing,
+and lets every hook pass through. CI runs the plugin's tests on the minimum as well as the current
+release, reading the version from that line, so raising it is a one-line change that CI checks.
+
 ## Validation
 
 Install the pre-commit hooks once per clone:
@@ -91,8 +104,10 @@ that). `uvx pre-commit run --all-files` runs them on everything.
 
 CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
-- `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, then
-  `claude plugin test plugins/session-decisions`. Neither needs an Anthropic login or API key.
+- `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, on the
+  current Claude Code.
+- `session-decisions`: `claude plugin test plugins/session-decisions` on its minimum Claude Code
+  and on the current one. Neither job needs an Anthropic login or API key.
 - `forge-release`, `forge-tracker`, `term-recorder` and `worktree-tidy`: `ruff check`,
   `ruff format --check` and the pytest suite on Python 3.11 and 3.14 (tmux is installed for
   term-recorder's).
