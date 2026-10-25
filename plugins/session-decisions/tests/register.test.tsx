@@ -16,8 +16,9 @@ type Seed = { store?: Record<string, unknown>; lists?: Record<string, Record<str
  * The engine's own behaviour beneath the plugin: a clock, a store, task lists in memory that the
  * plugin's reads see as files, a prompt box, and the UI it reports to. The session's own list is
  * `tasks/<CLAUDE_CODE_TASK_LIST_ID>` when that is set and `tasks/<session id>` otherwise.
+ * `version` is the Claude Code version $.session.version() reports; null makes the call fail.
  */
-function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
+function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}, version: string | null = '2.1.310') {
   const lists = new Map<string, Map<string, Task>>()
   for (const [name, list] of Object.entries(seed.lists ?? {})) lists.set(`${ROOT}/${name}`, new Map(Object.entries(list)))
   const listOf = (name: string) => {
@@ -55,8 +56,16 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
   mock.env(on, { HOME: '/home/me', ...env })
   on('session.id', () => ({ value: session.id }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
-  on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  on('tool.register', (_$, e) => ({ value: { tool: `mcp__${PLUGIN}__${e.name}` } }))
+  // The commands and tools the plugin registered, by name.
+  const registered: string[] = []
+  on('command.register', (_$, e) => {
+    registered.push(e.name)
+    return { value: { command: e.name } }
+  })
+  on('tool.register', (_$, e) => {
+    registered.push(e.name)
+    return { value: { tool: `mcp__${PLUGIN}__${e.name}` } }
+  })
   on('ui.status', (_$, e) => {
     status.push(e.text)
     return { value: undefined }
@@ -65,6 +74,15 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
   on('ui.toast', (_$, e) => {
     toasts.push(e.text)
     return { value: undefined }
+  })
+  const logged: string[] = []
+  on('ui.log', (_$, e) => {
+    logged.push(e.text)
+    return { value: undefined }
+  })
+  on('session.version', () => {
+    if (version === null) throw new Error('no version')
+    return { value: { version, base: version } }
   })
   const copied: string[] = []
   on('ui.copy', (_$, e) => {
@@ -124,7 +142,7 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}) {
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, lists, store, filled, submitted, status, clock, opened, panes, offered, session, copied, toasts }
+  return { tasks, lists, store, filled, submitted, status, clock, opened, panes, offered, session, copied, toasts, logged, registered }
 }
 
 async function start($: any) {
@@ -435,6 +453,44 @@ describe('queue', () => {
     expect(after.additionalContext?.join('\n')).toContain('- D1 DECIDE: Postgres or SQLite?')
     const fresh = await $.classic.SessionStart({ source: 'startup' })
     expect(fresh.additionalContext).toBeUndefined()
+  })
+})
+
+describe('minimum Claude Code', () => {
+  for (const [name, version] of [
+    ['an older build', '2.1.289'],
+    ['a build whose version it cannot read', null],
+  ] as const) {
+    test(`on ${name} the plugin says so and stays off`, async ($, on) => {
+      const { tasks, toasts, logged, opened, registered } = engine(on, {}, {}, version)
+      on('classic.SessionStart', () => ({}))
+      await start($)
+      expect(registered).toEqual([])
+      const said = version ? 'needs Claude Code 2.1.300 or newer; this is 2.1.289' : "couldn't read this one's version"
+      expect(toasts.filter(text => text.includes(said))).toHaveLength(1)
+      expect(logged.filter(text => text.includes(said))).toHaveLength(1)
+      // The model hears it at session start, and keeps the queue itself.
+      const begun = await $.classic.SessionStart({ source: 'startup', session_id: SID })
+      expect(begun.additionalContext?.join('\n')).toContain(said)
+      expect(begun.additionalContext?.join('\n')).toContain('number items yourself')
+      // No label, no check, no card, no pane: the engine's own behaviour throughout.
+      await create($, 'DECIDE: Postgres or SQLite? [#3]')
+      expect([...tasks.values()].map(t => t.subject)).toEqual(['DECIDE: Postgres or SQLite? [#3]'])
+      const footer = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'SessionMode', props: { modes: [] } as never })
+      expect(await footer.find({ key: 'decisions-footer' })).toBeUndefined()
+      expect(await footer.find({ key: 'engine' })).toBeDefined()
+      expect(opened).toEqual([])
+    })
+  }
+
+  test('on the minimum itself the plugin runs', async ($, on) => {
+    const { tasks, toasts, registered } = engine(on, {}, {}, '2.1.300')
+    await start($)
+    expect(registered).toContain('decisions')
+    expect(registered).toContain('decision_add')
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    expect(tasks.get('1')?.subject).toBe('D1 DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    expect(toasts.filter(text => text.includes('needs Claude Code'))).toEqual([])
   })
 })
 
