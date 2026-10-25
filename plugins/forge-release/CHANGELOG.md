@@ -1,5 +1,11 @@
 # Changelog
 
+## [forge-release--v2026.10.25.1](https://github.com/lokkju/skills/compare/forge-release--v2026.10.18.1...forge-release--v2026.10.25.1) (2026-10-25)
+
+### Fixes
+
+- **forge-release,forge-tracker,term-recorder,worktree-tidy:** run skill scripts from the skill's own directory ([8bf911c](https://github.com/lokkju/skills/commit/8bf911c77e8c453c044243ef3d869cd14052d41d))
+
 ## [forge-release--v2026.10.18.1](https://github.com/lokkju/skills/compare/forge-release--v2026.10.14.1...forge-release--v2026.10.18.1) (2026-10-18)
 
 ### Features

@@ -1,5 +1,11 @@
 # Changelog
 
+## [forge-tracker--v2026.10.25.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.20.2...forge-tracker--v2026.10.25.1) (2026-10-25)
+
+### Fixes
+
+- **forge-release,forge-tracker,term-recorder,worktree-tidy:** run skill scripts from the skill's own directory ([8bf911c](https://github.com/lokkju/skills/commit/8bf911c77e8c453c044243ef3d869cd14052d41d))
+
 ## [forge-tracker--v2026.10.20.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.20.1...forge-tracker--v2026.10.20.2) (2026-10-20)
 
 ### Features
