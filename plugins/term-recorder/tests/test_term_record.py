@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "skills/term-recorder/scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from term_recorder import steps as steplib

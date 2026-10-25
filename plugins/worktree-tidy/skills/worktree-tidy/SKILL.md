@@ -1,20 +1,23 @@
 ---
 name: worktree-tidy
 description: Use when the user asks which git worktrees are stale or leftover, wants to clean up worktrees after PRs merged, or after the worktree-tidy session-start note says some are stale. Lists stale worktrees (merged or closed PRs, old detached checkouts, prunable ones) across a repo or a folder of repos, with the exact commands for the user to run; it never removes anything itself.
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/worktree-tidy *)
 ---
 
 # worktree-tidy
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy report` lists the stale worktrees in the current
+`${CLAUDE_SKILL_DIR}/scripts/worktree-tidy report` lists the stale worktrees in the current
 repo, or in every repo one level down when the current directory isn't one, and prints the shell
 lines that would remove them. It only reads: git, and one `gh api graphql` query per repo for
 the PRs of the worktrees' branches, cached for ten minutes.
 
+`${CLAUDE_SKILL_DIR}` is the directory holding this SKILL.md. Claude Code fills it in; in an
+agent that leaves it as written, put that directory's path in its place.
+
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy" report            # this repo or workspace
-"${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy" report --refresh  # ask GitHub again now
-"${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy" report --root ~/projects/a --root ~/projects/b
+"${CLAUDE_SKILL_DIR}/scripts/worktree-tidy" report            # this repo or workspace
+"${CLAUDE_SKILL_DIR}/scripts/worktree-tidy" report --refresh  # ask GitHub again now
+"${CLAUDE_SKILL_DIR}/scripts/worktree-tidy" report --root ~/projects/a --root ~/projects/b
 ```
 
 `--offline` skips GitHub (only detached and prunable worktrees can then be stale), `--days N`

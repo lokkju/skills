@@ -5,10 +5,10 @@ line-length = 100
 target-version = "py39"
 # Extensionless Python entry points.
 extend-include = [
-  "plugins/forge-release/scripts/github-app-create",
-  "plugins/forge-tracker/scripts/forge-tracker",
-  "plugins/term-recorder/scripts/term-record",
-  "plugins/worktree-tidy/scripts/worktree-tidy",
+  "plugins/forge-release/skills/forge-release/scripts/github-app-create",
+  "plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker",
+  "plugins/term-recorder/skills/term-recorder/scripts/term-record",
+  "plugins/worktree-tidy/skills/worktree-tidy/scripts/worktree-tidy",
 ]
 
 [lint]

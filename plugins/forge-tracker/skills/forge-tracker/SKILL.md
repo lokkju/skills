@@ -10,9 +10,9 @@ description: Use when filing an issue, recording that one issue blocks, waits on
 When an issue you file or work on waits on another, record it in the forge's relationship data:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link add 18 --blocked-by 17      # #18 waits on #17
-"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link add 18 --blocked-by acme/other#4
-"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link remove 18 --blocked-by 17   # no longer true
+"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" link add 18 --blocked-by 17      # #18 waits on #17
+"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" link add 18 --blocked-by acme/other#4
+"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" link remove 18 --blocked-by 17   # no longer true
 ```
 
 It goes through the repo's write-wrapper when `.claude/forge-tracker.local.md` sets one, and
@@ -20,7 +20,10 @@ writes nothing (exit 2) for a link that already exists, a remove with no link, a
 pull request or closed issue on either side. File the issue first, then link it; a link needs
 both numbers.
 
-Without the plugin (`CLAUDE_PLUGIN_ROOT` unset, or another agent), make the same call on GitHub:
+`${CLAUDE_SKILL_DIR}` is the directory holding this SKILL.md. Claude Code fills it in; in an
+agent that leaves it as written, put that directory's path in its place.
+
+Where the script can't run, make the same call on GitHub:
 
 ```bash
 id=$(gh api repos/OWNER/REPO/issues/17 --jq .id)    # the blocker's id, not its number
@@ -45,7 +48,7 @@ that the issue is person-only and unlabelled; `/next` offers the label setup.
 
 - `/next`: the user's queue, the lanes agents can start now, and what's blocked.
 - `/catchup`: what changed and what's waiting on the user since the last catchup. When you run
-  it for your own purposes, run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" catchup --no-mark`
+  it for your own purposes, run `"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" catchup --no-mark`
   so the user's marker stays put.
 - `/groom`: tracker drift, including blocking written only as prose, fixed on the user's
   approval.

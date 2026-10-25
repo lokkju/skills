@@ -11,23 +11,23 @@
   `/decisions`). TypeScript, no dependencies; tests run with
   `claude plugin test plugins/session-decisions`. Its README covers type-checking and
   re-recording the demo.
-- `plugins/forge-release/`: release-PR setup across forges. So far only `scripts/github-app-create`
+- `plugins/forge-release/`: release-PR setup across forges. So far only `skills/forge-release/scripts/github-app-create`
   (GitHub App manifest flow); no skill yet. Standard-library Python plus `openssl`; tests run with
   `uv run --no-project --with pytest pytest plugins/forge-release/tests`.
 - `plugins/forge-tracker/`: issue-tracker working rules and reports (design in
   `docs/specs/forge-tracker.md`). So far the GitHub layer, `/catchup`, `/next` and `/groom`:
-  a standard-library Python CLI (`scripts/forge-tracker`) and `commands/`. Only
-  `scripts/forge_tracker/writes.py` writes to a forge. Tests run with
+  a standard-library Python CLI (`skills/forge-tracker/scripts/forge-tracker`) and `commands/`.
+  Only `skills/forge-tracker/scripts/forge_tracker/writes.py` writes to a forge. Tests run with
   `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over recorded fixtures,
   no network.
 - `plugins/term-recorder/`: drives a terminal program from a step file on a private tmux server
   and captures it (text snaps, asciicast, GIF via agg). A standard-library Python CLI
-  (`scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
+  (`skills/term-recorder/scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
   example step files for Claude Code. Tests run with
   `uv run --no-project --with pytest pytest plugins/term-recorder/tests` and need tmux.
 - `plugins/worktree-tidy/`: a SessionStart hook (`hooks/hooks.json`) that reports stale git
   worktrees, and a skill for the full list with removal commands. Both run a standard-library
-  Python CLI (`scripts/worktree-tidy`) that only reads; it never removes anything. Tests build
+  Python CLI (`skills/worktree-tidy/scripts/worktree-tidy`) that only reads; it never removes anything. Tests build
   temporary repos and worktrees and fake `gh`:
   `uv run --no-project --with pytest pytest plugins/worktree-tidy/tests`.
 - `scripts/`: repo scripts that aren't part of any plugin. `check-skill-names.py` (below) and
@@ -40,7 +40,11 @@
   scripts/tests` over synthetic transcripts; never commit real ones.
 
 `npx skills add lokkju/skills` finds every `SKILL.md` under `plugins/*/skills/`, so a skill here
-is installable for any agent as well as through the marketplace.
+is installable for any agent as well as through the marketplace. It copies only the skill's own
+directory, so a script a skill runs lives under `skills/<skill>/scripts/`, and the SKILL.md names
+it as `${CLAUDE_SKILL_DIR}/scripts/<name>`, which Claude Code fills in (also in `allowed-tools`).
+`${CLAUDE_PLUGIN_ROOT}` is only set in Claude Code's plugin runtime; hooks and `commands/*.md`,
+which only Claude Code runs, use `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>`.
 
 ## Adding a plugin
 

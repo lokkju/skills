@@ -3,7 +3,7 @@
 term-recorder runs a terminal program in a terminal of a fixed size, drives it from a step file of keystrokes, waits and clicks, and captures what it shows: plain-text screen snaps, an asciicast, and a GIF through [agg](https://github.com/asciinema/agg). I built it so an assistant can look at a TUI the way a person does, Claude Code included, instead of guessing from the source how a dialog wraps or whether markdown renders.
 
 ```bash
-term-record -C "$(mktemp -d)" -s examples/ask-dialog.steps -- claude --model haiku
+term-record -C "$(mktemp -d)" -s skills/term-recorder/examples/ask-dialog.steps -- claude --model haiku
 ```
 
 That one starts a fresh Claude Code session, gets past the folder-trust dialog, asks for a question dialog with a multi-line markdown question, and prints the screen with the dialog open.
@@ -26,7 +26,7 @@ wait 'Close' 120
 snap dialog
 ```
 
-`wait`, `gone` and `idle` wait on regular expressions; `keys`, `type`, `paste` and `click` send input; `snap` captures the screen; `include` and `when` compose step files. `term-record --help` has the full list, and the [skill](skills/term-recorder/SKILL.md) has it with notes on driving Claude Code. [`examples/claude-start.steps`](examples/claude-start.steps) gets a fresh Claude Code session to an empty prompt.
+`wait`, `gone` and `idle` wait on regular expressions; `keys`, `type`, `paste` and `click` send input; `snap` captures the screen; `include` and `when` compose step files. `term-record --help` has the full list, and the [skill](skills/term-recorder/SKILL.md) has it with notes on driving Claude Code. [`examples/claude-start.steps`](skills/term-recorder/examples/claude-start.steps) gets a fresh Claude Code session to an empty prompt.
 
 ## Recording
 
@@ -34,7 +34,7 @@ snap dialog
 
 ## Permissions
 
-The skill's `allowed-tools` pre-approves `${CLAUDE_PLUGIN_ROOT}/scripts/term-record` and nothing else, for the turn the skill is used in. Installing the plugin is the grant; you don't edit any settings.
+The script and the example step files live in the skill's own directory (`skills/term-recorder/`), so an install that copies only the skill, such as `npx skills add`, gets them too. The skill's `allowed-tools` pre-approves `${CLAUDE_SKILL_DIR}/scripts/term-record` and nothing else, for the turn the skill is used in; Claude Code replaces `${CLAUDE_SKILL_DIR}` with the skill's directory. Installing the plugin is the grant; you don't edit any settings.
 
 ## Requirements
 

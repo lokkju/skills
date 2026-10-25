@@ -56,7 +56,7 @@ needs `--public` (see the plugin README's "Public Apps" for what that exposes).
 **No App yet.** Run the helper (see the plugin README for every flag):
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/github-app-create --org ACME --name ACME-release --repo ACME/REPO
+${CLAUDE_SKILL_DIR}/scripts/github-app-create --org ACME --name ACME-release --repo ACME/REPO
 ```
 
 Two clicks in the browser: Create GitHub App, then Install (choose the repos). Where the

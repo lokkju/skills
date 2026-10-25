@@ -12,7 +12,9 @@ Versions and changelogs are written by the release tool only; never edit a `vers
 tool keeps).
 
 Paths below are relative to this skill's directory. The App helper is
-`${CLAUDE_PLUGIN_ROOT}/scripts/github-app-create` (its README is the plugin's `README.md`).
+`${CLAUDE_SKILL_DIR}/scripts/github-app-create` (its README is the plugin's `README.md`).
+`${CLAUDE_SKILL_DIR}` is the directory holding this SKILL.md. Claude Code fills it in; in an
+agent that leaves it as written, put that directory's path in its place.
 
 ## Decide
 
