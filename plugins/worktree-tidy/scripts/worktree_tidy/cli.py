@@ -15,7 +15,7 @@ import time
 from collections import Counter
 from typing import Optional
 
-from . import forge, scan
+from . import forge, inuse, scan
 from .scan import Item, RepoReport, Scan
 
 HOOK_BUDGET = 4.0
@@ -67,6 +67,9 @@ def summary(result: Scan) -> str:
         text = "no stale worktrees"
     if look:
         text += f"; {look} to look at"
+    busy = sum(len(r.in_use) for r in result.repos)
+    if busy:
+        text += f"; {busy} in use"
     return text
 
 
@@ -119,11 +122,19 @@ def render(result: Scan) -> str:
             out.append(f"  stale {item.kind}: {_item_line(item, repo)}")
         for item in repo.look:
             out.append(f"  look at: {_item_line(item, repo)}")
+        for item in repo.in_use:
+            out.append(f"  in use: {_item_line(item, repo)}")
         if repo.forge_note and repo.unchecked:
             out.append(f"  {repo.forge_note}")
         if repo.unchecked:
             names = ", ".join(_rel(p, repo.path) for p in repo.unchecked)
             out.append(f"  not classified: {names}")
+    if result.in_use_note:
+        out.append("")
+        out.append(
+            f"worktree-tidy {result.in_use_note}, so a stale worktree above may still have "
+            "a program running in it; check before removing."
+        )
     if result.out_of_time:
         out.append("")
         reached = ", ".join(os.path.basename(p) for p in result.not_reached) or "none"
@@ -150,6 +161,7 @@ def to_json(result: Scan) -> dict:
         "out_of_time": result.out_of_time,
         "not_reached": result.not_reached,
         "elapsed": round(result.elapsed, 3),
+        "in_use_note": result.in_use_note,
         "repos": [
             {
                 "name": r.name,
@@ -160,6 +172,7 @@ def to_json(result: Scan) -> dict:
                 "unchecked": r.unchecked,
                 "stale": [i.__dict__ for i in r.stale],
                 "look": [i.__dict__ for i in r.look],
+                "in_use": [i.__dict__ for i in r.in_use],
             }
             for r in result.repos
         ],
@@ -198,6 +211,8 @@ def _hook_note(result: Scan, path: Optional[str]) -> Optional[str]:
         parts.append(summary(result))
     if failed:
         parts.append(f"couldn't check PRs in {', '.join(failed)}")
+    if counts and result.in_use_note:
+        parts.append(result.in_use_note)
     if result.out_of_time:
         parts.append("the time budget ran out before every repo was checked")
     note = "worktree-tidy: " + "; ".join(parts) + "."
@@ -222,6 +237,7 @@ def hook(stdin: str) -> int:
         offline=os.environ.get("WORKTREE_TIDY_OFFLINE", "") not in ("", "0"),
         ttl=_env_float("WORKTREE_TIDY_TTL", forge.DEFAULT_TTL),
         gh=os.environ.get("WORKTREE_TIDY_GH", "gh"),
+        session_hours=_env_float("WORKTREE_TIDY_SESSION_HOURS", inuse.DEFAULT_SESSION_HOURS),
     )
     path: Optional[str] = None
     if result.stale():
@@ -261,6 +277,12 @@ def main(argv: list[str]) -> int:
     rep.add_argument("--refresh", action="store_true", help="ask GitHub again, ignoring the cache")
     rep.add_argument("--offline", action="store_true", help="don't ask GitHub at all")
     rep.add_argument("--days", type=float, help="detached checkouts count as stale after this")
+    rep.add_argument(
+        "--session-hours",
+        type=float,
+        help="a worktree whose Claude Code session or agent transcript changed within this many "
+        "hours is in use (default 24)",
+    )
     rep.add_argument("--budget", type=float, default=REPORT_BUDGET, help="seconds (default 60)")
     rep.add_argument("--json", action="store_true", help="machine-readable output")
     args = parser.parse_args(argv)
@@ -284,6 +306,8 @@ def main(argv: list[str]) -> int:
         refresh=args.refresh,
         ttl=_env_float("WORKTREE_TIDY_TTL", forge.DEFAULT_TTL),
         gh=os.environ.get("WORKTREE_TIDY_GH", "gh"),
+        session_hours=args.session_hours
+        or _env_float("WORKTREE_TIDY_SESSION_HOURS", inuse.DEFAULT_SESSION_HOURS),
     )
     result.elapsed = time.monotonic() - started
     if args.json:
