@@ -71,10 +71,10 @@ repos they name the repos they found and ask for `--repo <dir>`.
 The CLI behind the command runs on its own too, which is how agents use it:
 
 ```bash
-plugins/forge-tracker/scripts/forge-tracker catchup --no-mark
-plugins/forge-tracker/scripts/forge-tracker --repo ~/src/widgets catchup --since 2d --json
-plugins/forge-tracker/scripts/forge-tracker catchup --workspace ~/src --no-mark
-plugins/forge-tracker/scripts/forge-tracker smoke     # every read once, counts and failures
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker catchup --no-mark
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker --repo ~/src/widgets catchup --since 2d --json
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker catchup --workspace ~/src --no-mark
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker smoke     # every read once, counts and failures
 ```
 
 ### The marker
@@ -163,9 +163,9 @@ judgement; save-slate checks every pick against the facts. A recommendation neve
 asks before starting a lane or merging anything.
 
 ```bash
-plugins/forge-tracker/scripts/forge-tracker next                  # the report
-plugins/forge-tracker/scripts/forge-tracker next facts --json     # facts with issue bodies, to rank
-plugins/forge-tracker/scripts/forge-tracker next save-slate < slate.json
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker next                  # the report
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker next facts --json     # facts with issue bodies, to rank
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker next save-slate < slate.json
 ```
 
 The cache is `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/next/<host>_<project>/` (`facts.json`
@@ -214,13 +214,13 @@ id isn't a proposal any more. Then it writes the approved ones one at a time and
 each: what it wrote, `REFUSED (...)` or `FAILED (...)`.
 
 ```bash
-plugins/forge-tracker/scripts/forge-tracker groom
-echo '{"approved": ["close #14"]}' | plugins/forge-tracker/scripts/forge-tracker groom apply
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker groom
+echo '{"approved": ["close #14"]}' | plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker groom apply
 ```
 
 ### Writes
 
-Every write goes through `scripts/forge_tracker/writes.py`, the only module with a write
+Every write goes through `skills/forge-tracker/scripts/forge_tracker/writes.py`, the only module with a write
 transport (POST, PATCH and DELETE under the repo's own REST path; nothing else). The operations
 are named, and each takes a JSON payload:
 
@@ -239,9 +239,9 @@ are named, and each takes a JSON payload:
 form:
 
 ```bash
-plugins/forge-tracker/scripts/forge-tracker link add 18 --blocked-by 17      # #18 waits on #17
-plugins/forge-tracker/scripts/forge-tracker link add 18 --blocked-by acme/other#4
-plugins/forge-tracker/scripts/forge-tracker link remove 18 --blocked-by 17
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker link add 18 --blocked-by 17      # #18 waits on #17
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker link add 18 --blocked-by acme/other#4
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker link remove 18 --blocked-by 17
 ```
 
 Record blocking this way (or with GitHub's own relationship UI or API), not as a sentence in the
@@ -339,15 +339,15 @@ the forge). The `setup:` line then says setup was declined, and Claude doesn't o
 Deleting the file brings the offer back.
 
 ```bash
-plugins/forge-tracker/scripts/forge-tracker labels suggest          # the proposal, as text
-plugins/forge-tracker/scripts/forge-tracker labels suggest --json   # the same, for scripts
-plugins/forge-tracker/scripts/forge-tracker labels create needs-human blocked   # approved only
-plugins/forge-tracker/scripts/forge-tracker labels decline          # stop offering setup here
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels suggest          # the proposal, as text
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels suggest --json   # the same, for scripts
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels create needs-human blocked   # approved only
+plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels decline          # stop offering setup here
 ```
 
 ## Reads can't write
 
-Every request goes through one guard in `scripts/forge_tracker/transport.py` before it's sent.
+Every request goes through one guard in `skills/forge-tracker/scripts/forge_tracker/transport.py` before it's sent.
 GET is allowed. A POST is allowed only to the GraphQL endpoint, and only when every operation in
 the document is a query; the guard finds each operation's type by tokenizing the document
 (strings and comments skipped), so a `mutation` hidden after a query, or in a document it can't

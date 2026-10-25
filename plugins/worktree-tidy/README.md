@@ -113,7 +113,7 @@ Put them in the `env` block of your Claude Code settings. The report takes `--ro
 `--session-hours`, `--offline`, `--refresh` (ignore the cache) and `--json` directly:
 
 ```bash
-plugins/worktree-tidy/scripts/worktree-tidy report --root ~/projects/codexpublicus --refresh
+plugins/worktree-tidy/skills/worktree-tidy/scripts/worktree-tidy report --root ~/projects/codexpublicus --refresh
 ```
 
 Python 3.9 or newer, git 2.36 or newer, and `gh` for the PR check. Tests:

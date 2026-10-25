@@ -36,8 +36,8 @@ stack under [Testing](#testing) replaces it as the place GitLab and Forgejo beha
 ```
 plugins/forge-tracker/
   .claude-plugin/plugin.json      userConfig: crossProjectTracker
-  scripts/forge-tracker           entry point (python3, standard library only)
-  scripts/forge_tracker/
+  skills/forge-tracker/scripts/forge-tracker   entry point (python3, standard library only)
+  skills/forge-tracker/scripts/forge_tracker/
     detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
     labelsetup.py                 first use: a config proposed from the repo's labels, the approved

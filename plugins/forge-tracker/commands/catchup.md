@@ -7,7 +7,7 @@ Run these two commands with the Bash tool, from the repo root, and wait for both
 
 ```bash
 git fetch --quiet origin
-"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" catchup $ARGUMENTS
+"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" catchup $ARGUMENTS
 ```
 
 If you are running this for your own purposes (to orient yourself, not because the user typed
@@ -40,7 +40,7 @@ mark. Present the report first, then handle setup:
 - If the line says `Setup was declined`, or you are running this for your own purposes, don't
   offer anything; pass the line on once, as it is.
 - Otherwise offer to set it up, once. Run
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
+  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
   and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
   has no such label, plus the labels it would create for each role no label matched or the
   config sets to `~`. Show the user the proposal and ask whether to write it, as is or with
@@ -55,7 +55,7 @@ mark. Present the report first, then handle setup:
   create them on the forge, naming each label, its color and description,
   and saying that it goes through the repo's write-wrapper when one is set. The yes to the config
   isn't a yes to this. Only on an explicit yes, run
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels create <names>` with exactly the names
+  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels create <names>` with exactly the names
   the user approved (a default name such as `needs-human`, or `role=name`, such as
   `agent=ready-for-agent`, for a name of their own). It refuses, creating nothing, a name the
   repo already has in any case or a role the config already maps. Then put each created name in
@@ -63,7 +63,7 @@ mark. Present the report first, then handle setup:
   as it is and leave that role at `~`. On a no, or for labels the user didn't approve, give
   them the `gh label create` commands from the suggestion and leave the `~` in place. Never
   create labels yourself any other way, even through `gh`; those commands are the user's.
-- **No:** run `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`. It writes one file
+- **No:** run `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels decline`. It writes one file
   in the local cache (never the repo or the forge), so this command won't offer setup again
   here; the report's line keeps saying what's unset, and a line about roles at `~` goes quiet.
   Tell the user they can ask for it any time. Use this for a no to the labels question too, when
@@ -102,7 +102,7 @@ one line. A `setup:` line is said once, with the repos it applies to after it.
 - Setup is per repo. Don't run the setup flow from the workspace: pass the `setup:` line on
   once, and if the user wants a repo set up, run `labels suggest`, `labels create` (after the
   second yes) and `labels decline` for it with
-  `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" --repo <dir> labels ...` and write that repo's
+  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> labels ...` and write that repo's
   own `.claude/forge-tracker.local.md`.
 
 Exit status 2 in a workspace is a problem with the folder itself (no repo found, or a bad config

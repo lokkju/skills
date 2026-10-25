@@ -35,14 +35,14 @@ Then the procedures, with a reference file each under `skills/forge-release/refe
 
 Release tools like yeet and release-please push tags and open PRs with a GitHub App token, so a
 `release: published` workflow can run off them (the default `GITHUB_TOKEN` can't trigger other
-workflows). `scripts/github-app-create` registers that App (or, with `--user-token`, an App whose user access
-token acts as you) through GitHub's
+workflows). `skills/forge-release/scripts/github-app-create` registers that App (or, with
+`--user-token`, an App whose user access token acts as you) through GitHub's
 [App manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
 and stores its credentials. You click twice in the browser: Create GitHub App, then Install
 (and a third time, Authorize, with `--user-token`).
 
 ```bash
-plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
+plugins/forge-release/skills/forge-release/scripts/github-app-create --org acme --name acme-release \
   --repo acme/site --repo acme/api
 ```
 
@@ -88,7 +88,7 @@ printed (and is in the `--to stdout` JSON) if a tool insists on it.
 plaintext never reaches disk. For a GARM runner pool:
 
 ```bash
-plugins/forge-release/scripts/github-app-create --org acme --name acme-garm \
+plugins/forge-release/skills/forge-release/scripts/github-app-create --org acme --name acme-garm \
   --permission administration=write --permission organization_self_hosted_runners=write \
   --to sops --sops-file ~/infra/homelab/platform/garm/app-keys.sops.yaml \
   --secret-name garm-app-keys --namespace garm
@@ -146,7 +146,7 @@ the App can reach, so one token covers your account and every organization the A
 on, including installations added later, without authorizing again.
 
 ```bash
-plugins/forge-release/scripts/github-app-create --user --name acme-readonly --public \
+plugins/forge-release/skills/forge-release/scripts/github-app-create --user --name acme-readonly --public \
   --permission metadata=read --permission contents=read --permission issues=read \
   --permission pull_requests=read --permission actions=read \
   --user-token --opt-out-expiry \
@@ -205,7 +205,7 @@ Pick a port, forward it from the machine with the browser, then run the script o
 # on the laptop
 ssh -L 8765:127.0.0.1:8765 ml-01
 # on ml-01, in that session
-plugins/forge-release/scripts/github-app-create --org acme --name acme-release \
+plugins/forge-release/skills/forge-release/scripts/github-app-create --org acme --name acme-release \
   --repo acme/site --port 8765 --no-browser
 ```
 

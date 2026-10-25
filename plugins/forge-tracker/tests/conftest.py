@@ -5,7 +5,7 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skills/forge-tracker/scripts"))
 
 import pytest
 from forge_tracker.transport import ReadTransport, Response

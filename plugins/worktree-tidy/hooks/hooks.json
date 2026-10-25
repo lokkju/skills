@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/worktree-tidy\" hook",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/skills/worktree-tidy/scripts/worktree-tidy\" hook",
             "timeout": 15
           }
         ]

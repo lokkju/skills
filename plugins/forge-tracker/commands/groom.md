@@ -7,7 +7,7 @@ Run these two commands with the Bash tool, from the repo root, and wait for both
 
 ```bash
 git fetch --quiet origin
-"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" groom $ARGUMENTS
+"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" groom $ARGUMENTS
 ```
 
 The report is read-only. `/groom` writes to the forge only through `forge-tracker groom apply`,
@@ -48,7 +48,7 @@ Only after the user answers with numbers or `all`:
 
    ```bash
    echo '{"approved": ["close #14", "delete-branch sd-26"]}' \
-     | "${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" groom apply
+     | "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" groom apply
    ```
 
    It re-runs the checks first. When any id isn't a current proposal (fixed meanwhile, now
@@ -69,7 +69,7 @@ If you are running this for your own purposes (to check the board, not because t
 ## Recording blocking yourself
 
 Outside `/groom`, when you file an issue that waits on another, or find that one you're working
-on does, record it with `"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" link add <blocked>
+on does, record it with `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" link add <blocked>
 --blocked-by <blocker>`, not as `Blocked by: #N` in the body: `/next` and this report read only
 native links. Links `/groom` itself finds missing go through the approval above, like every
 other fix.
@@ -79,9 +79,9 @@ other fix.
 That line means `.claude/forge-tracker.local.md` is missing or leaves labels unset, so the label
 checks were skipped. Pass the line on once, as it is. If it doesn't say setup was declined and
 the user typed `/groom`, offer to set it up the way `/next` does: run
-`"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels suggest`, show the proposal, and write the
+`"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels suggest`, show the proposal, and write the
 file only on the user's yes, with their corrections; on a no, run
-`"${CLAUDE_PLUGIN_ROOT}/scripts/forge-tracker" labels decline`.
+`"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels decline`.
 
 Exit status 1 from the report means a check FAILED; the rest of the report still stands. Exit
 status 2 is a setup problem (no origin remote, a forge it can't read yet, a bad

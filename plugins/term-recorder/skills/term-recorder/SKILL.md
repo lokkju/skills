@@ -1,15 +1,18 @@
 ---
 name: term-recorder
 description: Use when you need to see what a terminal program actually shows a person, instead of guessing from its source, such as checking how a TUI renders text, a dialog or a layout, testing keyboard or mouse interaction, or recording a demo GIF. Drives the program from a step file on a private tmux server and returns plain-text screen snaps; works on Claude Code itself.
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/term-record *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/term-record *)
 ---
 
 # term-recorder
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/term-record` runs a command in a terminal of a fixed size, drives it
+`${CLAUDE_SKILL_DIR}/scripts/term-record` runs a command in a terminal of a fixed size, drives it
 with a step file, and captures what it shows. Use it when the question is "what does this look
 like on screen", which reading code can't answer: how a dialog wraps long text, whether markdown
 renders, what a TUI does at 100 columns, where a click lands.
+
+`${CLAUDE_SKILL_DIR}` is the directory holding this SKILL.md. Claude Code fills it in; in an
+agent that leaves it as written, put that directory's path in its place.
 
 It runs the command on its own tmux server (`tmux -L term-record-<pid>`, a generated config, no
 status line) with a minimal environment, so it never touches the user's tmux sessions and the
@@ -20,7 +23,7 @@ command doesn't inherit this session's variables. The server is killed on exit.
 Write the steps to a file in your scratch directory, then:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/term-record" -C <workdir> -s <steps> -o <outdir> -- <command> [args...]
+"${CLAUDE_SKILL_DIR}/scripts/term-record" -C <workdir> -s <steps> -o <outdir> -- <command> [args...]
 ```
 
 Each `snap NAME` writes `<outdir>/NAME.txt` and prints the screen to stdout; the screen is always
@@ -56,7 +59,7 @@ Paths in `include` and `paste` are relative to the step file.
 
 ## Claude Code as the target
 
-`${CLAUDE_PLUGIN_ROOT}/examples/claude-start.steps` gets a fresh session past the folder-trust
+`${CLAUDE_SKILL_DIR}/examples/claude-start.steps` gets a fresh session past the folder-trust
 dialog to an empty prompt; include it first. `examples/ask-dialog.steps` is a complete example
 that opens the question dialog and snaps it.
 

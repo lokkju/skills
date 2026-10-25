@@ -17,7 +17,7 @@ CONVERSION = {
     "pem": PEM,
     "html_url": "https://github.com/apps/acme-release",
 }
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "github-app-create"
+SCRIPT = Path(__file__).resolve().parents[1] / "skills/forge-release/scripts" / "github-app-create"
 
 
 class FakeServer:
