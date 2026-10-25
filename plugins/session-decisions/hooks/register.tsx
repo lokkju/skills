@@ -915,7 +915,7 @@ export const register: Register = (on, options) => {
         {await Promise.all(
           open.map(async (item, i) => (
             <Box key={`slot-${item.source}-${item.id}`} flexDirection="column" marginBottom={docked ? 1 : 0}>
-              {await drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false, width: e.props.bodyColumns - (docked ? 0 : CARD_FRAME) })}
+              {await contained($, e, item, () => drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false, width: e.props.bodyColumns - (docked ? 0 : CARD_FRAME) }))}
             </Box>
           )),
         )}
@@ -932,7 +932,7 @@ export const register: Register = (on, options) => {
           (await Promise.all(
             settled.map(async item => (
               <Box key={`slot-${item.source}-${item.id}`} flexDirection="column">
-                {await drawCard($, e, item, { bordered: false, isNext: false, compact: true, width: null })}
+                {await contained($, e, item, () => drawCard($, e, item, { bordered: false, isNext: false, compact: true, width: null }))}
               </Box>
             )),
           ))}
@@ -975,6 +975,21 @@ function chip(Text: Elements['Text'], plain: boolean, text: string, color: strin
       {plain ? `[${text}]` : ` ${text} `}
     </Text>
   )
+}
+
+/**
+ * One card, or a plain line naming its item when building the card throws: an element this build
+ * refuses as it is made (lokkju/skills#119) then costs that card alone, not the whole pane. A tree
+ * the engine refuses after the hook returns can't be caught here; the engine drops the pane for it.
+ */
+async function contained($: $, site: Parameters<$['ui']['resolve']>[0], item: Item, draw: () => Promise<JSX.Element>) {
+  try {
+    return await draw()
+  } catch (err) {
+    $.ui.log(`session-decisions: couldn't draw ${item.label}: ${String(err)}`, { to: 'debug' })
+    const { Text } = $.ui.resolve(site)
+    return <Text key={`card-${item.source}-${item.id}`}>{`${item.label} ${plainText(splitBody(item.body).question)}`}</Text>
+  }
 }
 
 /**
