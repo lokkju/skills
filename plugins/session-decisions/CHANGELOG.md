@@ -1,5 +1,19 @@
 # Changelog
 
+## [session-decisions--v2026.10.25.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.23.1...session-decisions--v2026.10.25.1) (2026-10-25)
+
+### Features
+
+- **session-decisions:** stay off with a loud notice below the minimum Claude Code ([0e9c315](https://github.com/lokkju/skills/commit/0e9c315f298d53d7cd81f4517cd30b2d3ed45616))
+- **session-decisions:** show the reconcile brief once, as the command's output ([61d04fa](https://github.com/lokkju/skills/commit/61d04faf7e44f93c43c3e7b07ec360f49ec87c62))
+- **session-decisions:** reconcile the open queue against the session ([bbfb786](https://github.com/lokkju/skills/commit/bbfb786b7448d048716869f465b6f9b577a22b2c))
+
+### Fixes
+
+- **session-decisions:** a card that can't be built costs that card, not the whole pane ([f928d8c](https://github.com/lokkju/skills/commit/f928d8c743c051d9b0a08edb027d92aaf2127ae7))
+- **session-decisions:** link GitLab issues to -/work_items/N ([1f152c2](https://github.com/lokkju/skills/commit/1f152c26fa377f101930773a7aff92b42e977135))
+- **session-decisions:** keep items as a list in the reply when the plugin isn't loaded ([3233fbf](https://github.com/lokkju/skills/commit/3233fbf3fc6dd94e09ebbb32a3a4b125fdc5a230))
+
 ## [session-decisions--v2026.10.23.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.20.2...session-decisions--v2026.10.23.1) (2026-10-23)
 
 ### Fixes
