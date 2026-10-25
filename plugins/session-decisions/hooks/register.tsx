@@ -26,6 +26,7 @@ import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
 import { handoffs, nudge, unknownLabels } from './handoff'
 import { RECONCILE, brief } from './reconcile'
+import { refusal } from './version'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
 
 type $ = EngineInterface
@@ -81,6 +82,17 @@ let lineageOpen = false
 // The forge the session's repository is on, read from its git config and remote at session start, so `#12`
 // and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
 let forge: Forge | null = null
+// Whether this Claude Code is new enough (hooks/version.ts), asked once per load: why the plugin
+// stays off, or null when it runs. Every hook that would draw or check something asks it first, so
+// on an older build the plugin is off as a whole rather than half working.
+let gate: Promise<string | null> | null = null
+function off($: $): Promise<string | null> {
+  gate ??= $.session.version().then(
+    found => refusal(found.version),
+    () => refusal(null),
+  )
+  return gate
+}
 
 /**
  * The repository's forge: its `tracker.forge` and `tracker.web` git config when set, then the
@@ -424,7 +436,15 @@ export const register: Register = (on, options) => {
   // The forge_hosts option (plugin.json userConfig), read as the module loads.
   const forgeHosts = parseForgeHosts(options?.forge_hosts)
   const checkHandoffs = options?.handoff_check !== false
+  gate = null
   on('session.start', async ($, e, next) => {
+    // Too old a Claude Code: say so where the person will see it, and register nothing.
+    const refused = await off($)
+    if (refused) {
+      $.ui.toast(refused, { timeoutMs: 20_000 })
+      $.ui.log(refused)
+      return next(e)
+    }
     // Each registration stands alone: a host that refuses one still gets the rest and the queue.
     const quietly = (work: Promise<unknown>) => work.catch(() => undefined)
     await quietly($.command.register({
@@ -497,6 +517,12 @@ export const register: Register = (on, options) => {
   // After compaction or resume, remind the model of what is still waiting on the user.
   on('classic.SessionStart', async ($, e, next) => {
     const result = await next(e)
+    // Off on this build: the model keeps the queue itself, as the skill says to without the hooks.
+    const refused = await off($)
+    if (refused) {
+      const note = `The session-decisions plugin ${refused} Its hooks are not running in this session and decision_add is not registered: number items yourself, as the session-decisions skill says to when the hook isn't running (or when the plugin isn't loaded, if TaskCreate is missing too), and tell the user once that the plugin is off and why.`
+      return { ...result, additionalContext: [...(result.additionalContext ?? []), note] }
+    }
     if (e.source !== 'compact' && e.source !== 'resume') return result
     // Under --continue, $.session.id() still answers a placeholder here; the input has the real id.
     await hydrate($, e.session_id)
@@ -508,6 +534,7 @@ export const register: Register = (on, options) => {
   // The hand-off check: a reply that hands the person work without queuing it gets a toast now,
   // and the model a reminder with the person's next prompt. It never blocks the reply.
   on('classic.UserPromptSubmit', async ($, e, next) => {
+    if (await off($)) return next(e)
     const result = await next(e)
     const now = await $.clock.now()
     await update($, turnStarted, () => now)
@@ -519,6 +546,7 @@ export const register: Register = (on, options) => {
   })
 
   on('classic.Stop', async ($, e, next) => {
+    if (await off($)) return next(e)
     const result = await next(e)
     if (!checkHandoffs || e.stop_hook_active || result.block !== undefined) return result
     const reply = String(e.last_assistant_message ?? '')
@@ -541,6 +569,7 @@ export const register: Register = (on, options) => {
   // in the background, which gives it no task tools. A teammate or a workflow's agent isn't
   // recorded, and counts as having none until it calls one.
   on('agent.spawn', async ($, e, next) => {
+    if (await off($)) return next(e)
     const ran = await next(e)
     const id = ran.agentId
     if (id && !e.isTeammate && !e.workflow) {
@@ -552,6 +581,7 @@ export const register: Register = (on, options) => {
 
   // A subagent that calls a task tool has them, however it was spawned.
   on('tool.call', { tool: TASK_TOOLS }, async ($, e, next) => {
+    if (await off($)) return next(e)
     const ran = await next(e)
     const id = e.agentId
     if (id !== undefined && ran.deny === undefined && !ran.isError) {
@@ -561,6 +591,7 @@ export const register: Register = (on, options) => {
   })
 
   on('tool.call', { tool: 'TaskCreate' }, async ($, e, next) => {
+    if (await off($)) return next(e)
     const draft = parseDraft(String(e.subject ?? ''))
     if (!draft) return next(e)
     const found = problems(draft)
@@ -583,6 +614,7 @@ export const register: Register = (on, options) => {
   // A new subject keeps the item's label: the assistant writes drafts, and the hook relabels them
   // the way TaskCreate does, so a revised question never loses its D<n> or A<n>.
   on('tool.call', { tool: 'TaskUpdate' }, async ($, e, next) => {
+    if (await off($)) return next(e)
     const taskId = String(e.taskId)
     let subject = e.subject
     let assigned: string | null = null
@@ -743,6 +775,7 @@ export const register: Register = (on, options) => {
   // A sidebar the person closes stays closed until the queue empties; closing a pane that opened
   // only to show an item's details doesn't count as closing the sidebar.
   on('ui.close', async ($, e, next) => {
+    if (await off($)) return next(e)
     if (e.id !== PANE) return next(e)
     const shown = await read($, details)
     if (shown) await update($, details, () => null)
@@ -757,6 +790,7 @@ export const register: Register = (on, options) => {
 
   // A pane waiting undrawn (opened unasked on a narrow terminal) isn't one the person has seen.
   on('ui.open', async ($, e, next) => {
+    if (await off($)) return next(e)
     const opened = await next(e)
     if (e.id === PANE) paneUp = opened.value?.isPlaced === true
     return opened
@@ -765,6 +799,7 @@ export const register: Register = (on, options) => {
   // The footer: a count beside the mode labels that opens the queue. It also learns whether
   // this surface docks panes, which decides whether the sidebar may open unasked.
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    if (await off($)) return next(e)
     docks = e.viewport?.isFullscreen === true
     measure(e)
     const open = (await read($, items)).filter(isOpen).length
@@ -795,6 +830,7 @@ export const register: Register = (on, options) => {
   // the item isn't printed twice; ctrl+o still shows the call and its result in full.
   for (const tool of CARD_TOOLS) {
     on('ui.render', { component: 'ToolUse', props: { tool } }, async ($, e, next) => {
+      if (await off($)) return next(e)
       measure(e)
       if (e.props.isExpanded) return next(e)
       const item = rowItem(await read($, items), e.props)
@@ -802,6 +838,7 @@ export const register: Register = (on, options) => {
       return drawMention($, e, item, tool === UPDATE_TOOL ? 'revised' : 'queued')
     })
     on('ui.render', { component: 'ToolResult', props: { tool } }, async ($, e, next) => {
+      if (await off($)) return next(e)
       if (e.props.isExpanded || !rowItem(await read($, items), e.props)) return next(e)
       const { Box } = $.ui.resolve(e)
       return <Box key="decisions-result" />
@@ -813,6 +850,7 @@ export const register: Register = (on, options) => {
   // line would show only in ctrl+o. A folded group draws as usual with its items' lines under it;
   // an unfolded one is ToolUse rows, which draw them already.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    if (await off($)) return next(e)
     if (e.props.isExpanded) return next(e)
     const list = await read($, items)
     const found: { item: Item; verb: 'queued' | 'revised' }[] = []
@@ -840,6 +878,7 @@ export const register: Register = (on, options) => {
 
   // The list's place as the person scrolls it, for Back from the details view to return to.
   on('ui.scroll', { requestId: PANE }, async ($, e, next) => {
+    if (await off($)) return next(e)
     const moved = await next(e)
     if (moved.deny === undefined && !(await read($, details))) listOffset = e.offset
     return moved
@@ -876,7 +915,7 @@ export const register: Register = (on, options) => {
         {await Promise.all(
           open.map(async (item, i) => (
             <Box key={`slot-${item.source}-${item.id}`} flexDirection="column" marginBottom={docked ? 1 : 0}>
-              {await drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false, width: e.props.bodyColumns - (docked ? 0 : CARD_FRAME) })}
+              {await contained($, e, item, () => drawCard($, e, item, { bordered: !docked, isNext: i === 0, compact: false, width: e.props.bodyColumns - (docked ? 0 : CARD_FRAME) }))}
             </Box>
           )),
         )}
@@ -893,7 +932,7 @@ export const register: Register = (on, options) => {
           (await Promise.all(
             settled.map(async item => (
               <Box key={`slot-${item.source}-${item.id}`} flexDirection="column">
-                {await drawCard($, e, item, { bordered: false, isNext: false, compact: true, width: null })}
+                {await contained($, e, item, () => drawCard($, e, item, { bordered: false, isNext: false, compact: true, width: null }))}
               </Box>
             )),
           ))}
@@ -936,6 +975,21 @@ function chip(Text: Elements['Text'], plain: boolean, text: string, color: strin
       {plain ? `[${text}]` : ` ${text} `}
     </Text>
   )
+}
+
+/**
+ * One card, or a plain line naming its item when building the card throws: an element this build
+ * refuses as it is made (lokkju/skills#119) then costs that card alone, not the whole pane. A tree
+ * the engine refuses after the hook returns can't be caught here; the engine drops the pane for it.
+ */
+async function contained($: $, site: Parameters<$['ui']['resolve']>[0], item: Item, draw: () => Promise<JSX.Element>) {
+  try {
+    return await draw()
+  } catch (err) {
+    $.ui.log(`session-decisions: couldn't draw ${item.label}: ${String(err)}`, { to: 'debug' })
+    const { Text } = $.ui.resolve(site)
+    return <Text key={`card-${item.source}-${item.id}`}>{`${item.label} ${plainText(splitBody(item.body).question)}`}</Text>
+  }
 }
 
 /**
