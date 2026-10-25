@@ -27,7 +27,7 @@ describe('forge', () => {
     expect(refHref('#12', GITHUB)).toBe('https://github.com/lokkju/skills/issues/12')
     expect(refHref('!4', GITHUB)).toBe('https://github.com/lokkju/skills/pull/4')
     expect(refHref('other/repo#7', GITHUB)).toBe('https://github.com/other/repo/issues/7')
-    expect(refHref('#12', GITLAB)).toBe('https://gitlab.com/group/sub/proj/-/issues/12')
+    expect(refHref('#12', GITLAB)).toBe('https://gitlab.com/group/sub/proj/-/work_items/12')
     expect(refHref('!4', GITLAB)).toBe('https://gitlab.com/group/sub/proj/-/merge_requests/4')
     expect(refHref('#12', CODEBERG)).toBe('https://codeberg.org/me/tool/issues/12')
     expect(refHref('!4', CODEBERG)).toBe('https://codeberg.org/me/tool/pulls/4')
@@ -35,6 +35,14 @@ describe('forge', () => {
     expect(refHref('no link', GITHUB)).toBeNull()
     expect(refHref(null, GITHUB)).toBeNull()
     expect(refHref('a/b/c#3', GITHUB)).toBeNull()
+  })
+
+  test('a GitLab issue links to its work item, the URL current GitLab returns as web_url', () => {
+    const href = refHref('#12', GITLAB)
+    expect(href).toBe('https://gitlab.com/group/sub/proj/-/work_items/12')
+    expect(href).not.toContain('/-/issues/')
+    expect(refHref('other/repo#7', GITLAB)).toBe('https://gitlab.com/other/repo/-/work_items/7')
+    expect(refHref('!4', GITLAB)).toBe('https://gitlab.com/group/sub/proj/-/merge_requests/4')
   })
 
   test('the forge_hosts option names hosts the built-in rules do not, and overrides them', () => {
@@ -46,7 +54,7 @@ describe('forge', () => {
     expect(refHref('#12', lab)).toBe('https://git.lab.lokkju.com/lokkju/demo/issues/12')
     expect(refHref('!4', lab)).toBe('https://git.lab.lokkju.com/lokkju/demo/pulls/4')
     const nested = forgeOf('git@code.example.com:group/sub/proj.git', hosts)
-    expect(refHref('#12', nested)).toBe('https://code.example.com/group/sub/proj/-/issues/12')
+    expect(refHref('#12', nested)).toBe('https://code.example.com/group/sub/proj/-/work_items/12')
     expect(refHref('!4', nested)).toBe('https://code.example.com/group/sub/proj/-/merge_requests/4')
     expect(forgeOf('https://git.example.net/me/tool', hosts)?.kind).toBe('forgejo')
     expect(forgeOf('https://github.com/group/sub/proj', hosts)).toEqual({ kind: 'gitlab', host: 'github.com', repo: 'group/sub/proj' })
