@@ -197,7 +197,7 @@ export function refHref(token: string | null, forge: Forge | null): string | nul
     forge.kind === 'github'
       ? isIssue ? 'issues' : 'pull'
       : forge.kind === 'gitlab'
-        ? isIssue ? '-/issues' : '-/merge_requests'
+        ? isIssue ? '-/work_items' : '-/merge_requests'
         : isIssue ? 'issues' : 'pulls'
   return linkHref(`${forge.root ?? `https://${forge.host}`}/${repo}/${where}/${number}`)
 }

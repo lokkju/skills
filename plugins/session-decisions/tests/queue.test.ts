@@ -204,7 +204,7 @@ describe('markdown', () => {
     expect(githubShort('https://github.com/lokkju/skills/issues/20#issuecomment-1')).toBe('lokkju/skills#20')
     expect(githubShort('https://github.com/lokkju/skills')).toBe('lokkju/skills')
     expect(githubShort('https://github.com/lokkju/skills.git')).toBe('lokkju/skills')
-    for (const href of ['https://github.com/lokkju', 'https://github.com/orgs/lokkju/projects', 'https://github.com/lokkju/skills/blob/main/README.md', 'https://gitlab.com/a/b/-/issues/1', 'not a url']) {
+    for (const href of ['https://github.com/lokkju', 'https://github.com/orgs/lokkju/projects', 'https://github.com/lokkju/skills/blob/main/README.md', 'https://gitlab.com/a/b/-/work_items/1', 'not a url']) {
       expect(githubShort(href)).toBeNull()
     }
   })

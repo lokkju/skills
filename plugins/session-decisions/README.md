@@ -196,7 +196,7 @@ git.lab.example.com=forgejo, code.example.com=gitlab
 With that set, a repository whose `origin` is `ssh://git@git.lab.example.com/me/demo.git` links
 `#12` to `https://git.lab.example.com/me/demo/issues/12` and `!4` to `.../pulls/4`. An entry
 wins over the built-in rules for its host, so `gitlab.example.com=forgejo` corrects a host whose
-name says the wrong thing. GitLab paths keep their subgroups (`group/sub/proj/-/issues/12`).
+name says the wrong thing. GitLab paths keep their subgroups (`group/sub/proj/-/work_items/12`).
 
 Set it in `/config` (search for "Forge hosts"), or in `~/.claude/settings.json`:
 
