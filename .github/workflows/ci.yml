@@ -22,15 +22,44 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      # validate and test run without an Anthropic login or API key.
+      # validate runs without an Anthropic login or API key.
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code@2.1.300
+        run: npm install -g @anthropic-ai/claude-code@latest
       - name: Validate marketplace and plugins
         run: |
+          claude --version
           claude plugin validate --strict .
           for plugin in plugins/*/; do
             claude plugin validate --strict "$plugin"
           done
+
+  # The plugin's tests on the oldest Claude Code it claims (MIN_CLAUDE_CODE in
+  # hooks/version.ts) and on the current release; neither needs a login.
+  session-decisions:
+    name: session-decisions (Claude Code ${{ matrix.claude-code }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        claude-code: [minimum, latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Install Claude Code
+        env:
+          WANT: ${{ matrix.claude-code }}
+        run: |
+          version="$WANT"
+          if [ "$version" = minimum ]; then
+            version=$(sed -n "s/^export const MIN_CLAUDE_CODE = '\([0-9.]*\)'$/\1/p" plugins/session-decisions/hooks/version.ts)
+            [ -n "$version" ] || { echo "no MIN_CLAUDE_CODE in hooks/version.ts" >&2; exit 1; }
+          fi
+          npm install -g "@anthropic-ai/claude-code@$version"
+          claude --version
       - name: Test session-decisions
         run: claude plugin test plugins/session-decisions
 
