@@ -2,7 +2,8 @@
 //
 // Registers each enabled plugin's skills (plugins/<p>/skills on skills.paths) and
 // commands (plugins/<p>/commands/*.md, ${CLAUDE_PLUGIN_ROOT} resolved), and fills in
-// ${CLAUDE_SKILL_DIR} when a skill is loaded or a file inside one is read.
+// ${CLAUDE_SKILL_DIR} when a skill is loaded (skill tool or /<skill> command) or a
+// file inside one is read.
 //
 // Options, from opencode.json's "plugin": [["@lokkju/skills@...", { ... }]]:
 //   plugins: ["forge-tracker", ...]  which plugins to enable; all when unset
@@ -35,10 +36,22 @@ async function server(_input, options = {}) {
       if (hit.plugin) vars.CLAUDE_PLUGIN_ROOT = hit.plugin.dir;
       output.output = substitute(output.output, vars);
     },
+    // OpenCode also offers every skill as a /<skill> command, whose template is the
+    // SKILL.md text plus the base-directory line; fill the variables in there too.
+    "command.execute.before": async (_input, output) => {
+      for (const part of output?.parts ?? []) {
+        const key = part.type === "text" ? "text" : part.type === "subtask" ? "prompt" : undefined;
+        if (!key || typeof part[key] !== "string" || !part[key].includes("${CLAUDE_")) continue;
+        const hit = skillDirFor(plugins, baseDirectory(part[key]));
+        if (!hit) continue;
+        part[key] = substitute(part[key], { CLAUDE_SKILL_DIR: hit.dir, CLAUDE_PLUGIN_ROOT: hit.plugin.dir });
+      }
+    },
   };
 }
 
-// OpenCode's skill tool ends its output with this line; used when metadata lacks dir.
+// OpenCode ends a loaded skill's text, from the skill tool or a /<skill> command,
+// with this line.
 function baseDirectory(text) {
   return /^Base directory for this skill: (.+)$/m.exec(text)?.[1]?.trim();
 }

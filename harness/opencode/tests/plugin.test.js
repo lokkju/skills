@@ -116,6 +116,23 @@ test("fills in CLAUDE_SKILL_DIR in a file read from inside a skill", async () =>
   assert.equal(output.output, `1: ${dir}/scripts/github-app-create`);
 });
 
+test("fills in CLAUDE_SKILL_DIR when a skill runs as a /<skill> command", async () => {
+  const { hooks } = await load();
+  const dir = path.join(PLUGINS, "worktree-tidy", "skills", "worktree-tidy");
+  const body = '"${CLAUDE_SKILL_DIR}/scripts/worktree-tidy" report\n\nBase directory for this skill: ' + dir;
+  const output = {
+    parts: [
+      { type: "text", text: body },
+      { type: "subtask", prompt: body },
+      { type: "text", text: "${CLAUDE_SKILL_DIR} with no base line" },
+    ],
+  };
+  await hooks["command.execute.before"]({ command: "worktree-tidy", sessionID: "s", arguments: "" }, output);
+  assert.ok(output.parts[0].text.startsWith(`"${dir}/scripts/worktree-tidy" report`));
+  assert.ok(output.parts[1].prompt.startsWith(`"${dir}/scripts/worktree-tidy" report`));
+  assert.equal(output.parts[2].text, "${CLAUDE_SKILL_DIR} with no base line");
+});
+
 test("leaves other tools and other files alone", async () => {
   const { hooks } = await load();
   const output = { output: "${CLAUDE_SKILL_DIR}", metadata: {} };
