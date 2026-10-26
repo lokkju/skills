@@ -60,7 +60,9 @@ Call TaskCreate with a subject in one of these forms, and the context in the des
 `<link>` is one token at the end: an issue (`#123`, `owner/repo#123`), a merge or pull request
 (`!45`, `#45`), a URL, or `no link`. A hook adds the label (`D3 DECIDE: ...`, `A2 ACTION: ...`) and
 rejects a subject missing its recommendation or link; fix it and create it again. Don't number
-items yourself while the hook is working.
+items yourself while the hook is working. The item's recommendation is the last `(recommend ...)`
+before the link, and Accept answers with it; a note on one option earlier in the question can't
+stand in for it.
 
 Keep the subject to one short line: the question, the recommendation and the link. Everything else
 goes in the description, written as short paragraphs or `- ` bullets with real line breaks between

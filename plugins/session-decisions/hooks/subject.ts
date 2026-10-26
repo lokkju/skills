@@ -42,7 +42,7 @@ export function problems(draft: Draft): string[] {
       'end the subject with one link token: [#123], [!45], [owner/repo#123], [<url>] or [no link]',
     )
   }
-  if (draft.kind === 'DECIDE' && !findRecommendation(draft.body)) {
+  if (draft.kind === 'DECIDE' && !findRecommendation(withoutLink(draft.body))) {
     found.push('a DECIDE item needs a recommendation, written as (recommend <choice>)')
   }
   return found
@@ -66,31 +66,65 @@ export function parseLabel(subject: string): Label | null {
 
 type Found = { start: number; end: number; choice: string; closed: boolean }
 
-/**
- * The first "(recommend <choice>)" in a body: where it starts and ends, the choice, and whether
- * it's closed. The closing parenthesis is found by depth, so "(recommend B (cheaper, (mostly)))"
- * keeps the whole choice. An unclosed one runs to the end of the body.
- */
-function findRecommendation(body: string): Found | null {
-  RECOMMEND.lastIndex = 0
-  for (let match = RECOMMEND.exec(body); match; match = RECOMMEND.exec(body)) {
-    const from = match.index + match[0].length
-    let depth = 1
-    let at = from
-    for (; at < body.length && depth > 0; at++) {
-      if (body[at] === '(') depth++
-      else if (body[at] === ')') depth--
-    }
-    const choice = body.slice(from, depth === 0 ? at - 1 : at).trim()
-    if (choice) return { start: match.index, end: at, choice, closed: depth === 0 }
+/** The body without its trailing link token. */
+function withoutLink(body: string): string {
+  const linked = LINK.exec(body.trim())
+  return linked ? body.trim().slice(0, linked.index).trimEnd() : body
+}
+
+/** Where the parenthesis opened at `from - 1` closes, by depth; the end of the text when it never does. */
+function closeOf(text: string, from: number): { at: number; closed: boolean } {
+  let depth = 1
+  let at = from
+  for (; at < text.length && depth > 0; at++) {
+    if (text[at] === '(') depth++
+    else if (text[at] === ')') depth--
   }
-  return null
+  return { at, closed: depth === 0 }
+}
+
+/**
+ * The item's own "(recommend <choice>)" in a body (without its link token): the last one outside
+ * any other parentheses, so a "(recommend ...)" an option note carries earlier in the question
+ * doesn't stand in for the item's. Returns where it starts and ends, the choice, and whether it's
+ * closed. Closing parentheses are found by depth, so "(recommend B (cheaper, (mostly)))" keeps the
+ * whole choice; an unclosed one runs to the end of the body. When parentheses elsewhere never
+ * balance and no recommendation sits at the top level, the last one at any depth is used.
+ */
+function findRecommendation(text: string): Found | null {
+  const found = (start: number, open: string): Found | null => {
+    const from = start + open.length
+    const { at, closed } = closeOf(text, from)
+    const choice = text.slice(from, closed ? at - 1 : at).trim()
+    return choice ? { start, end: at, choice, closed } : null
+  }
+  let top: Found | null = null
+  let depth = 0
+  for (let at = 0; at < text.length; at++) {
+    if (text[at] === ')') depth = Math.max(0, depth - 1)
+    if (text[at] !== '(') continue
+    if (depth === 0) {
+      RECOMMEND.lastIndex = at
+      const match = RECOMMEND.exec(text)
+      const hit = match?.index === at ? found(at, match[0]) : null
+      if (hit) {
+        top = hit
+        at = hit.end - 1
+        continue
+      }
+    }
+    depth++
+  }
+  if (top) return top
+  let last: Found | null = null
+  RECOMMEND.lastIndex = 0
+  for (let match = RECOMMEND.exec(text); match; match = RECOMMEND.exec(text)) last = found(match.index, match[0]) ?? last
+  return last
 }
 
 /** The recommended choice of a DECIDE body, for the Accept button; null when there isn't one. */
 export function recommendation(body: string): string | null {
-  const found = findRecommendation(body)
-  return found?.closed ? found.choice : null
+  return splitBody(body).recommendation
 }
 
 /** The last "Ruling (...)" line of a description, which records how the item was settled. */
