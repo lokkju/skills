@@ -14,7 +14,10 @@ The working directory is one candidate, not the default. The others are the repo
 has worked in: the ones it committed to or pushed, the ones it opened or commented on pull
 requests or issues in, and the ones the user named. Count a repo only when you know its local
 checkout (catchup reads clones); a working directory that is a folder of checkouts counts as
-the whole folder.
+the whole folder. A repo the session ran git in counts wherever it is, `git -C <dir>` included,
+whether or not the session ever changed into it. Don't rule one out on a guess: `git -C <dir>
+remote get-url origin` says whether it has a remote to read, and it's the only command to run
+before the choice is settled.
 
 - **Only the working directory** (or the session hasn't touched a repo yet): run as below.
 - **One repo, and it isn't the working directory:** say which repo you're about to read and
