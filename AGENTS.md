@@ -43,8 +43,28 @@
 is installable for any agent as well as through the marketplace. It copies only the skill's own
 directory, so a script a skill runs lives under `skills/<skill>/scripts/`, and the SKILL.md names
 it as `${CLAUDE_SKILL_DIR}/scripts/<name>`, which Claude Code fills in (also in `allowed-tools`).
-`${CLAUDE_PLUGIN_ROOT}` is only set in Claude Code's plugin runtime; hooks and `commands/*.md`,
-which only Claude Code runs, use `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>`.
+`${CLAUDE_PLUGIN_ROOT}` is only set in Claude Code's plugin runtime; hooks and `commands/*.md`
+use `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/scripts/<name>`, and the OpenCode entry below fills in
+both variables in skills and commands for OpenCode.
+
+### harness/
+
+Code for agents other than Claude Code, kept out of the plugins' shared skills and commands.
+`package.json` at the root makes the repo one OpenCode plugin (`@lokkju/skills`, not yet on
+npm; installed from `git+https://github.com/lokkju/skills.git`), with
+`harness/opencode/index.js` as its entry. It targets OpenCode's V1 plugin API: its `config` hook
+adds each `plugins/<p>/skills` to `skills.paths` and registers each `plugins/<p>/commands/*.md`
+as an OpenCode command with `${CLAUDE_PLUGIN_ROOT}` resolved, and it fills in
+`${CLAUDE_SKILL_DIR}` when a skill loads. Options pick the plugins (`plugins`) and opt in to bash
+allow rules for the skills' scripts (`allowScripts`). Plain JavaScript, no dependencies; tests
+run with `npm test` (Node's own runner). A plugin that needs OpenCode code of its own gets
+`plugins/<p>/harness/opencode/`, imported by the entry; none does yet.
+
+The package's `files` list decides what OpenCode installs: the entry plus each plugin's
+`skills/` and `commands/`. `.claude-plugin/`, `hooks/`, tests and docs stay out, so a plugin's
+hooks and `allowed-tools` are Claude Code only. A new plugin's skills and commands are picked up
+without changes here. No yeet target covers `package.json` or `harness/` yet, so their changes
+don't release anything and the package version is set by hand until it's published.
 
 ## Adding a plugin
 
@@ -116,6 +136,8 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
   `ruff format --check` and the pytest suite on Python 3.11 and 3.14 (tmux is installed for
   term-recorder's).
 - `scripts`: the same ruff checks and `scripts/tests` on Python 3.11 and 3.14.
+- `opencode`: `npm test` for the OpenCode entry, and a check that `npm pack` ships the entry,
+  skills and commands but no tests, hooks or `.claude-plugin/`.
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
 
@@ -137,6 +159,7 @@ uv run --no-project --with pytest pytest plugins/worktree-tidy/tests
 uvx ruff check scripts && uvx ruff format --check scripts
 uv run --no-project --with pytest pytest scripts/tests
 uv run --no-project scripts/check-skill-names.py
+npm test
 ```
 
 ## Commits
