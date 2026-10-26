@@ -1,0 +1,38 @@
+{
+  "name": "@lokkju/skills",
+  "version": "2026.10.26",
+  "description": "lokkju's agent skills and commands as an OpenCode plugin: forge-release, forge-tracker, session-decisions, term-recorder and worktree-tidy.",
+  "type": "module",
+  "main": "harness/opencode/index.js",
+  "exports": {
+    ".": "./harness/opencode/index.js",
+    "./server": "./harness/opencode/index.js"
+  },
+  "files": [
+    "harness/opencode/*.js",
+    "plugins/*/skills/**",
+    "plugins/*/commands/**",
+    "!**/__pycache__/**",
+    "!**/*.pyc"
+  ],
+  "scripts": {
+    "test": "node --test harness/opencode/tests/*.test.js"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "agent-skills",
+    "skills"
+  ],
+  "engines": {
+    "opencode": ">=1.19.4 <2"
+  },
+  "license": "PolyForm-Shield-1.0.0",
+  "author": "lokkju (https://github.com/lokkju)",
+  "homepage": "https://github.com/lokkju/skills#readme",
+  "bugs": "https://github.com/lokkju/skills/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lokkju/skills.git"
+  }
+}
