@@ -5,7 +5,7 @@
 // `$`, so it's tested directly.
 
 import type { Item } from '../types'
-import { age, isOpen, ordered } from './queue'
+import { age, isOpen, ordered, replacedText, replaces } from './queue'
 import { revisedIn, splitBody } from './subject'
 
 /** The parts of a `$.session.messages()` row this module reads. */
@@ -36,7 +36,8 @@ function labelPattern(label: string): RegExp {
 /**
  * The open items as a markdown table: label (marked when it's a fallback-ledger item, which closes
  * with decision_close), kind, how long it has waited and when it was last revised, its link, and
- * its text with the recommendation.
+ * its text with the recommendation, and the settled item it replaces, when it supersedes one.
+ * `items` may hold settled items too; only the open ones get a row.
  */
 export function inventory(items: readonly Item[], now: number): string {
   const open = ordered(items).filter(isOpen)
@@ -46,7 +47,10 @@ export function inventory(items: readonly Item[], now: number): string {
     const parts = splitBody(item.body)
     const waited = age(item.created, now).replace('waiting ', '') || 'unknown'
     const revised = revisedIn(item.description)
-    const text = parts.recommendation ? `${parts.question} (recommend ${parts.recommendation})` : parts.question
+    const asked = parts.recommendation ? `${parts.question} (recommend ${parts.recommendation})` : parts.question
+    // An item that replaces a settled one whose ruling stopped holding says which, and what it said.
+    const old = replaces(items, item.label)
+    const text = old ? `${asked} (supersedes ${replacedText(old)})` : asked
     rows.push(
       `| ${item.label}${item.source === 'ledger' ? ' (ledger)' : ''} | ${item.kind} | ${waited}${revised ? `, revised ${revised}` : ''} | ${cell(parts.link ?? 'none')} | ${cell(text)} |`,
     )
@@ -91,7 +95,7 @@ export function brief(items: readonly Item[], messages: readonly Said[], now: nu
   )
   // A label two open items share (as two unlabelled "D?" items do) is listed once.
   const seen = new Set<string>()
-  const lines = [`Open items (${open.length}):`, '', inventory(open, now), '']
+  const lines = [`Open items (${open.length}):`, '', inventory(items, now), '']
   if (said.size === 0) {
     lines.push("The user's messages name none of these labels; look for answers by subject.")
   } else {

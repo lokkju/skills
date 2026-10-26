@@ -106,6 +106,14 @@ edit and send it like any other message, and the assistant marks each item compl
 dated `Ruling (2026-10-08): ...` line. Completed items stay in the task list as the session's
 record; `Settled (n)` in the sidebar shows them.
 
+A ruling can stop holding after the fact: you said "try the web JSON" for D2, and the web JSON
+turns out blocked. The assistant asks the new question as a new item, D5, and marks D2 with the
+plugin's `decision_supersede` tool, which adds `Superseded (2026-10-26) by D5: <why>` to D2's
+record. That works when TaskUpdate can no longer reach D2's task, as after Claude Code deletes a
+finished list's task files. D2 then shows as superseded (`→ D2 2026-10-26 · superseded by D5`) in
+the sidebar and as `(superseded)` in `/decisions all`, and D5's card says `replaces D2: try the
+web JSON`.
+
 ### Commands
 
 | Command | What it does |
@@ -326,9 +334,11 @@ state. It reads the task files once, at session start and after compaction or re
 items it didn't see created, and merges them with the items it already holds and the ones in its
 store rather than replacing them.
 
-Label counters, creation times, the fallback ledger and the rulings `decision_close` keeps for
-task-list items are stored as one record in the plugin's store, so a session picks up its
-numbering and ledger again whatever happens to its id:
+Label counters, creation times, the fallback ledger and a copy of every settled task-list item
+(completed with TaskUpdate, settled by `decision_close`, or marked by `decision_supersede`) are
+stored as one record in the plugin's store. A settled item outlives its task file, which Claude
+Code deletes once every task in the list is completed, and a session picks up its numbering and
+ledger again whatever happens to its id:
 
 - `claude --resume`, `--continue` and compaction keep the session id and its task list, and the
   record is the session's.

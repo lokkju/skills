@@ -1429,3 +1429,63 @@ describe('reconcile', () => {
     expect(listed.result).toContain('| D1 (ledger) | DECIDE | 0m | #4 | ship it? (recommend yes) |')
   })
 })
+
+describe('superseding', () => {
+  const SUPERSEDE = 'mcp__session-decisions__decision_supersede'
+  const supersede = ($: any, label: string, by: string, why = 'the web JSON is blocked for every server-side request') =>
+    $.tool.call({ tool: SUPERSEDE, tool_use_id: `s-${Math.random()}`, label, by, why })
+
+  test('a settled task item whose task file is gone is marked superseded through the queue', async ($, on) => {
+    const { tasks, registered } = engine(on)
+    on('classic.SessionStart', () => ({}))
+    await start($)
+    expect(registered).toContain('decision_supersede')
+    await create($, 'DECIDE: read Depop how? (recommend the web JSON) [#8]')
+    await create($, 'Fix the flaky test')
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '1', status: 'completed', description: 'context\nRuling (2026-10-03): try the web JSON for now' })
+    // Claude Code deletes a list's task files once every task in it is completed; TaskUpdate can't reach it.
+    tasks.delete('1')
+    await create($, 'DECIDE: Depop, now the web JSON is blocked? (recommend apply for OAuth) [#8]')
+    const lost = await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u2', taskId: '1', description: 'Superseded' })
+    expect(lost.deny).toBe('Task 1 not found')
+    // An open item, an unknown one, and an unknown replacement are refused.
+    expect((await supersede($, 'D2', 'D1')).deny).toContain('D2 is still open; settle it with the ruling "superseded by D1"')
+    expect((await supersede($, 'D9', 'D2')).deny).toContain("D9 isn't in this session's decision queue")
+    expect((await supersede($, 'D1', 'D7')).deny).toContain("D7 isn't another item in this session's decision queue; create the new item first")
+    expect((await supersede($, 'D1', 'D1')).deny).toContain("D1 isn't another item")
+    const marked = await supersede($, 'd1', 'd2')
+    expect(marked.result).toBe('D1 superseded by D2')
+    const check = async () => {
+      const all = (await listAll($)).text
+      expect(all).toContain('D1 DECIDE: read Depop how? (recommend the web JSON) [#8]  (superseded)')
+      expect(all).toContain('    Ruling (2026-10-03): try the web JSON for now\n    Superseded (2026-10-03) by D2: the web JSON is blocked for every server-side request')
+      expect(all).toContain('    replaces D1: try the web JSON for now')
+    }
+    await check()
+    // The new card says what it replaces; the old one shows as superseded, not just completed.
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect((await ui.find({ key: 'replaces-D2' }))?.text).toBe('replaces D1: try the web JSON for now')
+    await ui.press({ key: 'settled' })
+    expect(await ui.find({ type: 'Text', text: '2026-10-03 · superseded by D2: the web JSON is blocked for every server-side request' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '→' })).toBeDefined()
+    await ui.unmount()
+    // A resume reads the task files again; the queue's own record keeps D1, its ruling and its mark.
+    await $.classic.SessionStart({ source: 'resume', session_id: SID })
+    await check()
+  })
+
+  test('a settled ledger item is marked superseded the same way', async ($, on) => {
+    const { offered, store } = engine(on)
+    offered.tools = []
+    await start($)
+    const add = (text: string) => $.tool.call({ tool: 'mcp__session-decisions__decision_add', tool_use_id: `a-${Math.random()}`, kind: 'DECIDE', text })
+    await add('read Depop how? (recommend the web JSON) [#8]')
+    await $.tool.call({ tool: 'mcp__session-decisions__decision_close', tool_use_id: 'c1', label: 'D1', ruling: 'try the web JSON for now' })
+    await add('Depop now? (recommend apply for OAuth) [#8]')
+    expect((await supersede($, 'D1', 'D2')).result).toBe('D1 superseded by D2')
+    const record = store.get(`session:${SID}`) as any
+    expect(record.ledger.find((item: any) => item.label === 'D1').description).toContain('Superseded (2026-10-03) by D2: the web JSON is blocked')
+    const listed = await $.tool.call({ tool: 'mcp__session-decisions__decision_list', tool_use_id: 'l1' })
+    expect(listed.result).toContain('| D2 (ledger) | DECIDE | 0m | #8 | Depop now? (recommend apply for OAuth) (supersedes D1: try the web JSON for now) |')
+  })
+})

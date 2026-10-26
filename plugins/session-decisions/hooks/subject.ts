@@ -99,6 +99,27 @@ export function rulingIn(description: string): string | null {
   return lines.find(line => line.startsWith('Ruling (')) ?? null
 }
 
+export type Supersession = { date: string; by: string; why: string }
+
+const SUPERSEDED = /^Superseded \(([^)]*)\) by ([DA]\d+)(?::\s*(.*))?$/
+
+/**
+ * The last "Superseded (<date>) by D<m>: <why>" line of a description, which records that a settled
+ * item's ruling stopped holding and which item replaced it; null when there's none.
+ */
+export function supersededIn(description: string): Supersession | null {
+  for (const line of description.split('\n').reverse()) {
+    const match = SUPERSEDED.exec(line.trim())
+    if (match) return { date: match[1] ?? '', by: match[2] ?? '', why: (match[3] ?? '').trim() }
+  }
+  return null
+}
+
+/** The text of a ruling line without its "Ruling (<date>): " head. */
+export function rulingText(line: string): string {
+  return line.replace(/^Ruling \([^)]*\):\s*/, '')
+}
+
 /** The date of the last "Revised (<date>): ..." line of a description; null when there's none. */
 export function revisedIn(description: string): string | null {
   const lines = description.split('\n').reverse()

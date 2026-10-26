@@ -36,8 +36,10 @@ export type Loop = 'background' | 'foreground' | 'tasks'
 
 /**
  * What `$.store` keeps per session, so a resumed session continues its numbering and ledger: under
- * `list:<CLAUDE_CODE_TASK_LIST_ID>` when that is set, `session:<session id>` otherwise. `closed` holds the task-list items `decision_close` settled while TaskUpdate wasn't available,
- * by task id, since their task files still show them open.
+ * `list:<CLAUDE_CODE_TASK_LIST_ID>` when that is set, `session:<session id>` otherwise. `closed` holds the settled task-list items by task id: completed with TaskUpdate, settled by
+ * `decision_close` while TaskUpdate wasn't available (their task files still show them open), or
+ * marked by `decision_supersede`. It keeps them after Claude Code deletes the task files of a list
+ * whose tasks are all completed.
  */
 export type SessionRecord = {
   counters: Counters

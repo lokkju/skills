@@ -2,7 +2,7 @@
 // Nothing here touches `$`, so it's tested directly.
 
 import type { Counters, Item, Kind, Status } from '../types'
-import { LETTER, formatSubject, parseDraft, parseLabel, problems, revisedIn, rulingIn } from './subject'
+import { LETTER, formatSubject, parseDraft, parseLabel, problems, revisedIn, rulingIn, rulingText, splitBody, supersededIn } from './subject'
 import type { Draft } from './subject'
 
 const OPEN: ReadonlySet<string> = new Set(['pending', 'in_progress'])
@@ -104,6 +104,27 @@ export function settle(item: Item, ruling: string, date: string): Item {
 }
 
 /**
+ * A settled item whose ruling stopped holding, marked with a dated "Superseded" line naming the
+ * item that replaces it. It stays completed; the line is what shows it superseded.
+ */
+export function supersede(item: Item, by: string, why: string, date: string): Item {
+  const line = `Superseded (${date}) by ${by}${why ? `: ${why}` : ''}`
+  return { ...item, description: [item.description, line].filter(Boolean).join('\n') }
+}
+
+/** The settled item `label` replaces, by the Superseded line on it; undefined when there's none. */
+export function replaces(items: readonly Item[], label: string): Item | undefined {
+  if (!/^[DA]\d+$/.test(label)) return undefined
+  return items.filter(item => supersededIn(item.description)?.by === label).at(-1)
+}
+
+/** What an item replaces, as its card and the listing say it: "D2: <its ruling, or its question>". */
+export function replacedText(old: Item): string {
+  const ruling = rulingIn(old.description)
+  return `${old.label}: ${ruling ? rulingText(ruling) : splitBody(old.body).question}`
+}
+
+/**
  * An open item revised in place: a new body if given, and a dated "Revised" line appended to the
  * description, which says what changed. A changed body is recorded on that line too, so the
  * description keeps what the user was shown before.
@@ -123,7 +144,8 @@ export function revise(item: Item, change: { body?: string; note?: string }, dat
  * The queue rebuilt at session start or after compaction, merging rather than replacing:
  * - task items come from the task files, or from `current` when they couldn't be read;
  * - an item `closed` records as settled stays settled while its task file still shows it open,
- *   and stays in the queue if its task file has gone;
+ *   keeps the ruling and Superseded line the plugin recorded, and stays in the queue if its task
+ *   file has gone (Claude Code deletes a list's task files once every task in it is completed);
  * - ledger items are the stored ledger and the ones already in `current`, the latter winning.
  */
 export function mergeHydrated(
@@ -134,9 +156,12 @@ export function mergeHydrated(
   const tasks = (fromFiles ?? current.filter(item => item.source === 'tasks')).map(item => {
     const settled = stored.closed[item.id]
     if (!settled) return item
+    // The task file may lack the ruling decision_close kept, and a Superseded line decision_supersede added.
     const ruling = rulingIn(settled.description)
-    const description =
-      ruling && !rulingIn(item.description) ? [item.description, ruling].filter(Boolean).join('\n') : item.description
+    const marked = settled.description.split('\n').reverse().find(line => line.startsWith('Superseded ('))
+    let description = item.description
+    if (ruling && !rulingIn(description)) description = [description, ruling].filter(Boolean).join('\n')
+    if (marked && !description.split('\n').includes(marked)) description = [description, marked].filter(Boolean).join('\n')
     return { ...item, status: isOpen(item) ? settled.status : item.status, description }
   })
   const gone = Object.values(stored.closed).filter(
@@ -219,13 +244,17 @@ export function listing(items: readonly Item[], now: number, all = false): strin
   const lines: string[] = []
   for (const item of shown) {
     const tags = item.source === 'ledger' ? ['ledger'] : []
-    const tag = isOpen(item) ? age(item.created, now) : item.status
+    const superseded = isOpen(item) ? null : supersededIn(item.description)
+    const tag = isOpen(item) ? age(item.created, now) : superseded ? 'superseded' : item.status
     if (tag) tags.push(tag)
     const revised = isOpen(item) ? revisedIn(item.description) : null
     if (revised) tags.push(`revised ${revised}`)
     lines.push(subjectOf(item) + (tags.length ? `  (${tags.join(', ')})` : ''))
     const ruling = rulingIn(item.description)
     if (ruling) lines.push(`    ${ruling}`)
+    if (superseded) lines.push(`    Superseded (${superseded.date}) by ${superseded.by}${superseded.why ? `: ${superseded.why}` : ''}`)
+    const old = replaces(items, item.label)
+    if (old) lines.push(`    replaces ${replacedText(old)}`)
   }
   return lines.join('\n')
 }

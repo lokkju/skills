@@ -80,4 +80,18 @@ describe('reconcile', () => {
     expect(brief(items, [], NOW)).toContain("The user's messages name none of these labels; look for answers by subject.")
     expect(brief([], [], NOW)).toBe('No open decisions or actions.')
   })
+
+  test('an item that replaces a superseded one says which, and what its ruling was', () => {
+    const items = [
+      item('D2', 'read Depop how? (recommend web JSON) [#8]', {
+        status: 'completed',
+        description: 'Ruling (2026-10-25): try the web JSON for now\nSuperseded (2026-10-26) by D5: blocked server-side',
+      }),
+      item('D5', 'Depop now? (recommend apply for OAuth) [#8]', { created: NOW }),
+    ]
+    const text = brief(items, [], NOW)
+    expect(text).toContain('Open items (1):')
+    expect(text).toContain('| D5 | DECIDE | 0m | #8 | Depop now? (recommend apply for OAuth) (supersedes D2: try the web JSON for now) |')
+    expect(text).not.toContain('| D2 |')
+  })
 })
