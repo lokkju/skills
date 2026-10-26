@@ -1,5 +1,12 @@
 # Changelog
 
+## [session-decisions--v2026.10.26.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.25.1...session-decisions--v2026.10.26.1) (2026-10-26)
+
+### Fixes
+
+- **session-decisions:** tell the assistant what to do when the security plugin skips its hooks ([73db650](https://github.com/lokkju/skills/commit/73db6501bc4b49f7f3c4de92caa9178b37c60781))
+- **session-decisions:** toast unqueued hand-offs at turn end when classic.Stop is skipped ([fa64629](https://github.com/lokkju/skills/commit/fa64629972b1c1383bffca459a1e6cbd2ad374d0))
+
 ## [session-decisions--v2026.10.25.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.23.1...session-decisions--v2026.10.25.1) (2026-10-25)
 
 ### Features
