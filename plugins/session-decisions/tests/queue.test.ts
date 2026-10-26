@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, retitle, revise, settle } from '../hooks/queue'
-import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from '../hooks/subject'
+import { age, applyUpdate, itemFromTask, listing, mergeAnswers, mergeHydrated, nextNumber, reminder, replacedText, replaces, retitle, revise, settle, supersede } from '../hooks/queue'
+import { parseDraft, parseLabel, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody, supersededIn } from '../hooks/subject'
 import { codeSpans, descriptionText, githubShort, isShortLink, linkHref, plainText } from '../hooks/markdown'
 import type { Item } from '../types'
 
@@ -159,6 +159,32 @@ describe('queue', () => {
     expect(mergeHydrated([fileRuled], [], { ledger: [], closed: { '3': ruled } })[0]?.description).toBe('Ruling (2026-10-04): later')
     // Unreadable task files fall back to what's in state.
     expect(mergeHydrated(null, [item({ id: '5' })], { ledger: [], closed: {} }).map(one => one.id)).toEqual(['5'])
+  })
+
+  test('a settled item is marked superseded by the item that replaces it', () => {
+    const old = settle(item({ id: '2', label: 'D2', body: 'read Depop how? (recommend the web JSON) [#8]', description: 'context' }), 'try the web JSON for now', '2026-10-25')
+    const marked = supersede(old, 'D5', 'the web JSON is blocked for every server-side request', '2026-10-26')
+    expect(marked.status).toBe('completed')
+    expect(marked.description).toBe('context\nRuling (2026-10-25): try the web JSON for now\nSuperseded (2026-10-26) by D5: the web JSON is blocked for every server-side request')
+    expect(supersededIn(marked.description)).toEqual({ date: '2026-10-26', by: 'D5', why: 'the web JSON is blocked for every server-side request' })
+    expect(supersededIn(old.description)).toBeNull()
+    expect(supersededIn(supersede(old, 'D5', '', '2026-10-26').description)).toEqual({ date: '2026-10-26', by: 'D5', why: '' })
+    const fresh = item({ id: '9', label: 'D5', body: 'Depop now? (recommend apply for OAuth) [#8]', created: 1 })
+    const list = [marked, fresh]
+    expect(replaces(list, 'D5')).toBe(marked)
+    expect(replaces(list, 'D2')).toBeUndefined()
+    expect(replacedText(marked)).toBe('D2: try the web JSON for now')
+    // Without a ruling, it names the old question.
+    expect(replacedText(supersede(item({ label: 'D2', status: 'completed', body: 'read Depop how? (recommend web) [#8]' }), 'D5', 'x', '2026-10-26'))).toBe('D2: read Depop how?')
+    const all = listing(list, 2, true)
+    expect(all).toContain('D2 DECIDE: read Depop how? (recommend the web JSON) [#8]  (superseded)')
+    expect(all).toContain('    Ruling (2026-10-25): try the web JSON for now\n    Superseded (2026-10-26) by D5: the web JSON is blocked for every server-side request')
+    expect(all).toContain('D5 DECIDE: Depop now? (recommend apply for OAuth) [#8]  (waiting 0m)\n    replaces D2: try the web JSON for now')
+    // A re-read keeps the Superseded line the queue recorded, whether the task file is there or gone.
+    const file = { ...old }
+    expect(mergeHydrated([file], [], { ledger: [], closed: { '2': marked } })[0]?.description).toBe(marked.description)
+    expect(mergeHydrated([], [], { ledger: [], closed: { '2': marked } })).toEqual([marked])
+    expect(mergeHydrated([marked], [], { ledger: [], closed: { '2': marked } })[0]?.description).toBe(marked.description)
   })
 
   test('listing and reminder show what is open', () => {

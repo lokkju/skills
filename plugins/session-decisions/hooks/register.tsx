@@ -16,8 +16,11 @@ import {
   reminder,
   retitle,
   revise,
+  replacedText,
+  replaces,
   settle,
   subjectOf,
+  supersede,
   upsert,
 } from './queue'
 import { type Message, type Trail, ledgerMatches, trailOf } from './lineage'
@@ -27,7 +30,7 @@ import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, 
 import { handoffs, nudge, unknownLabels } from './handoff'
 import { RECONCILE, brief } from './reconcile'
 import { refusal } from './version'
-import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody } from './subject'
+import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody, supersededIn } from './subject'
 
 type $ = EngineInterface
 
@@ -36,6 +39,7 @@ const ADD_TOOL = 'mcp__session-decisions__decision_add'
 const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
 const LIST_TOOL = 'mcp__session-decisions__decision_list'
+const SUPERSEDE_TOOL = 'mcp__session-decisions__decision_supersede'
 // The tools whose transcript row draws as one line naming its item, and whose result draws nothing.
 const CARD_TOOLS = ['TaskCreate', ADD_TOOL, UPDATE_TOOL] as const
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
@@ -45,7 +49,9 @@ const RECORD = /^(session|list):/
 const items = atom({ plugin: 'session-decisions', key: 'items' } as const, [] as Item[])
 const counters = atom({ plugin: 'session-decisions', key: 'counters' } as const, { D: 0, A: 0 } as Counters)
 const created = atom({ plugin: 'session-decisions', key: 'created' } as const, {} as Record<string, number>)
-// Task-list items decision_close settled while TaskUpdate wasn't available, by task id.
+// Settled task-list items as the queue knows them, by task id: completed with TaskUpdate, settled
+// by decision_close while TaskUpdate wasn't available, or marked by decision_supersede. They outlive
+// their task files, which Claude Code deletes once every task in the list is completed.
 const closed = atom({ plugin: 'session-decisions', key: 'closed' } as const, {} as Record<string, Item>)
 // Subagent loops by agent id: how each was spawned, or that it has called a task tool.
 const loops = atom({ plugin: 'session-decisions', key: 'loops' } as const, {} as Record<string, Loop>)
@@ -520,6 +526,20 @@ export const register: Register = (on, options) => {
       },
     }))
     await quietly($.tool.register({
+      name: 'decision_supersede',
+      description:
+        "Marks a settled decision-queue item, task-list or fallback-ledger, whose ruling stopped holding (its premise failed) as superseded by the new item that replaces it, recording a dated Superseded line. Works when TaskUpdate can't reach the completed task. Create the new item first; an open item is settled as superseded instead.",
+      inputSchema: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'The settled item, such as D2.' },
+          by: { type: 'string', description: 'The new item that replaces it, such as D5.' },
+          why: { type: 'string', description: 'Why the ruling no longer holds.' },
+        },
+        required: ['label', 'by', 'why'],
+      },
+    }))
+    await quietly($.tool.register({
       name: 'decision_list',
       description:
         "Lists this session's open decision-queue items, task-list and fallback-ledger alike (label, kind, age, link, text), and the lines of the user's messages that name them, for reconciling the queue.",
@@ -665,17 +685,25 @@ export const register: Register = (on, options) => {
     const after = await change($, list =>
       applyUpdate(list, { taskId, subject, description: e.description, status: e.status }),
     )
-    // A status set through TaskUpdate is in the task file now, so a ruling decision_close kept
-    // for this task gives way to it.
-    const handBack = e.status !== undefined && (await read($, closed))[taskId] !== undefined
-    if (handBack) {
+    // The queue keeps its own copy of a settled task item, so the item outlives its task file. A
+    // status set through TaskUpdate is in the task file now, so that copy follows it: the item as
+    // TaskUpdate left it while it's completed (with any Superseded line already recorded), none once
+    // it's open again or deleted.
+    const kept = (await read($, closed))[taskId]
+    const now = after.find(one => one.source === 'tasks' && one.id === taskId)
+    const keep = now && !isOpen(now) ? withMarks(now, kept) : undefined
+    const recorded = keep !== undefined || kept !== undefined
+    if (keep) {
+      if (keep !== now) await change($, list => list.map(one => (one === now ? keep : one)))
+      await update($, closed, map => ({ ...map, [taskId]: keep }))
+    } else if (kept) {
       await update($, closed, map => {
         const { [taskId]: _, ...rest } = map
         return rest
       })
     }
     if (after === before) {
-      if (handBack) await persist($)
+      if (recorded) await persist($)
       return ran
     }
     await update($, counters, now => coverLabels(now, after))
@@ -770,6 +798,34 @@ export const register: Register = (on, options) => {
     return {
       result: `${label} closed in the decision queue. TaskUpdate isn't available here, so its task still shows it open; the queue keeps the ruling.`,
     }
+  })
+
+  on('tool.call', { tool: SUPERSEDE_TOOL }, async ($, e) => {
+    const label = String(e.label ?? '').trim().toUpperCase()
+    const by = String(e.by ?? '').trim().toUpperCase()
+    const why = String(e.why ?? '').trim()
+    const list = await read($, items)
+    const matches = list.filter(item => item.label === label)
+    const target = matches.find(item => !isOpen(item)) ?? matches[0]
+    if (!target) {
+      return {
+        deny: `session-decisions: ${label} isn't in this session's decision queue, so there's no record to mark; say in your reply that ${label} is superseded by ${by}.`,
+      }
+    }
+    if (isOpen(target)) {
+      return {
+        deny: `session-decisions: ${label} is still open; settle it with the ruling "superseded by ${by}" instead (TaskUpdate for a task-list item, decision_close for a ledger item or where TaskUpdate isn't available).`,
+      }
+    }
+    if (by === label || !/^[DA]\d+$/.test(by) || !list.some(item => item.label === by)) {
+      return { deny: `session-decisions: ${by || 'by'} isn't another item in this session's decision queue; create the new item first and pass its label as by.` }
+    }
+    const date = new Date(await $.clock.now()).toISOString().slice(0, 10)
+    const done = supersede(target, by, why, date)
+    await change($, now => now.map(item => (item.source === target.source && item.id === target.id ? done : item)))
+    if (target.source === 'tasks') await update($, closed, map => ({ ...map, [target.id]: done }))
+    await persist($)
+    return { result: `${label} superseded by ${by}` }
   })
 
   on('tool.call', { tool: LIST_TOOL }, async $ => {
@@ -974,6 +1030,21 @@ export const register: Register = (on, options) => {
 }
 
 /**
+ * A settled task item as TaskUpdate left it, with the ruling and Superseded line the queue recorded
+ * on its earlier copy when TaskUpdate's new description dropped them; `item` itself when there's
+ * nothing to add.
+ */
+function withMarks(item: Item, kept: Item | undefined): Item {
+  if (!kept) return item
+  const lines = item.description.split('\n')
+  const ruling = rulingIn(item.description) ? undefined : (rulingIn(kept.description) ?? undefined)
+  const marked = kept.description.split('\n').reverse().find(line => line.startsWith('Superseded ('))
+  const added = [ruling, marked].filter((line): line is string => Boolean(line) && !lines.includes(line as string))
+  if (added.length === 0) return item
+  return { ...item, description: [item.description, ...added].filter(Boolean).join('\n') }
+}
+
+/**
  * Send a prompt once the command that asked for it has answered. The host refuses a submit from
  * inside a `command.run` hook, since the prompt would wait on the turn that hook holds; a timer
  * runs it after the hook returns, and the host starts the turn once the session is idle.
@@ -1043,12 +1114,16 @@ async function drawCard(
   const parts = splitBody(item.body)
 
   if (!isOpen(item) || opts.compact) {
-    const ruling = (rulingIn(item.description) ?? '').replace(/^Ruling \(([^)]*)\):\s*/, '$1 · ')
-    const moot = /·\s*moot\b/i.test(ruling)
+    const superseded = isOpen(item) ? null : supersededIn(item.description)
+    const ruling = superseded
+      ? `${superseded.date} · superseded by ${superseded.by}${superseded.why ? `: ${superseded.why}` : ''}`
+      : (rulingIn(item.description) ?? '').replace(/^Ruling \(([^)]*)\):\s*/, '$1 · ')
+    const moot = superseded !== null || /·\s*moot\b/i.test(ruling)
+    const glyph = superseded ? (plain ? '>' : '→') : moot ? (plain ? 'x' : '✗') : plain ? '+' : '✓'
     return (
       <Box key={`card-${item.source}-${item.id}`} flexDirection="row" gap={1}>
         <Text color={moot ? undefined : 'success'} dimColor={moot}>
-          {moot ? (plain ? 'x' : '✗') : plain ? '+' : '✓'}
+          {glyph}
         </Text>
         <Text bold dimColor>
           {item.label}
@@ -1064,6 +1139,7 @@ async function drawCard(
 
   const rec = parts.recommendation ? shortRecommendation(parts.recommendation) : null
   const choice = parts.recommendation ? shortRecommendation(plainText(parts.recommendation)).choice : null
+  const old = replaces(await read($, items), item.label)
   const short = parts.link === null || isShortLink(parts.link)
   const stale = item.created !== undefined && now - item.created > DAY
   const revised = revisedIn(item.description)
@@ -1129,6 +1205,7 @@ async function drawCard(
       </Box>
       {qualifier ? <Markdown key={`question-${item.label}`} text={question} /> : line(`question-${item.label}`, question, false)}
       {qualifier && line(`qualifier-${item.label}`, qualifier, true)}
+      {old && <Markdown key={`replaces-${item.label}`} text={`replaces ${linkRefs(replacedText(old), forge)}`} dimColor />}
       {!short && parts.link !== null && linkLine(Link, Text, parts.link)}
       <Box key="actions" flexDirection="row" gap={1}>
         {rec && item.kind === 'DECIDE' && (
@@ -1276,6 +1353,7 @@ async function drawDetails($: $, site: Parameters<$['ui']['resolve']>[0], item: 
   const now = await $.clock.now()
   const parts = splitBody(item.body)
   const choice = parts.recommendation ? shortRecommendation(plainText(parts.recommendation)).choice : null
+  const old = replaces(await read($, items), item.label)
   const { url, code } = detailsExtras(parts, item.description, forge)
   const href = linkHref(url)
   const stale = item.created !== undefined && now - item.created > DAY
@@ -1331,6 +1409,11 @@ async function drawDetails($: $, site: Parameters<$['ui']['resolve']>[0], item: 
         {parts.recommendation && (
           <Box key="details-recommendation" marginTop={1}>
             <Markdown key="details-recommendation-text" text={`Recommended: ${linkRefs(parts.recommendation, forge)}`} />
+          </Box>
+        )}
+        {old && (
+          <Box key="details-replaces" marginTop={1}>
+            <Markdown key="details-replaces-text" text={`Replaces ${linkRefs(replacedText(old), forge)}, whose ruling no longer holds.`} />
           </Box>
         )}
         {item.description.trim() && (

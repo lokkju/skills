@@ -118,6 +118,14 @@ queue never shows what the user has already moved past:
   adds the Revised line.)
 - If the answer turns it into a different question, don't reuse the label: complete the old item
   with `Ruling (<date>): superseded by D<m>` and create the new one.
+- If an item that's already closed turns out unworkable (its ruling's premise fails, not the user
+  changing their mind), create a new item for the new question and say in its description which
+  item it supersedes. Then mark the old one with `mcp__session-decisions__decision_supersede`:
+  `label` the old item, `by` the new one, `why` what failed. It records
+  `Superseded (<date>) by D<m>: <why>` in the queue, which shows the old item as superseded and
+  the new card as replacing it, and it works when TaskUpdate answers `Task not found` for the
+  completed task, so don't try TaskUpdate first. In your reply, say that D<m> supersedes the old
+  item and why.
 
 ## When the user answers
 
@@ -134,6 +142,8 @@ queue never shows what the user has already moved past:
 - An answer of "defer", "file it", or "later" means the work needs a durable home: create it in
   the project's tracker, link it, then complete the item with that as the ruling.
 - If an item stops mattering, complete it with `Ruling (<date>): moot, <why>`.
+- If a ruling the user gave earlier can't be carried out, that item is closed already: supersede
+  it as "When an open item changes" describes, rather than reopening it or noting it only in prose.
 
 The user may answer by pressing Accept, Done or Answer in the decisions pane. That fills their
 prompt with `D3: go with <choice>`, `A2: done` or `D3: `, which they edit and send like any other
