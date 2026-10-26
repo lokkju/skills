@@ -75,6 +75,14 @@ run without `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1`, for one). Number it yourself:
 subject to the next free `D<n>` or `A<n>` from TaskList, and check the recommendation and link by
 eye.
 
+If the session tells you that session-decisions' `classic.<Event>` hook was skipped because
+"cc-plugin-sec-default" runs first, Claude Code's security plugin is active and the plugin's
+classic hooks don't run. Tell the user once that Claude Code's security plugin is active, so this
+session has no hand-off reminders for you and no reminder of open items after compaction, while
+labelling, the pane and `/decisions` still work. Then
+queue every hand-off yourself as you write it, without waiting for a check to flag it, and after a
+compaction call `mcp__session-decisions__decision_list` (or TaskList) to recover the open items.
+
 If TaskCreate isn't in your tool list, look for it with tool search before deciding it's missing.
 Claude Code offers the task tools to background jobs, to older models, and to sessions with
 `CLAUDE_CODE_ENABLE_TODO_TOOLS` set; many ordinary sessions don't have them. There, the plugin's
