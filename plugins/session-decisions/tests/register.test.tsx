@@ -500,6 +500,7 @@ describe('hand-off check', () => {
   function classic(on: On) {
     on('classic.Stop', () => ({}))
     on('classic.UserPromptSubmit', () => ({}))
+    on('turn.complete', (_$, e) => ({ text: e.answer }))
   }
   const prompt = ($: any, text = 'next') => $.classic.UserPromptSubmit({ prompt: text })
   const stop = ($: any, message: string, active = false) =>
@@ -576,8 +577,48 @@ describe('hand-off check', () => {
     classic(on)
     await start($)
     await stop($, HANDOFF)
+    await done($, HANDOFF)
     expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
     expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  // The turn's end, as the engine reports it after any Stop hooks.
+  const done = ($: any, answer: string, more: Record<string, unknown> = {}) =>
+    $.turn.complete({ answer, durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer', ...more })
+
+  test('when classic.Stop is passed over, the turn end still warns the person and leaves the model alone', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await done($, HANDOFF)
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual(['2 hand-offs not queued: Merge #41 and #42'])
+    // No reminder rides on the next prompt: that is classic.Stop's to give.
+    expect((await prompt($)).additionalContext).toBeUndefined()
+  })
+
+  test('a turn whose classic.Stop ran is not checked again at its end', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await stop($, HANDOFF)
+    await done($, HANDOFF)
+    expect(toasts.filter(toast => toast.includes('not queued'))).toHaveLength(1)
+    // The next turn's Stop is passed over: its end checks again.
+    await done($, 'Left for you:\n- Rotate the deploy key')
+    expect(toasts.filter(toast => toast.includes('not queued'))).toHaveLength(2)
+  })
+
+  test("a subagent's end, an interrupted turn and a queued hand-off pass quietly", async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await done($, HANDOFF, { agentId: 'a1' })
+    await done($, HANDOFF, { reason: 'aborted', isAborted: true })
+    await create($, 'ACTION: merge #41 and #42 [#41]')
+    await create($, 'ACTION: run the backfill on each host [no link]')
+    await done($, HANDOFF)
+    expect(toasts.filter(toast => toast.includes('not queued'))).toEqual([])
   })
 })
 

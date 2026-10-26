@@ -283,6 +283,16 @@ tells you to run `claude` in the folder once first. Resuming the job after you'v
 prompt loads the plugin. Until then the skill has the assistant keep its items as a labelled list
 in its replies.
 
+Where Claude Code seats its own security plugin (`cc-plugin-sec-default`: on a machine with
+managed settings, and for Team and Enterprise organizations), that plugin runs first and sends
+every `classic.*` hook event on past the plugins you install, so this plugin's `SessionStart`,
+`UserPromptSubmit` and `Stop` hooks don't run
+([#120](https://github.com/lokkju/skills/issues/120)). The reminder of open items after
+compaction or resume goes, and so does the hand-off reminder the assistant gets with your next
+prompt; the skill has the assistant say so once, queue its hand-offs without waiting for a check,
+and list the open items itself after a compaction. The hand-off toast still shows, from the end
+of the turn, and labelling, the cards, the sidebar, the footer and `/decisions` work as usual.
+
 Not every session gets TaskCreate. For models newer than Claude 4.x, Claude Code turns the task
 tools on only for background jobs, a launch tool list that names them, or
 `CLAUDE_CODE_ENABLE_TODO_TOOLS` ([#4](https://github.com/lokkju/skills/issues/4)). Since Claude Code
