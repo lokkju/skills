@@ -37,6 +37,33 @@ npx skills add lokkju/skills
 
 session-decisions won't work that way. Its skill drives a hook, the cards and two tools of its own, and only the Claude Code plugin provides those, so install it through the marketplace.
 
+### OpenCode
+
+The repo is also an [OpenCode](https://opencode.ai) plugin (OpenCode 1.19.4 or a later 1.x). Add it to the `plugin` list in `opencode.json`, your project's or `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": ["@lokkju/skills@git+https://github.com/lokkju/skills.git"]
+}
+```
+
+OpenCode installs it on its next start. Append `#<tag or commit>` to the URL to pin a version. Once the package is on npm, `"@lokkju/skills"` on its own will do.
+
+It registers every plugin's skills and the commands that come with them (`/catchup`, `/next` and `/groom` from forge-tracker), and fills in the script paths those skills and commands use. Two options, given as a second element:
+
+```json
+{
+  "plugin": [
+    ["@lokkju/skills@git+https://github.com/lokkju/skills.git", { "plugins": ["forge-tracker", "term-recorder"], "allowScripts": true }]
+  ]
+}
+```
+
+- `plugins` picks which plugins to load; all of them when it's left out. A name it doesn't know stops the plugin from loading, so a typo can't quietly turn one off.
+- `allowScripts: true` adds `bash` allow rules for the skills' own scripts (`forge-tracker`, `term-record`, `worktree-tidy`, `github-app-create`). OpenCode allows `bash` by default, so this only matters if you've set it to `ask` or `deny`. Unlike Claude Code's `allowed-tools`, the rules hold for the whole session, not just while the skill is in use, and they're added after your own `bash` rules, so they win over them for those scripts.
+
+What doesn't carry over: hooks. worktree-tidy's session-start note doesn't appear (`/worktree-tidy` and the skill still work), and session-decisions has no cards, sidebar, footer count or `decision_*` tools; its skill keeps the queue as a labelled list in the reply instead. session-history reads Claude Code transcripts, so it isn't included.
+
 ## License
 
 [PolyForm Shield 1.0.0](LICENSE)
