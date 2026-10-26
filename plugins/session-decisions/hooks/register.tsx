@@ -82,6 +82,9 @@ let lineageOpen = false
 // The forge the session's repository is on, read from its git config and remote at session start, so `#12`
 // and `!4` can link to it; null outside a repository or on a host whose kind isn't known.
 let forge: Forge | null = null
+// Whether classic.Stop ran in the main loop's current turn, so turn.complete doesn't check the
+// reply a second time. A module variable: it lasts one turn of this process.
+let stopRan = false
 // Whether this Claude Code is new enough (hooks/version.ts), asked once per load: why the plugin
 // stays off, or null when it runs. Every hook that would draw or check something asks it first, so
 // on an older build the plugin is off as a whole rather than half working.
@@ -430,6 +433,28 @@ async function announce($: $, item: Item): Promise<void> {
   await offerSidebar($)
 }
 
+/** The lines of a reply that hand the person work without a queue entry; null when there are none. */
+async function unqueued($: $, reply: string): Promise<{ lines: string[]; missing: string[] } | null> {
+  if (!reply) return null
+  const since = await read($, turnStarted)
+  const all = await read($, items)
+  const queue = all.filter(item => isOpen(item) || (item.created ?? 0) >= since)
+  const known = all.map(item => item.label)
+  const lines = handoffs(reply, queue, { known })
+  if (lines.length === 0) return null
+  return { lines, missing: unknownLabels(reply, known) }
+}
+
+/** The hand-off check's toast: short, since a toast is narrow, naming the count and the first hand-off. */
+function warn($: $, found: { lines: string[]; missing: string[] }): void {
+  const count = found.lines.length === 1 ? 'A hand-off' : `${found.lines.length} hand-offs`
+  $.ui.toast(
+    found.missing.length > 0
+      ? `${found.missing.join(', ')} named but not in the queue`
+      : `${count} not queued: ${plainText(found.lines[0] ?? '')}`,
+  )
+}
+
 const WRAP = `Wrap up this session's decision queue, as the session-decisions skill describes: for every open item below, ask me in one message whether to escalate it (create it in the project's tracker as a question for the right person, and link it), carry it forward (it stays open and goes in the handoff), or drop it. Then apply my answers, completing each settled item with a "Ruling (<YYYY-MM-DD>): ..." line, and report what changed.`
 
 export const register: Register = (on, options) => {
@@ -547,21 +572,28 @@ export const register: Register = (on, options) => {
 
   on('classic.Stop', async ($, e, next) => {
     if (await off($)) return next(e)
+    stopRan = true
     const result = await next(e)
     if (!checkHandoffs || e.stop_hook_active || result.block !== undefined) return result
-    const reply = String(e.last_assistant_message ?? '')
-    if (!reply) return result
-    const since = await read($, turnStarted)
-    const all = await read($, items)
-    const queue = all.filter(item => isOpen(item) || (item.created ?? 0) >= since)
-    const known = all.map(item => item.label)
-    const found = handoffs(reply, queue, { known })
-    if (found.length === 0) return result
-    const missing = unknownLabels(reply, known)
-    await update($, handoffNudge, () => nudge(found, missing))
-    // Short, since a toast is narrow: the first line names the count and starts the first hand-off.
-    const count = found.length === 1 ? 'A hand-off' : `${found.length} hand-offs`
-    $.ui.toast(missing.length > 0 ? `${missing.join(', ')} named but not in the queue` : `${count} not queued: ${plainText(found[0] ?? '')}`)
+    const found = await unqueued($, String(e.last_assistant_message ?? ''))
+    if (!found) return result
+    await update($, handoffNudge, () => nudge(found.lines, found.missing))
+    warn($, found)
+    return result
+  })
+
+  // A managed plugin seated first (Claude Code's own security plugin, cc-plugin-sec-default) can
+  // send every classic.* event on past this plugin, so classic.Stop never runs. turn.complete
+  // isn't one it passes over: when classic.Stop didn't run for the turn, the person still gets
+  // the toast. The model's reminder stays with classic.Stop and the next classic.UserPromptSubmit.
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId !== undefined) return result
+    const ran = stopRan
+    stopRan = false
+    if (ran || !checkHandoffs || e.reason !== 'answer' || (await off($))) return result
+    const found = await unqueued($, e.answer)
+    if (found) warn($, found)
     return result
   })
 
