@@ -1,5 +1,16 @@
 # Changelog
 
+## [forge-tracker--v2026.10.26.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.25.1...forge-tracker--v2026.10.26.1) (2026-10-26)
+
+### Features
+
+- **forge-tracker:** settle which repo the session is about before /catchup, /next and /groom read ([2c18df9](https://github.com/lokkju/skills/commit/2c18df991f1c4666e02f3e697b8fa0d600e1282a))
+- **forge-tracker:** catchup reads the repos named by several --repo as one report ([9ff38cb](https://github.com/lokkju/skills/commit/9ff38cbbdc14e4d10bc2e3cde46f7ada743cf9a1))
+
+### Fixes
+
+- **forge-tracker:** count repos the session ran git -C in, and check a candidate's remote before ruling it out ([c6b9f17](https://github.com/lokkju/skills/commit/c6b9f17181591f348218d180242b1493b5d50468))
+
 ## [forge-tracker--v2026.10.25.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.20.2...forge-tracker--v2026.10.25.1) (2026-10-25)
 
 ### Fixes

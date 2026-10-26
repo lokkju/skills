@@ -1,5 +1,15 @@
 # Changelog
 
+## [session-decisions--v2026.10.26.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.26.1...session-decisions--v2026.10.26.2) (2026-10-26)
+
+### Features
+
+- **session-decisions:** supersede an item that's already closed ([2b06911](https://github.com/lokkju/skills/commit/2b06911824a5b50408ac18d7bcc69d9feb8f63f8))
+
+### Fixes
+
+- **session-decisions:** accept the item's own recommendation, not an option note's ([691cbfe](https://github.com/lokkju/skills/commit/691cbfecca78670643c42d12ec75c95db664bb67))
+
 ## [session-decisions--v2026.10.26.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.25.1...session-decisions--v2026.10.26.1) (2026-10-26)
 
 ### Fixes
