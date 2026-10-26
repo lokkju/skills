@@ -306,6 +306,72 @@ def test_an_empty_folder_is_still_a_usage_error(tmp_path, capsys):
     assert "has no origin remote (or isn't a git repo)" in capsys.readouterr().err
 
 
+def test_several_repo_flags_read_just_those_repos_as_one_report(ws, tmp_path):
+    # The session's repos, wherever they sit: one in the workspace, one outside it.
+    elsewhere = git_repo(tmp_path / "elsewhere" / "mirror", "https://github.com/acme/mirror.git")
+    out = io.StringIO()
+    code = cli.main(
+        [
+            "--repo",
+            str(ws["root"] / "gadgets"),
+            "--repo",
+            str(elsewhere),
+            "--repo",
+            str(ws["root"] / "gadgets"),  # said twice, read once
+            "catchup",
+        ],
+        http=Forge({"gadgets": quiet_world(), "mirror": quiet_world("acme/mirror")}),
+        run=Run(),
+        now=NOW,
+        environ=ws["environ"],
+        out=out,
+        tz=timezone.utc,
+    )
+    assert code == 0
+    text = out.getvalue()
+    assert text.splitlines()[0] == (
+        f"Workspace {tmp_path}: 2 repos (each repo's marker moves when all its reads succeeded)"
+    )
+    assert "\nacme/gadgets: nothing since " in text
+    assert "\nacme/mirror: nothing since " in text
+    assert "acme/widgets" not in text and "Not read:" not in text
+    assert sorted(p.name for p in ws["markers"].iterdir()) == [
+        "github.com_acme__gadgets_me.json",
+        "github.com_acme__mirror_me.json",
+    ]
+
+
+def test_a_chosen_repo_that_isnt_one_is_a_failed_line(ws, tmp_path):
+    out = io.StringIO()
+    code = cli.main(
+        ["--repo", str(ws["root"] / "gadgets"), "--repo", str(ws["root"] / "notes"), "catchup"],
+        http=Forge({"gadgets": quiet_world()}),
+        run=Run(),
+        now=NOW,
+        environ=ws["environ"],
+        out=out,
+        tz=timezone.utc,
+    )
+    assert code == 1
+    assert "\nnotes: FAILED (" in out.getvalue()
+    assert [p.name for p in ws["markers"].iterdir()] == ["github.com_acme__gadgets_me.json"]
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["next"], "`next` reads one repo: pass --repo once"),
+        (["groom"], "`groom` reads one repo: pass --repo once"),
+        (["catchup", "--workspace", "."], "pass --workspace or several --repo, not both"),
+    ],
+)
+def test_several_repo_flags_are_for_catchup_alone(ws, capsys, argv, message):
+    repos = ["--repo", str(ws["root"] / "gadgets"), "--repo", str(ws["root"] / "widgets")]
+    code = cli.main([*repos, *argv], http=World(), run=Run(), now=NOW)
+    assert code == 2
+    assert message in capsys.readouterr().err
+
+
 def test_record_takes_one_repo(ws, capsys):
     code = cli.main(
         ["--repo", str(ws["root"]), "--record", str(ws["root"] / "r.json"), "catchup"],

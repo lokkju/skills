@@ -364,6 +364,25 @@ Each command is a markdown file that runs the CLI, passes its text output to Cla
 Claude how to present it and that it may act on nothing unless asked. Every command also takes
 `--json`, which prints the same data for scripts and agents.
 
+**Which repo (#127).** The session's working directory isn't always the project the session is
+about: a session launched from `~/projects/infra` that spent its length on `codexpublicus/captare`
+read infra, moved infra's catchup marker and ranked a slate for the wrong repo. So each command's
+text has Claude settle the repo before the first read, from what the session did (repos it
+committed to, pushed, or opened PRs and issues on, and repos the user named), with the working
+directory as one candidate among those:
+
+- only the working directory: run as before;
+- one other candidate: say which repo it's reading and run with `--repo <dir>`;
+- several: ask which, offering each and "all of them". `/catchup` reads the chosen repos in one
+  workspace report (`--repo` given more than once); `/next` and `/groom` run once per repo,
+  since a slate and a numbered proposal list each belong to one repo;
+- an agent running a command for its own orientation (`--no-mark` for `/catchup`) settles the
+  choice without asking.
+
+The ask comes before the first read because `/catchup` moves its marker: a wrong guess costs the
+user that window of their own next catchup on the other repo. The choice is the model's, from
+the conversation; the CLI only takes the repos it's given.
+
 ### `/catchup` (#23)
 
 For coming back to a project: what changed and what's waiting on you. Read-only.
@@ -478,8 +497,13 @@ lab: FAILED (gitlab.com is gitlab, and forge-tracker reads only GitHub so far ..
   config). `--json` prints every repo's own report, the shared notes and the skipped children.
   `--record` takes one repo, so it refuses a workspace.
 
+`--repo` given more than once (#127) reads exactly those repos, wherever they sit, as a workspace
+whose root is the folder they share, taken as given like a `repos:` list. It doesn't combine
+with `--workspace` or `--record`.
+
 The other commands read one repo; in a workspace they exit 2 naming the repos found and asking
-for `--repo <dir>`, and `/next`'s command text has Claude pick the repo instead of stopping.
+for `--repo <dir>`, and `/next`'s command text has Claude pick the repo instead of stopping. They
+refuse a second `--repo` the same way.
 Reading an org's repos from the forge (`org:` at the root) is left for later: catchup reads local
 clones, and a repo with no clone has no config file or changelog to read.
 

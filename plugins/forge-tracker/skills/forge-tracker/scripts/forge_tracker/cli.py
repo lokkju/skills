@@ -263,6 +263,34 @@ def _run_workspace(
     return cmd_catchup_workspace(args, ws, http, now, environ, run, out, tz)
 
 
+def _run_chosen(
+    args: argparse.Namespace,
+    repos: list[str],
+    http: Optional[Http],
+    run: Callable[..., Any],
+    now: datetime,
+    environ: Mapping[str, str],
+    out: TextIO,
+    tz: Optional[tzinfo],
+) -> int:
+    """Run catchup over the repos named by --repo more than once, as one workspace report; every
+    other command reads one repo."""
+    if args.command != "catchup":
+        print(
+            f"forge-tracker: `{args.command}` reads one repo: pass --repo once. "
+            "Only catchup reads several.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    if args.workspace is not None:
+        print("forge-tracker: pass --workspace or several --repo, not both", file=sys.stderr)
+        return EXIT_USAGE
+    if args.record:
+        print("forge-tracker: --record takes one repo, not a workspace", file=sys.stderr)
+        return EXIT_USAGE
+    return cmd_catchup_workspace(args, workspace.chosen(repos), http, now, environ, run, out, tz)
+
+
 def cmd_next(
     args: argparse.Namespace,
     ctx: Context,
@@ -615,7 +643,15 @@ def parser() -> argparse.ArgumentParser:
             "operations."
         ),
     )
-    p.add_argument("--repo", default=".", help="the git checkout to report on (default: .)")
+    p.add_argument(
+        "--repo",
+        action="append",
+        metavar="DIR",
+        help=(
+            "the git checkout to report on (default: .); catchup takes it more than once and "
+            "reads those repos as one workspace report"
+        ),
+    )
     p.add_argument(
         "--record",
         metavar="FILE",
@@ -759,6 +795,10 @@ def main(
     out = out or sys.stdout
     environ = os.environ if environ is None else environ
     now = now or datetime.now(timezone.utc)
+    repos = list(dict.fromkeys(os.path.abspath(p) for p in args.repo or ["."]))
+    args.repo = repos[0]
+    if len(repos) > 1:
+        return _run_chosen(args, repos, http, run, now, environ, out, tz)
     if args.command == "next" and args.action == "save-slate":
         return cmd_save_slate(
             os.path.abspath(args.repo), run, now, environ, stdin or sys.stdin, out

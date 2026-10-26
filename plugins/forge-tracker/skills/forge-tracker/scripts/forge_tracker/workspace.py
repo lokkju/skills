@@ -80,6 +80,13 @@ def discover(root: str, run: Callable[..., Any] = subprocess.run) -> Workspace:
     return Workspace(root, tuple(repos), tuple(skipped))
 
 
+def chosen(repos: list[str]) -> Workspace:
+    """A workspace of the repos named (by --repo more than once), wherever they are; its root is
+    the folder they share. Taken as given, like a `repos:` list."""
+    paths = tuple(os.path.abspath(p) for p in repos)
+    return Workspace(os.path.commonpath(paths), paths, (), True)
+
+
 @dataclass
 class Entry:
     """One repo's part: its report, or why it couldn't be read at all."""
