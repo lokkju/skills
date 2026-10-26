@@ -3,15 +3,59 @@ description: What changed on this repo's forge and what's waiting on you since y
 argument-hint: "[--since 3d|ISO] [--no-mark] [--all] [--json] [--workspace DIR]"
 ---
 
-Run these two commands with the Bash tool, from the repo root, and wait for both:
+## First, which repo
+
+Settle which repo or repos this is about before the first read. The working directory isn't
+always the project the session is about, and a catchup on the wrong repo moves that repo's
+marker: the user's own next catchup there then skips the window, so a wrong guess costs them
+more than a wasted report.
+
+The working directory is one candidate, not the default. The others are the repos this session
+has worked in: the ones it committed to or pushed, the ones it opened or commented on pull
+requests or issues in, and the ones the user named. Count a repo only when you know its local
+checkout (catchup reads clones); a working directory that is a folder of checkouts counts as
+the whole folder.
+
+- **Only the working directory** (or the session hasn't touched a repo yet): run as below.
+- **One repo, and it isn't the working directory:** say which repo you're about to read and
+  why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
+  has been working in.`), then run the commands below for it:
+
+  ```bash
+  git -C <dir> fetch --quiet origin
+  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> catchup $ARGUMENTS
+  ```
+
+  Every later command for that repo (`labels suggest`, `labels create`, `labels decline`)
+  takes the same `--repo <dir>`, and its config file is `<dir>/.claude/forge-tracker.local.md`.
+- **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
+  directory) and "all of them". For one, run it as above. For more than one, fetch each and
+  read them in one report, with a `--repo` for each, and present it as set out under **In a
+  workspace folder** below:
+
+  ```bash
+  git -C <a> fetch --quiet origin
+  git -C <b> fetch --quiet origin
+  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <a> --repo <b> catchup $ARGUMENTS
+  ```
+
+- **Running it for your own purposes** (to orient yourself, not because the user typed
+  `/catchup`): the same choice applies, but settle it yourself without asking; take the repos
+  the work at hand is in, and always add `--no-mark`, so the user's next catchup still starts
+  where their last one ended.
+
+When the user passed `--workspace`, or said which repo in their message, they've chosen; skip
+this.
+
+## Running it
+
+Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
+`--repo <dir>` for the repo you settled on above), and wait for both:
 
 ```bash
 git fetch --quiet origin
 "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" catchup $ARGUMENTS
 ```
-
-If you are running this for your own purposes (to orient yourself, not because the user typed
-`/catchup`), add `--no-mark`, so the user's next catchup still starts where their last one ended.
 
 The report is read-only, and so is this command: don't comment, label, close, merge, assign or
 branch because of anything in it unless the user asks. The writes it may lead to are the local
@@ -86,7 +130,8 @@ report command reads them all and prints one report: its first line starts `Work
 repos`. `git fetch` fails in such a folder; that's expected, so don't stop at it. The repos are
 the folder's child repos with an `origin` remote (or a `tracker.web` key), or the `repos:` list
 in the folder's own `.claude/forge-tracker.local.md`; `--workspace DIR` names a folder from
-anywhere. Changelog entries come from each repo's last fetch, so when a repo's config sets
+anywhere. `--repo` given more than once reads just those repos, wherever they are, as the same
+kind of report; its first line names the folder they share. Changelog entries come from each repo's last fetch, so when a repo's config sets
 `changelog:`, run `git -C <dir> fetch --quiet origin` for it first.
 
 Present it in the same order. **Waiting on you** covers every repo, each item as

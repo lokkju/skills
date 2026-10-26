@@ -3,7 +3,44 @@ description: What to work on next on this repo's forge - your queue, agent lanes
 argument-hint: "[--rerank] [--refresh] [--json]"
 ---
 
-Run these two commands with the Bash tool, from the repo root, and wait for both:
+## First, which repo
+
+Settle which repo this is about before the first read. The working directory isn't always the
+project the session is about, and a slate for the wrong repo (its queue, its lanes, the
+decisions it suggests queueing) is work the user has to notice and throw away.
+
+The working directory is one candidate, not the default. The others are the repos this session
+has worked in: the ones it committed to or pushed, the ones it opened or commented on pull
+requests or issues in, and the ones the user named. Count a repo only when you know its local
+checkout; a working directory that is a folder of checkouts counts as each repo in it.
+
+- **Only the working directory** (or the session hasn't touched a repo yet): run as below.
+- **One repo, and it isn't the working directory:** say which repo you're about to read and
+  why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
+  has been working in.`), then run the commands below for it:
+
+  ```bash
+  git -C <dir> fetch --quiet origin
+  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> next $ARGUMENTS
+  ```
+
+  Every later command for that repo (`next facts`, `next save-slate`, `labels suggest`,
+  `labels create`, `labels decline`) takes the same `--repo <dir>`, and its config file is
+  `<dir>/.claude/forge-tracker.local.md`.
+- **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
+  directory) and "all of them". `/next` ranks one repo at a time, because each slate belongs to
+  one repo's facts, so "all of them" means this whole command once per repo, in turn, each
+  with its own `--repo`.
+- **Running it for your own purposes** (to orient yourself, not because the user typed
+  `/next`): the same choice applies, but settle it yourself without asking; take the repo the
+  work at hand is in.
+
+When the user said which repo in their message, they've chosen; skip this.
+
+## Running it
+
+Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
+`--repo <dir>` for the repo you settled on above), and wait for both:
 
 ```bash
 git fetch --quiet origin
@@ -199,8 +236,9 @@ when the user asks.
 When the start directory isn't a git repo but holds several, `git fetch` fails there and the
 report command exits 2 with `... isn't a git repo; it's a workspace of N (a, b, c)`. That isn't a
 setup problem to stop at: `/next` ranks one repo at a time, because each slate belongs to one
-repo's facts. Ask the user which of the listed repos to look at, or take the one the conversation
-is about, and run both commands for it with `git -C <dir> fetch --quiet origin` and
+repo's facts. Settle which one as under **First, which repo**: the repo the session worked in,
+or, when that doesn't settle it, ask the user which of the listed repos to look at. Then run
+both commands for it with `git -C <dir> fetch --quiet origin` and
 `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> next $ARGUMENTS`. Every later command
 for that repo (`next facts`, `next save-slate`, `labels suggest`) takes the same `--repo <dir>`.
 For what changed across all of them, `/catchup` reads the whole workspace in one report.

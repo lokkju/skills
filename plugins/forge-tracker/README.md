@@ -14,6 +14,19 @@ adapters come in later phases.
 - `gh`, logged in to the repo's host (`gh auth login`). forge-tracker reads the token with
   `gh auth token` and sends it only in the `Authorization` header of its own requests.
 
+## Which repo
+
+`/catchup`, `/next` and `/groom` don't assume the session's working directory is the project the
+session is about. Before the first read, Claude looks at what the session did (the repos it
+committed to, pushed, or opened PRs and issues on, and the ones you named) and treats the working
+directory as one candidate among those. With one candidate other than the working directory, it
+says which repo it's reading and runs the CLI with `--repo <dir>`. With several, it asks which,
+offering each and "all of them": `/catchup` reads the chosen ones in one workspace report, while
+`/next` and `/groom` run once per repo. With only the working directory, it runs as before. When
+Claude runs a command for its own orientation (`--no-mark`), it settles the choice itself
+without asking. This matters most for `/catchup`, whose marker would otherwise move on the wrong
+repo and skip that window in your own next catchup there.
+
 ## /catchup
 
 For coming back to a project: what changed and what's waiting on you, since your last
@@ -65,8 +78,10 @@ repos: [citare, stare, infra]   # paths relative to the folder; the only key rea
 ---
 ```
 
-`--workspace DIR` reads a folder from anywhere. The other commands read one repo; in a folder of
-repos they name the repos they found and ask for `--repo <dir>`.
+`--workspace DIR` reads a folder from anywhere, and `--repo` given more than once reads just
+those repos, wherever they sit, as the same kind of report (`forge-tracker --repo ~/src/infra
+--repo ~/work/captare catchup`). The other commands read one repo; in a folder of repos they
+name the repos they found and ask for `--repo <dir>`, and they refuse a second `--repo`.
 
 The CLI behind the command runs on its own too, which is how agents use it:
 

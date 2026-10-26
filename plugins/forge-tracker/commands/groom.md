@@ -3,7 +3,43 @@ description: Find where this repo's tracker has drifted (merged but open issues,
 argument-hint: "[--json]"
 ---
 
-Run these two commands with the Bash tool, from the repo root, and wait for both:
+## First, which repo
+
+Settle which repo this is about before the first read. The working directory isn't always the
+project the session is about, and proposals for the wrong repo are fixes to a tracker the user
+didn't ask about.
+
+The working directory is one candidate, not the default. The others are the repos this session
+has worked in: the ones it committed to or pushed, the ones it opened or commented on pull
+requests or issues in, and the ones the user named. Count a repo only when you know its local
+checkout; a working directory that is a folder of checkouts counts as each repo in it.
+
+- **Only the working directory** (or the session hasn't touched a repo yet): run as below.
+- **One repo, and it isn't the working directory:** say which repo you're about to read and
+  why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
+  has been working in.`), then run the commands below for it:
+
+  ```bash
+  git -C <dir> fetch --quiet origin
+  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> groom $ARGUMENTS
+  ```
+
+  Every later command for that repo (`groom apply`, `labels suggest`, `labels decline`) takes
+  the same `--repo <dir>`.
+- **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
+  directory) and "all of them". `/groom` reads one repo at a time, and each report's numbers
+  belong to it, so "all of them" means this whole command once per repo, in turn, each with
+  its own `--repo`, its own report and its own **Apply which?**.
+- **Running it for your own purposes** (to check the board, not because the user typed
+  `/groom`): the same choice applies, but settle it yourself without asking; take the repo the
+  work at hand is in.
+
+When the user said which repo in their message, they've chosen; skip this.
+
+## Running it
+
+Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
+`--repo <dir>` for the repo you settled on above), and wait for both:
 
 ```bash
 git fetch --quiet origin
