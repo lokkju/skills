@@ -63,6 +63,27 @@ jobs:
       - name: Test session-decisions
         run: claude plugin test plugins/session-decisions
 
+  # The OpenCode entry (package.json, harness/opencode/): its tests load it with a
+  # fake config under Node's own test runner; no OpenCode install or model needed.
+  opencode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Tests
+        run: npm test
+      - name: Package contents
+        run: |
+          files=$(npm pack --dry-run --json | jq -r '.[0].files[].path')
+          printf '%s\n' "$files"
+          grep -qx 'harness/opencode/index.js' <<<"$files"
+          grep -qx 'plugins/forge-tracker/commands/next.md' <<<"$files"
+          ! grep -q -e '/tests/' -e '\.claude-plugin/' -e '/hooks/' <<<"$files"
+
   python:
     name: ${{ matrix.plugin }} (${{ matrix.python }})
     runs-on: ubuntu-latest
