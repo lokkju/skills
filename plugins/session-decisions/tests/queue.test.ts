@@ -59,6 +59,28 @@ describe('subject', () => {
     expect(recommendation('ship? (recommend yes [no link]')).toBeNull()
   })
 
+  test("the item's own recommendation is the last one outside other parentheses", () => {
+    // Issue #129: an option note's "(recommend ...)" earlier in the question isn't the item's.
+    const body =
+      'which profiles? P2 a docket profile (27,932 keyed): two-digit years (agent) or four-digit (recommend four: every docket since 2006 and most records print four digits); P3 the court profile; P4 the party profile (recommend all, P2 with four-digit years, P4 with a follow-up to re-key those) [no link]'
+    const own = 'all, P2 with four-digit years, P4 with a follow-up to re-key those'
+    expect(recommendation(body)).toBe(own)
+    expect(splitBody(body)).toEqual({
+      question:
+        'which profiles? P2 a docket profile (27,932 keyed): two-digit years (agent) or four-digit (recommend four: every docket since 2006 and most records print four digits); P3 the court profile; P4 the party profile',
+      recommendation: own,
+      link: null,
+    })
+    expect(problems({ kind: 'DECIDE', body })).toEqual([])
+    // Nested parentheses inside the item's own recommendation survive.
+    expect(recommendation('A or B? A (recommend x) is quick; B is cheap (recommend B (cheaper, (mostly)), then A) [#4]')).toBe('B (cheaper, (mostly)), then A')
+    // A "(recommend ...)" inside another parenthesis is an option note, not the item's.
+    expect(recommendation('A or B? (A, the fast one (recommend for demos)) (recommend B) [no link]')).toBe('B')
+    expect(recommendation('A or B? (recommend B) then (A, the fast one (recommend for demos)) [no link]')).toBe('B')
+    // Parentheses elsewhere that never balance don't hide the recommendation.
+    expect(recommendation('A or B? (see the notes (recommend B) [no link]')).toBe('B')
+  })
+
   test('a recommendation shortens to a tag and a qualifier', () => {
     expect(shortRecommendation('SQLite')).toEqual({ choice: 'SQLite', qualifier: null })
     expect(shortRecommendation("yes, after you've tried the dev panel; solo repo")).toEqual({ choice: 'yes', qualifier: "after you've tried the dev panel; solo repo" })

@@ -223,6 +223,19 @@ describe('labelling', () => {
     expect(filled.at(-1)).toBe('D1: go with ship #16 now, then a release (#14, #4 and #20), then #11')
   })
 
+  test("Accept answers with the item's own recommendation, not an option note's", async ($, on) => {
+    const { filled } = engine(on)
+    await start($)
+    await create($, 'DECIDE: years? two-digit (agent) or four-digit (recommend four: most records print four); P4 too? (recommend all, P2 with four-digit years) [no link]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: 'recommends all' })).toBeDefined()
+    await ui.press({ key: 'accept-D1' })
+    expect(filled.at(-1)).toBe('D1: go with all, P2 with four-digit years')
+    await create($, 'DECIDE: ship? (recommend yes) [no link]')
+    await ui.press({ key: 'accept-all' })
+    expect(filled.at(-1)).toBe('D1: go with all, P2 with four-digit years\nD2: go with yes')
+  })
+
   test('a malformed item is refused with the reason', async ($, on) => {
     const { tasks } = engine(on)
     await start($)
