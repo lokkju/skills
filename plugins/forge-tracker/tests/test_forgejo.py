@@ -305,6 +305,7 @@ def test_forgejo_shaped_runs_map_status_to_a_conclusion():
 def test_without_a_runs_api_push_falls_back_to_the_commit_status():
     world = (
         World()
+        .route(R, {"default_branch": "main"})
         .route(f"{R}/actions/runs", {"message": "Not Found"}, status=404)
         .route(
             f"{R}/commits/main/status",
@@ -335,6 +336,32 @@ def test_without_a_runs_api_push_falls_back_to_the_commit_status():
     flaky = attempt(lambda: a.passed_on_retry("main", T0))
     assert schedule.unsupported and not schedule.ok and "no Actions runs API" in schedule.error
     assert flaky.unsupported and not flaky.ok
+
+
+def test_a_runs_404_on_a_repo_that_doesnt_read_is_a_failure_not_unsupported():
+    world = (
+        World()
+        .route(R, {"message": "The target couldn't be found."}, status=404)
+        .route(f"{R}/actions/runs", {"message": "The target couldn't be found."}, status=404)
+    )
+    read = attempt(lambda: adapter(world).latest_run("main", "schedule"))
+    assert not read.ok and not read.unsupported and "HTTP 404" in read.error
+
+
+def test_an_empty_list_answered_as_null_is_empty():
+    world = World().route(f"{R}/issues/7/timeline", None)
+    assert adapter(world).label_events(7) == []
+
+
+def test_releases_turned_off_mean_no_releases_not_a_failed_read():
+    world = (
+        World()
+        .route(R, {"default_branch": "main"})
+        .route(f"{R}/releases", {"message": "The target couldn't be found."}, status=404)
+        .route(f"{R}/tags", [{"name": "v1.0.0"}])
+    )
+    (tag,) = adapter(world).tags(("v*",))
+    assert tag.name == "v1.0.0"
 
 
 def test_passed_on_retry_needs_numbered_attempts():

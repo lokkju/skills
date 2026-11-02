@@ -340,7 +340,9 @@ class Forgejo:
         try:
             return self.t.get_all(f"{self.repo_path}/actions/runs", params, "workflow_runs", stop)
         except HTTPStatusError as error:
-            if error.status == 404:
+            # A 404 is a missing runs API only when the repo itself reads; otherwise it's the
+            # repo that's missing (or hidden from this token), which is a plain failure.
+            if error.status == 404 and isinstance(self.t.get(self.repo_path), dict):
                 raise Unsupported("this instance has no Actions runs API") from None
             raise
 
@@ -458,7 +460,7 @@ class Forgejo:
 
     def tags(self, patterns: tuple[str, ...]) -> list[Tag]:
         globs = [p for p in patterns if not p.startswith("registry:")]
-        releases = self.t.get_all(f"{self.repo_path}/releases") if globs else []
+        releases = self._releases() if globs else []
         tags = self.t.get_all(f"{self.repo_path}/tags") if globs else []
         dated = [
             (parse_time(r.get("published_at") or r.get("created_at")), r.get("tag_name") or "")
@@ -466,6 +468,16 @@ class Forgejo:
             if not r.get("draft")
         ]
         return pick_tags(patterns, dated, [t.get("name") or "" for t in tags], "Forgejo")
+
+    def _releases(self) -> list[dict]:
+        """The releases, or none when the repo has releases turned off (a 404 while the repo
+        itself reads)."""
+        try:
+            return self.t.get_all(f"{self.repo_path}/releases")
+        except HTTPStatusError as error:
+            if error.status == 404 and isinstance(self.t.get(self.repo_path), dict):
+                return []
+            raise
 
     def _compare(self, base: str, head: str) -> dict:
         spec = urllib.parse.quote(f"{base}...{head}", safe="/.")
@@ -604,8 +616,12 @@ class Forgejo:
             "default_head": heads.get(default),
             "open_issues": len(issues),
             "open_changes": len(prs),
+            # Forgejo writes times in the server's own offset, so they're compared as times.
             "newest_issue": max((iso(i.updated) for i in issues), default=None),
-            "newest_change": max((pr.get("updated_at") or "" for pr in prs), default=None),
+            "newest_change": max(
+                (iso(t) for t in (parse_time(pr.get("updated_at")) for pr in prs) if t),
+                default=None,
+            ),
             "milestones": sorted(
                 [
                     str(m.get("id") or ""),

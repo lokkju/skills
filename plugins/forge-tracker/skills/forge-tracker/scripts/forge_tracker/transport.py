@@ -360,8 +360,9 @@ class ReadTransport:
         response = self.http(method, url, headers, body)
         try:
             parsed = json.loads(response.body) if response.body else None
+            not_json = False
         except ValueError:
-            parsed = None
+            parsed, not_json = None, True
         if not 200 <= response.status < 300:
             message = parsed.get("message") if isinstance(parsed, dict) else None
             if not message:
@@ -371,7 +372,7 @@ class ReadTransport:
                 redact(f"HTTP {response.status} from {path}: {message}", self._secrets()),
                 response.status,
             )
-        if parsed is None and response.body:
+        if not_json:
             raise ForgeError(f"{urllib.parse.urlsplit(url).path} returned something not JSON")
         return parsed, response
 
@@ -410,6 +411,8 @@ class ReadTransport:
                 if body.get("incomplete_results"):
                     raise ForgeError(f"{path} reported incomplete results")
                 body = body[key]
+            if body is None:
+                body = []  # Forgejo and Gitea answer an empty list as JSON null
             if not isinstance(body, list):
                 raise ForgeError(f"{path} returned something other than a list")
             for item in body:
