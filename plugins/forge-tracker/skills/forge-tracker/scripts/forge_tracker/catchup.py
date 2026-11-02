@@ -183,11 +183,23 @@ def yours_to_merge(change: Change, login: str) -> bool:
     )
 
 
-def _failed(reads: Mapping[str, Read], *names: str) -> list[dict[str, str]]:
+def _failed(
+    reads: Mapping[str, Read], *names: str, unsupported_ok: bool = False
+) -> list[dict[str, str]]:
+    """The failed reads among `names`. With `unsupported_ok`, a read the forge can't answer at
+    all isn't a failure (see `_unsupported`); elsewhere it is, so no section reads as empty."""
     return [
         {"part": name, "reason": reads[name].error or ""}
         for name in names
-        if name in reads and not reads[name].ok
+        if name in reads and not reads[name].ok and not (unsupported_ok and reads[name].unsupported)
+    ]
+
+
+def _unsupported(reads: Mapping[str, Read], *names: str) -> list[dict[str, str]]:
+    return [
+        {"part": name, "reason": reads[name].error or ""}
+        for name in names
+        if name in reads and reads[name].unsupported
     ]
 
 
@@ -425,7 +437,9 @@ def build(
             }
             for t in reads["tags"].data
         ]
-    health["failed"] += _failed(reads, "push_run", "schedule_run", "flaky", "tags")
+    health_parts = ("push_run", "schedule_run", "flaky", "tags")
+    health["failed"] += _failed(reads, *health_parts, unsupported_ok=True)
+    health["unsupported"] = _unsupported(reads, *health_parts)
     report["health"] = health
     failed.extend(f for f in health["failed"] if f not in failed)
 
@@ -451,6 +465,9 @@ def _failed_lines(failed: list[dict[str, str]]) -> list[str]:
     return [f"  {f['part']}: FAILED ({f['reason']})" for f in failed]
 
 
+FORGE_NAMES = {"github": "GitHub", "gitlab": "GitLab", "forgejo": "Forgejo"}
+
+
 def _run_line(label: str, run: Optional[dict[str, Any]]) -> str:
     if run is None:
         return f"  {label}: none"
@@ -462,7 +479,9 @@ def _run_line(label: str, run: Optional[dict[str, Any]]) -> str:
         state_text = f"FAILED ({run['conclusion']})"
         if run["failed_jobs"]:
             state_text = f"FAILED (jobs: {', '.join(run['failed_jobs'])})"
-    return f"  {label} run {run['id']} ({run['name']}): {state_text}"
+    # A run with no id of its own (Forgejo's commit-status fallback) is named by its name only.
+    number = f" run {run['id']}" if run["id"] else ""
+    return f"  {label}{number} ({run['name']}): {state_text}"
 
 
 def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
@@ -573,6 +592,11 @@ def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
                 lines.append(f"  tags {t['pattern']}: {t['name']}{date}")
             else:
                 lines.append(f"  tags {t['pattern']}: none match")
+    forge_name = FORGE_NAMES.get(report.get("forge") or "", report.get("forge"))
+    lines += [
+        f"  {u['part']}: unsupported on {forge_name} ({u['reason']})"
+        for u in health.get("unsupported", [])
+    ]
     lines += _failed_lines(health["failed"])
 
     identity = [f for f in report["failed"] if f["part"] == "identity"]

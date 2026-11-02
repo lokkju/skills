@@ -27,7 +27,7 @@ from .model import ConfigError
 
 FORGES = ("github", "gitlab", "forgejo")
 # Forges whose adapter is built. The others are recognised and named in the error.
-SUPPORTED = ("github", "gitlab")
+SUPPORTED = ("github", "gitlab", "forgejo")
 # What `tracker.forge` takes. Gitea is read as Forgejo, whose URLs and API it shares.
 KINDS = {"github": "github", "gitlab": "gitlab", "forgejo": "forgejo", "gitea": "forgejo"}
 OVERRIDE_FORGE, OVERRIDE_WEB = "tracker.forge", "tracker.web"
@@ -183,15 +183,25 @@ def resolve(
     configured: Optional[str],
     run: Callable[..., Any] = subprocess.run,
     environ: Mapping[str, str] = os.environ,
+    probe: Optional[Callable[[str], Optional[bool]]] = None,
 ) -> tuple[Remote, str]:
     """`locate`, then `detect_forge`: the repo and the forge forge-tracker reads it through."""
     remote, named, source = locate(repo_dir, configured, run)
-    return remote, detect_forge(remote, named, source, environ)
+    forge = detect_forge(remote, named, source, environ, probe)
+    # On GitHub and Forgejo a repo is owner/repo, so a remote under a subpath
+    # (https://code.example.org/forgejo/acme/widgets) names the last two segments, as
+    # tracker.web does; on GitLab the whole path is the project.
+    segments = remote.project.split("/")
+    if forge != "gitlab" and len(segments) > 2:
+        remote = Remote(remote.host, "/".join(segments[-2:]))
+    return remote, forge
 
 
 def _unknown(host: str) -> str:
     return (
-        f"can't tell which forge {host} runs; set forge: (github, gitlab or forgejo) in "
+        f"can't tell which forge {host} runs (not github.com or gitlab.com, not a host glab or "
+        "tea is set up for, and no Forgejo or Gitea answered its version API); set forge: "
+        f"(github, gitlab or forgejo) in "
         f"{_CONFIG_PATH}, or for this clone only `git config {OVERRIDE_FORGE} <kind>`"
     )
 
@@ -201,19 +211,23 @@ def detect_forge(
     configured: Optional[str],
     source: str = "",
     environ: Mapping[str, str] = os.environ,
+    probe: Optional[Callable[[str], Optional[bool]]] = None,
 ) -> str:
     """The named kind when there is one (`tracker.forge`, else `forge:`), else the host: the
-    built-in host rules, then a host glab is set up for (its config file, read without running
-    it) is GitLab. Never a guess: an unknown host needs a kind named."""
+    built-in host rules; a host glab is set up for is GitLab and one tea has a login for is
+    Forgejo (their config files, read without running them); then `probe(host)`, the
+    unauthenticated `/api/v1/version` check, says whether it's Forgejo or Gitea. Never a guess:
+    an unknown host needs a kind named."""
     forge = configured or host_kind(remote.host)
     if forge is None and remote.host in toolconfig.glab_hosts(environ):
         forge = "gitlab"
+    if forge is None and remote.host in toolconfig.tea_hosts(environ):
+        forge = "forgejo"
+    if forge is None and probe is not None and probe(remote.host):
+        forge = "forgejo"
     if forge is None:
         raise ConfigError(_unknown(remote.host))
     if forge not in SUPPORTED:
         named = f" (by {source})" if configured and source else ""
-        raise ConfigError(
-            f"{remote.host} is {forge}{named}, and forge-tracker reads only GitHub and GitLab so "
-            "far (the Forgejo adapter is a later phase)"
-        )
+        raise ConfigError(f"{remote.host} is {forge}{named}, which forge-tracker can't read")
     return forge

@@ -49,8 +49,7 @@ def test_detect_forge_order():
     with pytest.raises(ConfigError, match="set forge:"):
         detect.detect_forge(ghe, None)
     assert detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None, environ={}) == "gitlab"
-    with pytest.raises(ConfigError, match="only GitHub and GitLab so far"):
-        detect.detect_forge(ghe, "forgejo")
+    assert detect.detect_forge(ghe, "forgejo", environ={}) == "forgejo"
 
 
 GLAB_CONFIG = """\
@@ -132,11 +131,66 @@ def test_tracker_forge_wins_over_the_config_and_the_host():
     assert named == "github" and source.startswith("forge: in ")
 
 
-def test_tracker_forge_names_its_source_when_unsupported():
+def test_tracker_forge_gitea_reads_as_forgejo():
     remote, named, source = _locate(**{"tracker.forge": "gitea"})
     assert named == "forgejo"
-    with pytest.raises(ConfigError, match=r"is forgejo \(by git config tracker.forge\)"):
-        detect.detect_forge(remote, named, source)
+    assert detect.detect_forge(remote, named, source, environ={}) == "forgejo"
+
+
+TEA_CONFIG = """\
+logins:
+- name: codeberg
+  url: https://codeberg.org
+  token: tea-token-codeberg
+  default: true
+  user: me
+- name: work
+  url: "https://git.acme.test/forgejo"
+  token: tea-token-work
+preferences:
+  editor: false
+"""
+
+
+def test_tea_logins_and_the_login_for_a_host(tmp_path):
+    (tmp_path / "tea").mkdir()
+    (tmp_path / "tea" / "config.yml").write_text(TEA_CONFIG)
+    environ = {"XDG_CONFIG_HOME": str(tmp_path)}
+    logins = toolconfig.tea_logins(environ)
+    assert [(l["name"], l["url"], l["token"]) for l in logins] == [
+        ("codeberg", "https://codeberg.org", "tea-token-codeberg"),
+        ("work", "https://git.acme.test/forgejo", "tea-token-work"),
+    ]
+    assert toolconfig.tea_hosts(environ) == {"codeberg.org", "git.acme.test"}
+    assert toolconfig.tea_login("git.acme.test", None, environ)["name"] == "work"
+    assert toolconfig.tea_login("other.test", None, environ) is None
+    # Indented lists read the same.
+    (tmp_path / "tea" / "config.yml").write_text(
+        "logins:\n    - name: x\n      url: https://x.test\n      token: t\n"
+    )
+    assert toolconfig.tea_hosts(environ) == {"x.test"}
+
+
+def test_a_host_tea_has_a_login_for_is_forgejo_and_so_is_one_the_probe_finds(tmp_path):
+    (tmp_path / "tea").mkdir()
+    (tmp_path / "tea" / "config.yml").write_text(TEA_CONFIG)
+    environ = {"XDG_CONFIG_HOME": str(tmp_path)}
+    assert detect.detect_forge(detect.Remote("codeberg.org", "a/b"), None, environ=environ) == (
+        "forgejo"
+    )
+    probed = []
+
+    def probe(host):
+        probed.append(host)
+        return host == "git.example.net"
+
+    remote = detect.Remote("git.example.net", "a/b")
+    assert detect.detect_forge(remote, None, environ={}, probe=probe) == "forgejo"
+    with pytest.raises(ConfigError, match="can't tell which forge other.example.net"):
+        detect.detect_forge(detect.Remote("other.example.net", "a/b"), None, {}, probe=probe)
+    # The probe runs only when nothing else could tell.
+    detect.detect_forge(detect.Remote("github.com", "a/b"), None, environ={}, probe=probe)
+    assert probed == ["git.example.net", "other.example.net"]
 
 
 def test_tracker_web_path_is_split_by_kind():

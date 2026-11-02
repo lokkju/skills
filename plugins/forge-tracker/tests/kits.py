@@ -5,7 +5,7 @@ over it. A scenario is written once; every forge's adapter must read it back the
 from __future__ import annotations
 
 from conftest import TOKEN, World, response
-from forge_tracker.forges import github, gitlab
+from forge_tracker.forges import forgejo, github, gitlab
 from forge_tracker.transport import ReadTransport
 
 # A conflict scenario in each forge's words. "settling" is the moment right after the target
@@ -309,4 +309,154 @@ class GitLabKit:
         world.route(f"{self.P}/repository/tags", [{"name": t} for t in tags])
 
 
-KITS = [GitHubKit(), GitLabKit()]
+FORGEJO_TOKEN = "f0rgejo5ecret0token1234567890abcdef"
+FORGEJO_MERGEABLE = {"yes": False, "no": True, "unknown": None, "settling": None}
+FORGEJO_STATUS = {"success": "success", "failure": "failure", None: None}
+
+
+class ForgejoKit:
+    name = "forgejo"
+    change_sigil = "#"
+    secret = FORGEJO_TOKEN  # the token in use, hidden wherever an error echoes it
+    R = "/api/v1/repos/acme/widgets"
+
+    def world(self):
+        return World()
+
+    def adapter(self, world, page_cap=50):
+        t = ReadTransport(
+            api_base="https://code.example.org/api/v1",
+            http=world,
+            token=FORGEJO_TOKEN,
+            page_cap=page_cap,
+            auth_scheme=forgejo.AUTH_SCHEME,
+            page_size_param="limit",
+            page_size=forgejo.PAGE_SIZE,
+        )
+        return forgejo.Forgejo(t, "acme/widgets")
+
+    def user(self, world, login, bot):
+        world.route("/api/v1/user", {"login": f"{login}[bot]" if bot == "type" else login})
+
+    def _issue(self, spec):
+        raw = _rest_issue_common(spec)
+        milestone = spec.get("milestone")
+        raw.update(
+            number=spec["number"],
+            id=1000 + spec["number"],
+            state=spec.get("state", "open"),
+            labels=[{"name": n} for n in spec.get("labels", ())],
+            assignees=[{"login": n} for n in spec.get("assignees", ())] or None,
+            milestone={"title": milestone[0], "due_on": milestone[1] + "T00:00:00Z"}
+            if milestone
+            else None,
+            user={"login": spec.get("author", "someone")},
+            html_url=f"https://code.example.org/acme/widgets/issues/{spec['number']}",
+            pull_request=None,
+        )
+        return raw
+
+    def issues(self, world, specs):
+        world.route(f"{self.R}/issues", [self._issue(s) for s in specs])
+
+    def failing_issues(self, world, status, message):
+        world.route(f"{self.R}/issues", {"message": message}, status=status)
+
+    def endless_issues(self, world):
+        def endless(url):
+            return response(
+                [self._issue({"number": 1})],
+                headers={
+                    "Link": f'<https://code.example.org{self.R}/issues?page=2&limit=50>; rel="next"'
+                },
+            )
+
+        world.route(f"{self.R}/issues", endless)
+
+    def _pr(self, spec):
+        n = spec["number"]
+        return {
+            "number": n,
+            "id": 2000 + n,
+            "title": f"change {n}",
+            "body": " ".join(f"Closes #{i}" for i in spec.get("closes", ())),
+            "state": "closed" if spec.get("merged") else "open",
+            "draft": spec.get("draft", False),
+            "mergeable": FORGEJO_MERGEABLE[spec.get("conflicts", "no")],
+            "merged": bool(spec.get("merged")),
+            "merged_at": spec.get("merged"),
+            "merge_commit_sha": spec.get("sha"),
+            "user": {"login": spec.get("author", "me")},
+            "assignees": [{"login": a} for a in spec.get("assignees", ())],
+            "requested_reviewers": [{"login": r} for r in spec.get("reviewers", ())],
+            "head": {"ref": spec.get("branch", f"feat/{n}"), "sha": f"head{n}"},
+            "base": {"ref": "main"},
+            "created_at": "2026-10-11T00:00:00Z",
+            "updated_at": spec.get("updated", "2026-10-12T00:00:00Z"),
+            "html_url": f"https://code.example.org/acme/widgets/pulls/{n}",
+        }
+
+    def changes(self, world, specs):
+        world.route(f"{self.R}/pulls", [self._pr(s) for s in specs])
+        for s in specs:
+            state = FORGEJO_STATUS[s.get("pipeline")]
+            world.route(
+                f"{self.R}/commits/head{s['number']}/status",
+                {"state": state or "", "total_count": 1 if state else 0, "statuses": []},
+            )
+            world.route(f"{self.R}/pulls/{s['number']}/reviews", [])
+
+    def merged(self, world, specs):
+        world.route(f"{self.R}/pulls", [self._pr(s) for s in specs])
+
+    def links(self, world, links):
+        blocked = sorted({b for b, *_ in links})
+        world.route(f"{self.R}/issues", [self._issue({"number": n}) for n in blocked])
+        for n in blocked:
+            world.route(
+                f"{self.R}/issues/{n}/dependencies",
+                [
+                    dict(
+                        self._issue({"number": blocker, "state": "open" if is_open else "closed"}),
+                        repository={"full_name": project or "acme/widgets"},
+                    )
+                    for b, blocker, is_open, project in links
+                    if b == n
+                ],
+            )
+
+    def run(self, world, conclusion, jobs):
+        world.route(
+            f"{self.R}/actions/runs",
+            {
+                "workflow_runs": [
+                    {
+                        "id": 100,
+                        "display_title": "CI",
+                        "event": "push",
+                        "head_branch": "main",
+                        "status": "completed",
+                        "conclusion": conclusion,
+                        "run_attempt": 1,
+                        "created_at": "2026-10-12T00:00:00Z",
+                    }
+                ]
+                if conclusion
+                else [],
+                "total_count": 1 if conclusion else 0,
+            },
+        )
+        world.route(
+            f"{self.R}/actions/runs/100/jobs",
+            {"jobs": [{"name": n, "conclusion": c, "run_attempt": 1} for n, c in jobs]},
+        )
+
+    def releases(self, world, releases, tags):
+        world.route(
+            f"{self.R}/releases",
+            [{"tag_name": t, "published_at": d, "draft": False} for t, d in releases],
+        )
+        world.route(f"{self.R}/tags", [{"name": t} for t in tags])
+
+
+KITS = [GitHubKit(), GitLabKit(), ForgejoKit()]
