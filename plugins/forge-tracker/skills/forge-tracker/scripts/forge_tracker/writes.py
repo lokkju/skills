@@ -402,6 +402,8 @@ class Writer:
     # anything is sent, with or without a wrapper, and are refused when they aren't set.
     issue_ref: Optional[Callable[[int, Optional[str]], IssueRef]] = None
     blocked_by: Optional[Callable[[int], Sequence[Link]]] = None
+    # Why this forge has no writer of its own (it isn't GitHub), said when there's no wrapper.
+    unsupported: Optional[str] = None
 
     def _new_label(self, name: str) -> None:
         if self.existing_labels is None:
@@ -454,7 +456,7 @@ class Writer:
                 detail = self._wrapped(op, checked)
             else:
                 if self.forge is None:
-                    raise WriteRefused("no forge writer is set up")
+                    raise WriteRefused(self.unsupported or "no forge writer is set up")
                 detail = getattr(self.forge, op.replace("-", "_"))(checked)
             result = Result(op, "written", detail, via)
         except WriteRefused as error:

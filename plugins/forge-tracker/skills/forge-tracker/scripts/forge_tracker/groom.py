@@ -203,6 +203,9 @@ _READ_NAMES = {
 }
 
 
+FORGE_NAMES = {"github": "GitHub", "gitlab": "GitLab", "forgejo": "Forgejo"}
+
+
 def _needs(f: Findings, check: str, reads: Mapping[str, Any], *names: str) -> bool:
     """True when every read the check needs succeeded; otherwise the check FAILED with the
     first failed read named."""
@@ -222,7 +225,7 @@ def _day(value: Optional[datetime]) -> str:
     return value.strftime("%Y-%m-%d") if value else "?"
 
 
-def check_merged(f: Findings, reads: Mapping[str, Any]) -> None:
+def check_merged(f: Findings, reads: Mapping[str, Any], forge: str = "github") -> None:
     """Merged but still open: a merged change with a real closing reference (D22), merged into
     the default branch, its merge commit verified on that branch."""
     if not _needs(f, "merged", reads, "repo", "closing"):
@@ -235,9 +238,8 @@ def check_merged(f: Findings, reads: Mapping[str, Any]) -> None:
     for number in sorted(by_issue):
         verified = None
         for ref in sorted(by_issue[number], key=lambda r: (r.merged_at or _EPOCH, r.change)):
-            change = (
-                f"{ref.change_project}#{ref.change}" if ref.change_project else f"#{ref.change}"
-            )
+            cref = refs.change_ref(forge, ref.change)
+            change = f"{ref.change_project}{cref}" if ref.change_project else cref
             if ref.change_project:
                 f.unsure(
                     "merged",
@@ -279,6 +281,7 @@ def check_merged(f: Findings, reads: Mapping[str, Any]) -> None:
             verified = verified or ref
         if verified is not None:
             title = f' "{verified.title}"' if verified.title else ""
+            vref = refs.change_ref(forge, verified.change)
             f.propose(
                 "merged",
                 f"close #{number}",
@@ -287,17 +290,18 @@ def check_merged(f: Findings, reads: Mapping[str, Any]) -> None:
                     "issue": number,
                     "change": verified.change,
                     "comment": (
-                        f"Closing: merged #{verified.change}{title} has a closing reference to "
+                        f"Closing: merged {vref}{title} has a closing reference to "
                         f"this issue, and its merge commit {_short(verified.merge_sha)} is on "
                         f"{default}."
                     ),
                 },
-                f"merged #{verified.change}{title} closes it, "
-                f"{_short(verified.merge_sha)} is on {default}",
+                f"merged {vref}{title} closes it, {_short(verified.merge_sha)} is on {default}",
             )
 
 
-def check_named(f: Findings, reads: Mapping[str, Any], project: Optional[str] = None) -> None:
+def check_named(
+    f: Findings, reads: Mapping[str, Any], project: Optional[str] = None, forge: str = "github"
+) -> None:
     """A merged change that names an open issue only in its title or branch, with no closing
     reference to it, goes to the unclear bucket (D22), never to proposals."""
     if not _needs(f, "named", reads, "merged", "issues", "closing"):
@@ -319,7 +323,8 @@ def check_named(f: Findings, reads: Mapping[str, Any], project: Optional[str] = 
             f.unsure(
                 "named",
                 f"#{number}",
-                f"#{number} named in the {where} of merged #{change.number}, no closing reference",
+                f"#{number} named in the {where} of merged "
+                f"{refs.change_ref(forge, change.number)}, no closing reference",
             )
 
 
@@ -595,6 +600,7 @@ def check_branches(
     stale: timedelta,
     now: datetime,
     keep: tuple[str, ...] = KEEP_BRANCHES,
+    forge: str = "github",
 ) -> None:
     """A branch with no open PR and every commit on the default branch is a delete proposal.
     One with commits the default branch lacks is unclear when it's idle past the stale age or is
@@ -613,15 +619,18 @@ def check_branches(
         if any(fnmatch.fnmatchcase(branch.name, pattern) for pattern in keep):
             continue
         merged = (
-            f", branch of merged #{merged_from[branch.name]}" if branch.name in merged_from else ""
+            f", branch of merged {refs.change_ref(forge, merged_from[branch.name])}"
+            if branch.name in merged_from
+            else ""
         )
+        word = refs.change_word(forge)
         if branch.ahead_by == 0:
             f.propose(
                 "branches",
                 f"delete-branch {branch.name}",
                 "delete-branch",
                 {"branch": branch.name, "sha": branch.sha},
-                f"no open PR, 0 commits ahead of {default}{merged}",
+                f"no open {word}, 0 commits ahead of {default}{merged}",
             )
         elif branch.ahead_by is None:
             f.unsure(
@@ -638,19 +647,22 @@ def check_branches(
                 f.unsure(
                     "branches",
                     branch.name,
-                    f"branch {branch.name}: no open PR, {branch.ahead_by} commit"
+                    f"branch {branch.name}: no open {word}, {branch.ahead_by} commit"
                     f"{'s' if branch.ahead_by != 1 else ''} not on {default}{age}{merged}",
                 )
 
 
-def check_changes(f: Findings, reads: Mapping[str, Any], stale: timedelta, now: datetime) -> None:
+def check_changes(
+    f: Findings, reads: Mapping[str, Any], stale: timedelta, now: datetime, forge: str = "github"
+) -> None:
     if not _needs(f, "changes", reads, "changes"):
         return
+    name = FORGE_NAMES.get(forge, forge)
     for change in sorted(reads["changes"].data, key=lambda c: c.number):
-        ref = f"#{change.number}"
+        ref = refs.change_ref(forge, change.number)
         draft = " (draft)" if change.draft else ""
         if change.conflicts == "unknown":
-            f.unsure("changes", ref, f"{ref} conflicts: unknown (GitHub hasn't computed it){draft}")
+            f.unsure("changes", ref, f"{ref} conflicts: unknown ({name} hasn't computed it){draft}")
         elif change.conflicts == "yes":
             f.list("changes", ref, f"{ref} conflicts: yes{draft}: {change.title}")
         idle = now - change.updated
@@ -741,15 +753,15 @@ def build(
 ) -> dict[str, Any]:
     f = Findings()
     stale = timedelta(days=config.stale_days or DEFAULT_STALE_DAYS)
-    check_merged(f, reads)
-    check_named(f, reads, remote.project)
+    check_merged(f, reads, forge)
+    check_named(f, reads, remote.project, forge)
     check_tiers(f, reads, config)
     check_blocked_label(f, reads, config)
     check_closed_blockers(f, reads)
     check_prose_blocks(f, reads, remote.project)
     check_decided(f, reads, config)
-    check_branches(f, reads, stale, now, KEEP_BRANCHES + config.keep_branches)
-    check_changes(f, reads, stale, now)
+    check_branches(f, reads, stale, now, KEEP_BRANCHES + config.keep_branches, forge)
+    check_changes(f, reads, stale, now, forge)
     check_duplicates(f, reads, now)
     check_due_dates(f, reads)
     for n, proposal in enumerate(f.proposals, 1):
@@ -759,6 +771,12 @@ def build(
     setup = config.setup_note(("labels.needs_human", "labels.decision", "labels.blocked"))
     if setup:
         notes.append(setup)
+    if forge != "github" and not config.write_wrapper:
+        notes.append(
+            f"writes: unsupported on {FORGE_NAMES.get(forge, forge)} (forge-tracker writes only "
+            "to GitHub so far), so `groom apply` refuses each proposal; a write_wrapper: in the "
+            "config can make the approved changes instead"
+        )
     if reads["repo"].ok is False:
         f.failed.insert(0, {"part": "repo", "reason": reads["repo"].error})
     return {

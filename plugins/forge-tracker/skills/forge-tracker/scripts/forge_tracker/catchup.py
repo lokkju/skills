@@ -235,9 +235,12 @@ def build(
         if reason not in existing["reasons"]:
             existing["reasons"].append(reason)
 
+    def cref(number: int) -> str:
+        return refs.change_ref(forge, number)
+
     def change_entry(c: Change) -> dict[str, Any]:
         return {
-            "ref": f"#{c.number}",
+            "ref": cref(c.number),
             "kind": "change",
             "title": c.title,
             "updated": iso(c.updated),
@@ -258,25 +261,26 @@ def build(
 
     if reads["mentions"].ok:
         for m in reads["mentions"].data:
+            ref = cref(m.number) if m.is_change else f"#{m.number}"
             entry = {
-                "ref": f"#{m.number}",
+                "ref": ref,
                 "kind": "change" if m.is_change else "issue",
                 "title": m.title,
                 "updated": iso(m.updated),
                 "url": m.url,
             }
-            add(f"#{m.number}", entry, "mentioned", True)
+            add(ref, entry, "mentioned", True)
     changes_by_number: dict[int, Change] = {}
     if reads["open_changes"].ok and login:
         for c in reads["open_changes"].data:
             changes_by_number[c.number] = c
             recent = c.updated >= start
             if login in c.reviewers:
-                add(f"#{c.number}", change_entry(c), "review requested", recent)
+                add(cref(c.number), change_entry(c), "review requested", recent)
             if login in c.assignees:
-                add(f"#{c.number}", change_entry(c), "assigned", recent)
+                add(cref(c.number), change_entry(c), "assigned", recent)
             if yours_to_merge(c, login):
-                add(f"#{c.number}", change_entry(c), "yours to merge", recent)
+                add(cref(c.number), change_entry(c), "yours to merge", recent)
     needs_human, decision = config.label("needs_human"), config.label("decision")
     if reads["open_issues"].ok:
         for i in reads["open_issues"].data:
@@ -314,7 +318,7 @@ def build(
         groups: dict[Optional[int], list[dict[str, Any]]] = {}
         for c in sorted(reads["merged"].data, key=lambda c: c.merged_at or c.updated):
             entry = {
-                "ref": f"#{c.number}",
+                "ref": cref(c.number),
                 "title": c.title,
                 "branch": c.branch,
                 "merged_at": iso(c.merged_at) if c.merged_at else None,
@@ -514,7 +518,8 @@ def render(report: dict[str, Any], tz: Optional[tzinfo] = None) -> str:
             for c in changes:
                 lines.append(f"  (no issue) {c['ref']} {c['title']}")
         else:
-            count = f"{len(changes)} PR{'s' if len(changes) != 1 else ''}"
+            word = refs.change_word(report.get("forge"))
+            count = f"{len(changes)} {word}{'s' if len(changes) != 1 else ''}"
             lines.append(f"  {group['issue']}  {count}: {listed}")
     if merged["changelog"]:
         n = len(merged["changelog"])

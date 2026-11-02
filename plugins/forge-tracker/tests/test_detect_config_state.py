@@ -48,9 +48,8 @@ def test_detect_forge_order():
     assert detect.detect_forge(ghe, "github") == "github"
     with pytest.raises(ConfigError, match="set forge:"):
         detect.detect_forge(ghe, None)
-    with pytest.raises(ConfigError, match="only GitHub so far"):
-        detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None)
-    with pytest.raises(ConfigError, match="only GitHub so far"):
+    assert detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None, environ={}) == "gitlab"
+    with pytest.raises(ConfigError, match="only GitHub and GitLab so far"):
         detect.detect_forge(ghe, "forgejo")
 
 

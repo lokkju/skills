@@ -29,6 +29,18 @@ HASH_REF = re.compile(r"(?<![\w/])#(\d+)\b(?!\.\d)")
 _PROJECT_REF = re.compile(r"(?<![\w/.-])([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#(\d+)\b(?!\.\d)")
 _GH_REF = re.compile(r"(?<![\w/.-])GH-(\d+)\b(?![.-]\d)", re.IGNORECASE)
 
+
+def change_ref(forge: Optional[str], number: int) -> str:
+    """A change written the forge's way: `!N` for a GitLab merge request, `#N` for a pull request
+    on GitHub and Forgejo, where issues and pull requests share one run of numbers."""
+    return f"!{number}" if forge == "gitlab" else f"#{number}"
+
+
+def change_word(forge: Optional[str]) -> str:
+    """What the forge calls a change: MR on GitLab, PR elsewhere."""
+    return "MR" if forge == "gitlab" else "PR"
+
+
 # A date as dashed, dotted or underscored parts, with an optional build counter after it.
 _DATE = re.compile(r"(?<![\d.])\d{4}[-._]\d{1,2}[-._]\d{1,2}(?:[-._]\d+)?(?![\d.])")
 # Words that say the number after them is an issue.

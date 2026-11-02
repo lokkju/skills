@@ -16,9 +16,9 @@ from typing import Any, Callable, Optional, TextIO
 
 from . import catchup, config, detect, groom, labelsetup, state, workspace, writes
 from . import next as next_
-from .forges import github
+from .forges import github, gitlab
 from .model import ConfigError, ForgeError, attempt, iso
-from .transport import Http, ReadTransport, RecordingHttp, gh_token, urllib_http
+from .transport import Http, ReadTransport, RecordingHttp, gh_token, glab_http, urllib_http
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
 
@@ -44,8 +44,10 @@ def open_forge(
     environ: Mapping[str, str] = os.environ,
 ) -> Context:
     loaded = config.load(repo_dir)
-    remote, forge = detect.resolve(repo_dir, loaded.forge, run)
+    remote, forge = detect.resolve(repo_dir, loaded.forge, run, environ)
     cfg = labelsetup.with_decline(loaded, remote, environ)
+    if forge == "gitlab":
+        return _open_gitlab(repo_dir, remote, cfg, http, run, record)
     token = gh_token(remote.host, run)
     inner = http or urllib_http(cfg.ca_file)
     recorder = RecordingHttp(inner, [token]) if record else None
@@ -59,6 +61,27 @@ def open_forge(
     )
     adapter = github.GitHub(transport, remote.project)
     return Context(repo_dir, remote, cfg, forge, adapter, recorder, inner, token)
+
+
+def _open_gitlab(
+    repo_dir: str,
+    remote: detect.Remote,
+    cfg: config.Config,
+    http: Optional[Http],
+    run: Callable[..., Any],
+    record: bool,
+) -> Context:
+    """GitLab reads go through `glab api`, which holds the login and the pinned CA; no token
+    passes through forge-tracker. `api_base:` names a self-hosted API (a subpath) explicitly."""
+    default_base = gitlab.default_api_base(remote.host)
+    api_base = (cfg.api_base or default_base).rstrip("/")
+    inner = http or glab_http(remote.host, default_base, run)
+    recorder = RecordingHttp(inner) if record else None
+    transport = ReadTransport(api_base=api_base, http=recorder or inner)
+    adapter = gitlab.GitLab(
+        transport, remote.project, blocking=cfg.blocking, blocked_label=cfg.label("blocked")
+    )
+    return Context(repo_dir, remote, cfg, "gitlab", adapter, recorder, inner, None)
 
 
 def _json_default(value: Any) -> Any:
@@ -377,7 +400,7 @@ def make_writer(
     """The write layer for this repo: the write-wrapper when the config sets one, and otherwise
     GitHub's REST API through the write transport, which nothing but writes.py builds on."""
     forge = None
-    if not ctx.config.write_wrapper:
+    if not ctx.config.write_wrapper and ctx.forge == "github":
         api_base, _ = github.endpoints(ctx.remote.host, ctx.config.api_base)
         transport = writes.WriteTransport(
             api_base=api_base,
@@ -398,6 +421,12 @@ def make_writer(
         existing_labels=lambda: [label.name for label in ctx.adapter.labels()],
         issue_ref=lambda number, project: ctx.adapter.issue_ref(number, project),
         blocked_by=ctx.adapter.blocked_by,
+        unsupported=None
+        if ctx.forge == "github"
+        else (
+            f"forge-tracker writes only to GitHub so far, not {ctx.forge}; a write_wrapper: in "
+            f"{config.PATH} can do the write instead"
+        ),
     )
 
 

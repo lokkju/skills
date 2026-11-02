@@ -14,17 +14,20 @@ come only from the config file: git config holds the web address, not the API's.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import urllib.parse
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
+from . import toolconfig
 from .model import ConfigError
 
 FORGES = ("github", "gitlab", "forgejo")
 # Forges whose adapter is built. The others are recognised and named in the error.
-SUPPORTED = ("github",)
+SUPPORTED = ("github", "gitlab")
 # What `tracker.forge` takes. Gitea is read as Forgejo, whose URLs and API it shares.
 KINDS = {"github": "github", "gitlab": "gitlab", "forgejo": "forgejo", "gitea": "forgejo"}
 OVERRIDE_FORGE, OVERRIDE_WEB = "tracker.forge", "tracker.web"
@@ -176,11 +179,14 @@ def locate(
 
 
 def resolve(
-    repo_dir: str, configured: Optional[str], run: Callable[..., Any] = subprocess.run
+    repo_dir: str,
+    configured: Optional[str],
+    run: Callable[..., Any] = subprocess.run,
+    environ: Mapping[str, str] = os.environ,
 ) -> tuple[Remote, str]:
     """`locate`, then `detect_forge`: the repo and the forge forge-tracker reads it through."""
     remote, named, source = locate(repo_dir, configured, run)
-    return remote, detect_forge(remote, named, source)
+    return remote, detect_forge(remote, named, source, environ)
 
 
 def _unknown(host: str) -> str:
@@ -190,20 +196,24 @@ def _unknown(host: str) -> str:
     )
 
 
-def detect_forge(remote: Remote, configured: Optional[str], source: str = "") -> str:
-    """The named kind when there is one (`tracker.forge`, else `forge:`), else the host. Never a
-    guess.
-
-    The glab host check and the unauthenticated /api/v1/version probe join this when the GitLab
-    and Forgejo adapters do; until then an unknown host needs a kind named.
-    """
+def detect_forge(
+    remote: Remote,
+    configured: Optional[str],
+    source: str = "",
+    environ: Mapping[str, str] = os.environ,
+) -> str:
+    """The named kind when there is one (`tracker.forge`, else `forge:`), else the host: the
+    built-in host rules, then a host glab is set up for (its config file, read without running
+    it) is GitLab. Never a guess: an unknown host needs a kind named."""
     forge = configured or host_kind(remote.host)
+    if forge is None and remote.host in toolconfig.glab_hosts(environ):
+        forge = "gitlab"
     if forge is None:
         raise ConfigError(_unknown(remote.host))
     if forge not in SUPPORTED:
         named = f" (by {source})" if configured and source else ""
         raise ConfigError(
-            f"{remote.host} is {forge}{named}, and forge-tracker reads only GitHub so far "
-            "(GitLab and Forgejo adapters are later phases)"
+            f"{remote.host} is {forge}{named}, and forge-tracker reads only GitHub and GitLab so "
+            "far (the Forgejo adapter is a later phase)"
         )
     return forge

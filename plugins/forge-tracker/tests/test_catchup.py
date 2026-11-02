@@ -508,10 +508,10 @@ def test_usage_errors(env, capsys):
 
 
 def test_detection_failure_is_a_usage_error(env, capsys):
-    run = FakeRun(origin="git@gitlab.com:group/project.git")
+    run = FakeRun(origin="git@code.example.org:group/project.git")
     code = cli.main(["--repo", env["repo"], "catchup"], http=world(), run=run, now=NOW)
     assert code == 2
-    assert "only GitHub so far" in capsys.readouterr().err
+    assert "can't tell which forge code.example.org runs" in capsys.readouterr().err
 
 
 def test_tracker_web_fixes_a_remote_detection_cant_read(env, capsys):
