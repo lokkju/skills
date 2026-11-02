@@ -135,6 +135,9 @@ rank them before presenting anything:
    }
    ```
 
+   On GitLab a merge request is `!N` and an issue `#N`, two separate runs of numbers: write each
+   MR as the facts do (`{"ref": "!33", ...}` in `merge` or `not_yet`), never as `#33`.
+
    - **queue**: the `person-only` items in the order the user should take them. Start from the
      facts' order (most agent-ready items unblocked first) and move items only for a reason you
      can state (a due date, a tier).

@@ -667,7 +667,7 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forge-tracker",
         description=(
-            "Read a repo's forge (GitHub so far) and report on it. Every command only reads, "
+            "Read a repo's forge (GitHub and GitLab so far) and report on it. Every command only reads, "
             "except `write`, `link`, `groom apply` and `labels create`, which run named write "
             "operations."
         ),
