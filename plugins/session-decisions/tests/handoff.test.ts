@@ -112,6 +112,33 @@ describe('labels the queue does not hold', () => {
   test('a label in a hand-off line covers it only when the queue holds it', () => {
     expect(handoffs("You'll need to merge #12 (A1).", [], { known })).toEqual([])
     expect(handoffs("You'll need to merge #12 (A7).", [], { known })).toEqual(["You'll need to merge #12 (A7)."])
+    expect(unknownLabels("You'll need to merge #12 (A7).", known)).toEqual([])
+  })
+
+  test('a label quoted while describing an issue, a PR, a link or another session is not flagged', () => {
+    const reply = [
+      'Tests: the agent added tests for the exact D123 shape from the issue.',
+      '- [skills#129](https://github.com/lokkju/skills/issues/129): the wrap-up nudge misread an answer; D123 sent a nested note about four-digit years instead of the recommendation.',
+      'Fixed in #140, where its A9 never reached the queue.',
+      'The other session had D14 open on the same question.',
+    ].join('\n')
+    expect(handoffs(reply, [], { known })).toEqual([])
+    expect(unknownLabels(reply, known)).toEqual([])
+  })
+
+  test('a label far above the session’s own reads as another queue’s', () => {
+    const many = Array.from({ length: 52 }, (_, i) => `D${i + 1}`)
+    expect(unknownLabels('D123 sent a nested note about years.', many)).toEqual([])
+    expect(unknownLabels('D60 covers the rename.', many)).toEqual(['D60'])
+  })
+
+  test('a label the session writes as its own is still flagged when unqueued', () => {
+    expect(handoffs('D7: merge X', [], { known })).toEqual(['D7: merge X'])
+    expect(unknownLabels('D7: merge X', known)).toEqual(['D7'])
+    // Leading the line, it is the session's even beside a reference.
+    expect(unknownLabels('- A5: merge [#12](https://github.com/o/r/pull/12)', known)).toEqual(['A5'])
+    // A reference in another sentence of the line doesn't excuse it.
+    expect(unknownLabels('Merged #12. I queued the rename as D8.', known)).toEqual(['D8'])
   })
 })
 
@@ -242,6 +269,8 @@ test('the nudge quotes the lines and says to ignore a false match', () => {
 
 test('the nudge says a named label was never created, and to make the tool call first', () => {
   const text = nudge(['(A24 is in the queue)'], ['A24'])
-  expect(text).toContain('Your reply named A24, but no such item is in the queue')
+  expect(text).toContain("Your reply named A24, but no such item is in this session's queue")
+  expect(text).toContain("If it is one of this session's items, it was never created: create it now")
   expect(text).toContain('make the tool call before writing the sentence that names a label')
+  expect(text).toContain('Ignore a label you quoted from an issue, a PR, a document or another session')
 })

@@ -9,7 +9,8 @@
 // agent or document will say, or talking about this check itself, and treats a line as queued
 // when it names a label in the queue or matches an item already there. A label the reply names
 // that isn't in the queue at all ("A24 is in the queue") is flagged on its own: it is the reply
-// asserting an item the assistant never created.
+// asserting an item the assistant never created. A label quoted while describing somewhere else
+// (an issue, a PR, a link, another session's queue) isn't the session's own, so it isn't flagged.
 
 import type { Item } from '../types'
 
@@ -79,6 +80,13 @@ const FENCE = /^\s*(?:```|~~~)/
 // straight single quotes that open and close a span rather than an apostrophe.
 const QUOTED = /"[^"\n]*"|“[^”\n]*”|‘[^’\n]*’|`[^`\n]*`|(?<![\w'])'[^'\n]+'(?![\w'])/g
 const REF = /(?:[\w.-]+\/[\w.-]+)?[#!]\d+|https?:\/\/[^\s)\]>]+/g
+// A sentence that says where it is quoting from: "from the issue", "in that PR", "the other session".
+const ELSEWHERE =
+  /\b(?:from|in|of|per) (?:the|that|this|its|their|another|the other|other) (?:[\w-]+ )?(?:issues?|PRs?|MRs?|pull requests?|merge requests?|tickets?|threads?|transcripts?|sessions?|bug reports?|comments?|commits?)\b|\b(?:another|the other|other|that|an earlier|a previous|the previous|the last) session\b/i
+// A label this far above the highest of its letter the session has used reads as another queue's.
+const FOREIGN_GAP = 50
+// A label leading its line or bullet ("D7: merge it", "**A3** (...)"): how the session writes its own.
+const LEADING = /^\s*(?:(?:[-*+]|\d+[.)])\s+)?[*_]*([DA]\d{1,3})[*_]*\s*[:(]/
 const STOP = new Set(
   'that this with from have your them they then than when what will would could should there their these those about into once each also just only still need needs here been were which while after before being does done make sure'.split(' '),
 )
@@ -148,6 +156,32 @@ function labelsIn(line: string): string[] {
   return unquoted(line).match(LABELS) ?? []
 }
 
+/** Whether `label` sits far above every label of its letter in `known`, as another queue's would. */
+function far(label: string, known: readonly string[]): boolean {
+  const top = Math.max(0, ...known.filter(other => other[0] === label[0]).map(other => Number(other.slice(1))))
+  return Number(label.slice(1)) > top + FOREIGN_GAP
+}
+
+/**
+ * The labels `line` claims as the session's own: those outside its quoted and code spans, less the
+ * ones quoted while describing somewhere else. A label is taken as someone else's when its bullet,
+ * or its sentence in other lines, holds an issue or PR reference or a link, or says where it quotes
+ * from ("from the issue"), or when it sits far above the session's labels. A label leading the line
+ * ("D7: merge it") is always the session's.
+ */
+function claimedIn(line: string, known: readonly string[]): string[] {
+  const lead = LEADING.exec(line)?.[1]
+  const scopes = LIST_ITEM.test(line) ? [line] : line.split(/(?<=[.!?])\s+/)
+  const claimed: string[] = []
+  for (const scope of scopes) {
+    const elsewhere = refs(scope).length > 0 || ELSEWHERE.test(unquoted(scope))
+    for (const label of labelsIn(scope)) {
+      if (label === lead || (!elsewhere && !far(label, known))) claimed.push(label)
+    }
+  }
+  return claimed
+}
+
 /**
  * Whether an item in the queue already covers the line: one shares a reference (`#12`, `!4`, a
  * URL) with it, or at least half its words, and two or more.
@@ -211,12 +245,12 @@ export function handoffs(reply: string, queue: readonly Item[], options: Options
       section = true
       continue
     }
-    const named = labelsIn(line)
-    if (known && named.some(label => !known.includes(label))) {
+    if (known && claimedIn(line, known).some(label => !known.includes(label))) {
       found.push(text)
     } else {
       const candidate = (section && isItem) || handsOff(line)
-      const labelled = known ? named.length > 0 : LABEL.test(line)
+      // A label quoted from elsewhere doesn't queue the line; only one the queue holds does.
+      const labelled = known ? labelsIn(line).some(label => known.includes(label)) : LABEL.test(line)
       if (!candidate || labelled || covered(text, queue)) continue
       found.push(text)
     }
@@ -225,10 +259,10 @@ export function handoffs(reply: string, queue: readonly Item[], options: Options
   return found
 }
 
-/** The labels `reply` names, outside code and quotes, that aren't in `known`. */
+/** The labels `reply` claims as the session's, outside code, quotes and descriptions of elsewhere, that aren't in `known`. */
 export function unknownLabels(reply: string, known: readonly string[]): string[] {
   const missing = new Set<string>()
-  for (const raw of prose(reply)) for (const label of labelsIn(raw)) if (!known.includes(label)) missing.add(label)
+  for (const raw of prose(reply)) for (const label of claimedIn(raw.trim(), known)) if (!known.includes(label)) missing.add(label)
   return [...missing]
 }
 
@@ -238,7 +272,7 @@ export function nudge(lines: readonly string[], missing: readonly string[] = [])
     missing.length === 0
       ? []
       : [
-          `Your reply named ${missing.join(', ')}, but ${missing.length === 1 ? 'no such item is' : 'none of those are'} in the queue: the item was never created. Create it now (the hook picks its label, which may differ, so correct the reference in your next message), and from here on make the tool call before writing the sentence that names a label.`,
+          `Your reply named ${missing.join(', ')}, but ${missing.length === 1 ? 'no such item is' : 'none of those are'} in this session's queue. If ${missing.length === 1 ? 'it is one' : 'one is'} of this session's items, it was never created: create it now (the hook picks its label, which may differ, so correct the reference in your next message), and from here on make the tool call before writing the sentence that names a label. Ignore a label you quoted from an issue, a PR, a document or another session; don't create an item for it.`,
         ]
   return [
     'session-decisions: your last reply handed these to the user without a queue entry:',
