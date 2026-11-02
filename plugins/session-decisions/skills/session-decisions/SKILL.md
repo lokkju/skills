@@ -35,13 +35,28 @@ ACTION: put the client secret in Vault so the build can restart [no link]
 
 with the path, the reason and any caveat in the description.
 
+When the step is a command for the user to run, write the steps to a script and hand over one
+short line that runs it: a file in the session's scratch directory, or a task in the repo's task
+runner (a mise task, a make target), wherever the user will run it. If a script doesn't fit, keep
+every line of the command well under 80 columns, splitting a long one with `\` continuations;
+never hand over one long line. Claude Code wraps a long line in a code block at the pane width,
+and copying from tmux (and from many terminals) turns each wrap into a line break, so the pasted
+command runs in pieces. The item follows the same rule: its subject is one line, so point it at
+the script or keep the command short, and put anything longer in the description, split the same
+way:
+
+```text
+ACTION: run scripts/remove-heartbeat.sh on each host [no link]
+```
+
 Create the item before you write the sentence that names it. Never write `D<n>` or `A<n>` for an
 item you haven't created yet; the hook picks the label, and a label in prose with no item behind
 it is a promise the queue doesn't keep.
 
 A reply that hands the user a step without queuing it ("left for you", "you'll need to", "I can't
 write to Vault for you", "say the word and I'll push"), or names a label the queue doesn't hold,
-gets flagged to the user, and you're reminded on the next turn.
+gets flagged to the user, and you're reminded on the next turn. So does a shell command in a code
+block with a line over 100 columns.
 
 ## Before you ask a question
 
