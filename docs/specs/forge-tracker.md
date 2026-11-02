@@ -39,7 +39,7 @@ plugins/forge-tracker/
   skills/forge-tracker/scripts/forge-tracker   entry point (python3, standard library only)
   skills/forge-tracker/scripts/forge_tracker/
     detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
-    toolconfig.py                 the hosts glab is set up for, read from its config file
+    toolconfig.py                 glab's hosts and tea's logins, read from their config files
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
     labelsetup.py                 first use: a config proposed from the repo's labels, the approved
                                   labels created, a declined offer
@@ -108,9 +108,11 @@ The forge is decided in this order:
    `config.yml` (`$GLAB_CONFIG_DIR`, else `$XDG_CONFIG_HOME/glab-cli`, else
    `~/.config/glab-cli`), or `GITLAB_HOST`. The file is read, not glab run, and no token in it
    is read.
-5. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
-   Forgejo or Gitea. The result is cached per host for a day.
-6. Otherwise the command stops and asks for `forge:` in the config file, or `tracker.forge` for
+5. A host tea has a login for (a `url` in tea's `config.yml`) is Forgejo.
+6. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
+   Forgejo or Gitea. The result is cached per host for a day in `hosts.json`; a host that gave no
+   HTTP answer at all isn't cached.
+7. Otherwise the command stops and asks for `forge:` in the config file, or `tracker.forge` for
    the one clone. It never guesses.
 
 `forge:` is the per-repo default, and `tracker.forge` the per-clone override that wins over it:
@@ -132,7 +134,7 @@ pull requests, `!N` for GitLab merge requests, and `group/project#N` across proj
 | --- | --- | --- | --- |
 | GitHub | `urllib` against REST, and GraphQL where REST needs one call per item | the token from `gh auth token` | system |
 | GitLab | `glab api --include` (REST; GraphQL turned out not to be needed) | `glab auth` | `glab`'s `ca_cert` for the host |
-| Forgejo | `urllib` against `/api/v1` | `FORGEJO_TOKEN`, else the matching login in `tea`'s config | `ca_file:` in the config file |
+| Forgejo | `urllib` against `/api/v1`, `Authorization: token <t>`, pages by `limit` (50) | `FORGEJO_TOKEN`, else the matching login in `tea`'s config | `ca_file:` in the config file |
 
 Forgejo goes through `urllib` and not `tea` because `tea`'s output is meant for terminals and
 covers only part of what's needed; it does no harm to borrow its token. GitHub does the same
@@ -180,7 +182,7 @@ and `has_conflicts: false` until it re-checks, and GitHub's `mergeable: null` is
 | --- | --- | --- | --- |
 | GitHub | `CONFLICTING` / `false` | `MERGEABLE` / `true` | `UNKNOWN` / `null` |
 | GitLab | `detailed_merge_status: conflict`, or a checked status with `has_conflicts: true` | a checked status with `has_conflicts: false` | `unchecked`, `checking`, `preparing`, `approvals_syncing`, `cannot_be_merged_recheck`, or a missing status |
-| Forgejo | `mergeable: false` once confirmed | `mergeable: true` | `mergeable: false` on a PR whose base moved within the last 10 minutes (verify on a live instance) |
+| Forgejo | `mergeable: false` | `mergeable: true` | `mergeable` missing (the API has no "checking" state, so `false` right after the base moves can't be told apart; not measured live) |
 
 `has_conflicts` is read only when the status says the check ran. Every consumer treats
 `unknown` as not clean: `/catchup` prints `conflicts: unknown`, `/next` never marks such a lane
@@ -242,6 +244,45 @@ never re-poll to wait for an answer.
 - Writes aren't built for GitLab: without a `write_wrapper:` every operation is refused with that
   reason, and `/groom`'s report says so. The link checks still read through the adapter before a
   wrapper runs.
+
+### As built on Forgejo (phase 6)
+
+- One adapter for Forgejo and Gitea. The token goes only into `Authorization: token <t>`; lists
+  page by `limit=50` (Forgejo's default maximum) and follow `Link`. An empty list answered as
+  JSON `null`, which Forgejo does, reads as empty.
+- The API base is `api_base:`, else the tea login's URL plus `/api/v1`, else
+  `https://<host>/api/v1`. A remote under a subpath is read as its last two segments.
+- Issues: `GET /issues?type=issues&state=open|all&since=`. Comments: `GET /issues/comments?since=`.
+  Mentions: `GET /repos/issues/search?mentioned=true&state=open&since=&owner=`, kept to this repo.
+- Open PRs: `GET /pulls?state=open`, then per PR `GET /commits/<head>/status` (the combined
+  state; `warning` counts as success, no statuses as no CI) and `GET /pulls/<n>/reviews` (each
+  reviewer's newest non-dismissed approve or request-changes; requested reviewers and no verdict
+  is `review_required`). Draft is the `draft` field or a `WIP:`/`Draft:` title.
+- Merged since: `GET /pulls?state=closed&sort=recentupdate`, read until a PR updated before T.
+  Closing references, for merged changes and for `closing_refs`, are the closing keywords
+  (`close`, `fix`, `resolve` and their forms) in PR bodies, outside code, naming this project;
+  `closing_refs` reads every PR (`state=all`).
+- Blocking: `GET /issues/<n>/dependencies` per open issue, always `native`.
+- CI: `GET /actions/runs` (Gitea's GitHub-shaped runs and Forgejo's own, `status` alone, both
+  read), filtered to the branch and event, jobs from `/actions/runs/<id>/jobs` where that exists.
+  A 404 from the runs API on a repo that does read means the instance has none: the push run
+  falls back to the branch head's combined status, and the scheduled run and the retried jobs
+  raise `Unsupported`. Retried jobs also need `run_attempt`, which only Gitea's shape has.
+- Branches and reachability: `GET /compare/<base>...<head>` (`total_commits`); a merge commit is
+  on the default branch when `<default>...<sha>` has none. Releases turned off (a 404 on a repo
+  that reads) are no releases.
+- Label history is the issue timeline's `label` events (`body: "1"` added, empty removed).
+- `/next`'s fingerprint: the repo, its branches, the open issues (the newest open issue stands in
+  for the newest issue, since the list can't sort by update time), the open PRs with each head's
+  status, and every milestone.
+- Bots are told by name only (`[bot]`, `-bot`, `_bot`).
+
+**Unsupported reads.** `model.Unsupported` is a ForgeError for a read the forge can't answer at
+all; `attempt` marks its `Read` `unsupported`. It isn't `ok`, so nothing takes it for data.
+`/catchup` prints `<part>: unsupported on <Forge> (<reason>)` in Health and doesn't count it as a
+failure (so the marker moves), `--json` lists it under `health.unsupported`, and `smoke` prints
+it the same way. Anywhere else an unsupported read is a FAILED part, so no section reads as
+empty.
 
 ## Writes
 
@@ -902,13 +943,14 @@ with only forge-tracker installed gets every feature here. The same goes for git
   bot detection, native and convention links, and a token in stderr coming out as `***`.
   Fixtures are real responses recorded from the live targets below and scrubbed, stored under
   `tests/fixtures/<forge>/`; CI reads only these, so it stays fast and needs no network.
-- **As built (phase 5).** The contract suite is `tests/test_contract.py`: each scenario is
-  written once and a kit per forge (`tests/kits.py`) puts it in that forge's response shapes.
-  The docker-compose stack doesn't exist yet, so GitLab's report fixtures are a fixture world
-  (`tests/fixtures/gitlab/world.json`) written from GitLab's documented REST shapes, served by
-  route under a subpath `api_base`, with the text each report produces. Its shapes were checked
-  by an unauthenticated read-only run of the adapter against a public gitlab.com project; the
-  reads that need a login (labels, milestones, notes, links, `/user`) haven't run live.
+- **As built (phases 5 and 6).** The contract suite is `tests/test_contract.py`: each scenario
+  is written once and a kit per forge (`tests/kits.py`) puts it in that forge's response shapes;
+  it runs against GitHub, GitLab and Forgejo. The docker-compose stack doesn't exist yet, so
+  GitLab's and Forgejo's report fixtures are fixture worlds (`tests/fixtures/<forge>/world.json`)
+  written from each forge's documented REST shapes, served by route under a subpath `api_base`,
+  with the text each report produces. Their shapes were checked by unauthenticated read-only runs
+  of the adapters against a public gitlab.com project and a public Codeberg repo; the reads that
+  need a login (GitLab's labels, milestones, notes and links; `/user` on both) haven't run live.
 - **Live targets.** GitHub uses a dedicated public repo, `lokkju/forge-tracker-fixtures`, created
   through Pulumi in lokkju/infra and seeded with issues, PRs, labels, milestones and blocking
   links. GitLab CE and Forgejo run from a docker-compose stack in
@@ -957,7 +999,8 @@ Each phase is a releasable PR or two.
    Every report then works on GitLab with no other change. Built without the stack (see
    [Testing](#testing)); recording from it, and GitLab writes, are still to do.
 6. **Forgejo adapter.** Forgejo joins the stack; the same, plus the Forgejo mergeability
-   measurement.
+   measurement. Built without the stack; recording from it, the mergeability measurement and
+   Forgejo writes are still to do.
 7. **Later, not now:** the status pane from #24 that shows the slate's top items, reading only
    the cache.
 

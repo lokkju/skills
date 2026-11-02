@@ -77,6 +77,9 @@ Present it like this:
 3. State every `FAILED (...)` line plainly, with its reason, in the section it belongs to. A
    failed part is not "nothing": never summarize it as empty or quiet.
 4. Say `conflicts: unknown` as unknown, never as clean.
+5. A line `<part>: unsupported on <forge> (...)` (a Forgejo with no Actions runs API has no
+   scheduled run or retried jobs to show) is something that forge can't tell, not a failure and
+   not "none": say it as unsupported, once.
 
 ## When the report has a `setup:` line
 

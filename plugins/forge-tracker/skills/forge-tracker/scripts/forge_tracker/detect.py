@@ -8,7 +8,8 @@ one setting fixes the links in both plugins:
 - `tracker.forge` (github, gitlab, forgejo, or gitea for forgejo) sets the kind.
 
 The kind is `tracker.forge`, else `forge:` in `.claude/forge-tracker.local.md` (the per-repo
-default, committed or not), else the built-in host rules. The API base and any pinned CA still
+default, committed or not), else the built-in host rules, glab's and tea's hosts, and the
+Forgejo version probe. The API base and any pinned CA still
 come only from the config file: git config holds the web address, not the API's.
 """
 
