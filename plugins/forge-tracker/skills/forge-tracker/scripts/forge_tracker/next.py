@@ -1404,7 +1404,8 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         flags.append(f"  blocking cycle: {' -> '.join(cycle + cycle[:1])}")
     for b in report["other_branches"]:
         ahead = f"{b['ahead_by']} ahead" if b["ahead_by"] is not None else "ahead unknown"
-        flags.append(f"  branch {b['name']} has no PR and names no open issue ({ahead})")
+        word = refs.change_word(report.get("forge"))
+        flags.append(f"  branch {b['name']} has no {word} and names no open issue ({ahead})")
     if not issues_failed:
         flags += failure("closing")
         if "closing" in failed:

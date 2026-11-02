@@ -825,7 +825,8 @@ def render(report: Mapping[str, Any], tz: Optional[tzinfo] = None) -> str:
         "" if window["stale_days_set"] else ", the default while stale_days isn't set"
     )
     scope = (
-        f"(merged PRs since {window['merged_since'][:10]}; duplicates among open issues and "
+        f"(merged {refs.change_word(report.get('forge'))}s since {window['merged_since'][:10]}; "
+        "duplicates among open issues and "
         f"those closed since {window['closed_since'][:10]}; {stale})"
     )
     lines = [f"{report['project']} on {report['host']}: {counts}", scope, "", "Proposals"]

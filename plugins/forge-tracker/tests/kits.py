@@ -1,0 +1,312 @@
+"""One kit per forge for the contract suite (test_contract.py): each turns the same normalized
+scenario into that forge's own response shapes, served by conftest.World, and builds the adapter
+over it. A scenario is written once; every forge's adapter must read it back the same way."""
+
+from __future__ import annotations
+
+from conftest import TOKEN, World, response
+from forge_tracker.forges import github, gitlab
+from forge_tracker.transport import ReadTransport
+
+# A conflict scenario in each forge's words. "settling" is the moment right after the target
+# branch moves, when the forge hasn't re-checked yet.
+GITHUB_MERGEABLE = {"yes": "CONFLICTING", "no": "MERGEABLE", "unknown": "UNKNOWN", "settling": None}
+GITLAB_STATUS = {
+    "yes": ("conflict", True),
+    "no": ("mergeable", False),
+    "unknown": ("checking", False),
+    # GitLab says unchecked, with has_conflicts still false, until it re-checks.
+    "settling": ("unchecked", False),
+}
+GITLAB_PIPELINE = {"success": "success", "failure": "failed", None: None}
+
+
+def _rest_issue_common(spec):
+    return {
+        "title": spec.get("title", f"issue {spec['number']}"),
+        "created_at": spec.get("created", "2026-10-11T00:00:00Z"),
+        "updated_at": spec.get("updated", "2026-10-12T00:00:00Z"),
+        "closed_at": spec.get("closed"),
+        "body": spec.get("body", ""),
+    }
+
+
+class GitHubKit:
+    name = "github"
+    change_sigil = "#"
+    secret = TOKEN  # the token the transport sends; an error that echoes it must hide it
+
+    def world(self):
+        return World()
+
+    def adapter(self, world, page_cap=50):
+        t = ReadTransport(
+            api_base="https://api.github.com",
+            http=world,
+            token=TOKEN,
+            graphql_url="https://api.github.com/graphql",
+            page_cap=page_cap,
+        )
+        return github.GitHub(t, "acme/widgets")
+
+    def user(self, world, login, bot):
+        world.route("/user", {"login": login, "type": "Bot" if bot == "type" else "User"})
+
+    def _issue(self, spec):
+        raw = _rest_issue_common(spec)
+        milestone = spec.get("milestone")
+        raw.update(
+            number=spec["number"],
+            state=spec.get("state", "open"),
+            labels=[{"name": n} for n in spec.get("labels", ())],
+            assignees=[{"login": n} for n in spec.get("assignees", ())],
+            milestone={"title": milestone[0], "due_on": milestone[1]} if milestone else None,
+            user={"login": spec.get("author", "someone"), "type": "User"},
+            html_url=f"https://github.com/acme/widgets/issues/{spec['number']}",
+        )
+        return raw
+
+    def issues(self, world, specs):
+        world.route("/repos/acme/widgets/issues", [self._issue(s) for s in specs])
+
+    def failing_issues(self, world, status, message):
+        world.route("/repos/acme/widgets/issues", {"message": message}, status=status)
+
+    def endless_issues(self, world):
+        def endless(url):
+            return response(
+                [self._issue({"number": 1})],
+                headers={
+                    "Link": '<https://api.github.com/repos/acme/widgets/issues?page=2>; rel="next"'
+                },
+            )
+
+        world.route("/repos/acme/widgets/issues", endless)
+
+    def _pr(self, spec):
+        pipeline = spec.get("pipeline")
+        return {
+            "number": spec["number"],
+            "title": f"change {spec['number']}",
+            "url": f"https://github.com/acme/widgets/pull/{spec['number']}",
+            "headRefName": spec.get("branch", f"feat/{spec['number']}"),
+            "isDraft": spec.get("draft", False),
+            "mergeable": GITHUB_MERGEABLE[spec.get("conflicts", "no")],
+            "createdAt": "2026-10-11T00:00:00Z",
+            "updatedAt": spec.get("updated", "2026-10-12T00:00:00Z"),
+            "mergedAt": spec.get("merged"),
+            "author": {"__typename": "User", "login": spec.get("author", "me")},
+            "mergeCommit": {"oid": spec["sha"]} if spec.get("sha") else None,
+            "assignees": {"nodes": [{"login": n} for n in spec.get("assignees", ())]},
+            "reviewRequests": {
+                "nodes": [
+                    {"requestedReviewer": {"__typename": "User", "login": n}}
+                    for n in spec.get("reviewers", ())
+                ]
+            },
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "oid": "abc",
+                            "statusCheckRollup": {"state": pipeline.upper()} if pipeline else None,
+                        }
+                    }
+                ]
+            },
+            "closingIssuesReferences": {
+                "nodes": [
+                    {"number": n, "repository": {"nameWithOwner": "acme/widgets"}}
+                    for n in spec.get("closes", ())
+                ]
+            },
+        }
+
+    def _connection(self, nodes, key="pullRequests"):
+        return {
+            "repository": {
+                key: {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": nodes}
+            }
+        }
+
+    def changes(self, world, specs):
+        world.op("OpenChanges", self._connection([self._pr(s) for s in specs]))
+
+    def merged(self, world, specs):
+        world.op("MergedChanges", self._connection([self._pr(s) for s in specs]))
+
+    def links(self, world, links):
+        by_issue = {}
+        for blocked, blocker, is_open, project in links:
+            by_issue.setdefault(blocked, []).append(
+                {
+                    "number": blocker,
+                    "state": "OPEN" if is_open else "CLOSED",
+                    "repository": {"nameWithOwner": project or "acme/widgets"},
+                }
+            )
+        nodes = [{"number": n, "blockedBy": {"nodes": b}} for n, b in by_issue.items()]
+        world.op("BlockingLinks", self._connection(nodes, key="issues"))
+
+    def run(self, world, conclusion, jobs):
+        world.route(
+            "/repos/acme/widgets/actions/runs",
+            {
+                "workflow_runs": [
+                    {
+                        "id": 100,
+                        "name": "CI",
+                        "event": "push",
+                        "status": "completed",
+                        "conclusion": conclusion,
+                        "run_attempt": 1,
+                        "created_at": "2026-10-12T00:00:00Z",
+                    }
+                ]
+                if conclusion
+                else []
+            },
+        )
+        world.route(
+            "/repos/acme/widgets/actions/runs/100/jobs",
+            {"jobs": [{"name": n, "conclusion": c, "run_attempt": 1} for n, c in jobs]},
+        )
+
+    def releases(self, world, releases, tags):
+        world.route(
+            "/repos/acme/widgets/releases",
+            [{"tag_name": t, "published_at": d, "draft": False} for t, d in releases],
+        )
+        world.route("/repos/acme/widgets/tags", [{"name": t} for t in tags])
+
+
+class GitLabKit:
+    name = "gitlab"
+    change_sigil = "!"
+    secret = "glpat-AbCdEfGhIjKlMnOpQrSt"  # a token shape, hidden by pattern
+    P = "/api/v4/projects/acme%2Fwidgets"
+
+    def world(self):
+        return World().route(self.P, {"id": 42, "default_branch": "main"})
+
+    def adapter(self, world, page_cap=50):
+        t = ReadTransport(api_base="https://gitlab.com/api/v4", http=world, page_cap=page_cap)
+        return gitlab.GitLab(t, "acme/widgets")
+
+    def user(self, world, login, bot):
+        world.route(
+            "/api/v4/user",
+            {"username": login, "bot": bot == "type"},
+        )
+
+    def _issue(self, spec):
+        raw = _rest_issue_common(spec)
+        milestone = spec.get("milestone")
+        due = milestone[1][:10] if milestone and milestone[1] else None
+        raw.update(
+            iid=spec["number"],
+            project_id=42,
+            state="opened" if spec.get("state", "open") == "open" else "closed",
+            labels=list(spec.get("labels", ())),
+            assignees=[{"username": n} for n in spec.get("assignees", ())],
+            milestone={"title": milestone[0], "due_date": due} if milestone else None,
+            author={"username": spec.get("author", "someone")},
+            web_url=f"https://gitlab.com/acme/widgets/-/issues/{spec['number']}",
+            description=raw.pop("body"),
+        )
+        return raw
+
+    def issues(self, world, specs):
+        world.route(f"{self.P}/issues", [self._issue(s) for s in specs])
+
+    def failing_issues(self, world, status, message):
+        world.route(f"{self.P}/issues", {"message": message}, status=status)
+
+    def endless_issues(self, world):
+        def endless(url):
+            return response([self._issue({"number": 1})], headers={"X-Next-Page": "2"})
+
+        world.route(f"{self.P}/issues", endless)
+
+    def _mr(self, spec):
+        detailed, has_conflicts = GITLAB_STATUS[spec.get("conflicts", "no")]
+        pipeline = GITLAB_PIPELINE[spec.get("pipeline")]
+        return {
+            "iid": spec["number"],
+            "project_id": 42,
+            "title": f"change {spec['number']}",
+            "source_branch": spec.get("branch", f"feat/{spec['number']}"),
+            "target_branch": "main",
+            "draft": spec.get("draft", False),
+            "author": {"username": spec.get("author", "me")},
+            "assignees": [{"username": n} for n in spec.get("assignees", ())],
+            "reviewers": [{"username": n} for n in spec.get("reviewers", ())],
+            "created_at": "2026-10-11T00:00:00Z",
+            "updated_at": spec.get("updated", "2026-10-12T00:00:00Z"),
+            "merged_at": spec.get("merged"),
+            "merge_commit_sha": spec.get("sha"),
+            "detailed_merge_status": detailed,
+            "has_conflicts": has_conflicts,
+            "head_pipeline": {"status": pipeline} if pipeline else None,
+            "web_url": f"https://gitlab.com/acme/widgets/-/merge_requests/{spec['number']}",
+        }
+
+    def changes(self, world, specs):
+        raws = [self._mr(s) for s in specs]
+        world.route(f"{self.P}/merge_requests", raws)
+        for raw in raws:
+            world.route(f"{self.P}/merge_requests/{raw['iid']}", raw)
+            world.route(f"{self.P}/merge_requests/{raw['iid']}/approvals", {})
+
+    def merged(self, world, specs):
+        world.route(f"{self.P}/merge_requests", [self._mr(s) for s in specs])
+        for s in specs:
+            world.route(
+                f"{self.P}/merge_requests/{s['number']}/closes_issues",
+                [{"iid": n, "project_id": 42} for n in s.get("closes", ())],
+            )
+
+    def links(self, world, links):
+        blocked = sorted({b for b, *_ in links})
+        world.route(f"{self.P}/issues", [self._issue({"number": n}) for n in blocked])
+        for n in blocked:
+            world.route(
+                f"{self.P}/issues/{n}/links",
+                [
+                    {
+                        "iid": blocker,
+                        "project_id": 42 if project is None else 77,
+                        "references": {"full": f"{project or 'acme/widgets'}#{blocker}"},
+                        "state": "opened" if is_open else "closed",
+                        "link_type": "is_blocked_by",
+                    }
+                    for b, blocker, is_open, project in links
+                    if b == n
+                ],
+            )
+
+    def run(self, world, conclusion, jobs):
+        status = {"success": "success", "failure": "failed"}.get(conclusion)
+        world.route(
+            f"{self.P}/pipelines",
+            [{"id": 100, "status": status, "source": "push", "created_at": "2026-10-12T00:00:00Z"}]
+            if conclusion
+            else [],
+        )
+        world.route(
+            f"{self.P}/pipelines/100/jobs",
+            [
+                {"id": i, "name": n, "status": "failed" if c == "failure" else c}
+                for i, (n, c) in enumerate(jobs, 1)
+            ],
+        )
+
+    def releases(self, world, releases, tags):
+        world.route(
+            f"{self.P}/releases",
+            [{"tag_name": t, "released_at": d} for t, d in releases],
+        )
+        world.route(f"{self.P}/repository/tags", [{"name": t} for t in tags])
+
+
+KITS = [GitHubKit(), GitLabKit()]

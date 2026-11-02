@@ -49,6 +49,17 @@ def _host_of(value: str) -> str:
     return value.split("/", 1)[0].split(":", 1)[0].lower()
 
 
+def _key_value(text: str) -> tuple[Optional[str], str]:
+    """A `key: value` line's key and value, the key possibly quoted (`"host:8443": ...`)."""
+    if text[:1] in ("'", '"'):
+        end = text.find(text[0], 1)
+        if end < 0 or not text[end + 1 :].startswith(":"):
+            return None, ""
+        return text[1:end], text[end + 2 :]
+    key, colon, value = text.partition(":")
+    return (key, value) if colon else (None, "")
+
+
 def glab_hosts(environ: Mapping[str, str] = os.environ) -> set[str]:
     """Every host glab is set up for: the keys under `hosts:`, their `api_host`, and
     `GITLAB_HOST` / `GL_HOST` from the environment."""
@@ -69,8 +80,8 @@ def glab_hosts(environ: Mapping[str, str] = os.environ) -> set[str]:
             continue
         if not in_hosts:
             continue
-        key, colon, value = stripped.strip().partition(":")
-        if not colon:
+        key, value = _key_value(stripped.strip())
+        if key is None:
             continue
         if host_indent is None:
             host_indent = indent
