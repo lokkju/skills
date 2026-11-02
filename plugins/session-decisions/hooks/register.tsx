@@ -27,7 +27,7 @@ import { type Message, type Trail, ledgerMatches, trailOf } from './lineage'
 import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
-import { handoffs, nudge, unknownLabels } from './handoff'
+import { handoffs, nudge, unknownLabels, wideCommands, wideNudge } from './handoff'
 import { RECONCILE, brief } from './reconcile'
 import { refusal } from './version'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody, supersededIn } from './subject'
@@ -461,6 +461,11 @@ function warn($: $, found: { lines: string[]; missing: string[] }): void {
   )
 }
 
+/** The toast for command lines too wide to copy out of tmux whole. */
+function warnWide($: $, widths: readonly number[]): void {
+  $.ui.toast(`A ${Math.max(...widths)}-column command line: copied from tmux it breaks at the wrap`)
+}
+
 const WRAP = `Wrap up this session's decision queue, as the session-decisions skill describes: for every open item below, ask me in one message whether to escalate it (create it in the project's tracker as a question for the right person, and link it), carry it forward (it stays open and goes in the handoff), or drop it. Then apply my answers, completing each settled item with a "Ruling (<YYYY-MM-DD>): ..." line, and report what changed.`
 
 export const register: Register = (on, options) => {
@@ -595,10 +600,14 @@ export const register: Register = (on, options) => {
     stopRan = true
     const result = await next(e)
     if (!checkHandoffs || e.stop_hook_active || result.block !== undefined) return result
-    const found = await unqueued($, String(e.last_assistant_message ?? ''))
-    if (!found) return result
-    await update($, handoffNudge, () => nudge(found.lines, found.missing))
-    warn($, found)
+    const reply = String(e.last_assistant_message ?? '')
+    const found = await unqueued($, reply)
+    const wide = wideCommands(reply)
+    if (!found && wide.length === 0) return result
+    const notes = [...(found ? [nudge(found.lines, found.missing)] : []), ...(wide.length > 0 ? [wideNudge(wide)] : [])]
+    await update($, handoffNudge, () => notes.join('\n\n'))
+    if (wide.length > 0) warnWide($, wide)
+    if (found) warn($, found)
     return result
   })
 
@@ -613,6 +622,8 @@ export const register: Register = (on, options) => {
     stopRan = false
     if (ran || !checkHandoffs || e.reason !== 'answer' || (await off($))) return result
     const found = await unqueued($, e.answer)
+    const wide = wideCommands(e.answer)
+    if (wide.length > 0) warnWide($, wide)
     if (found) warn($, found)
     return result
   })

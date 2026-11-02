@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { handoffs, nudge, unknownLabels } from '../hooks/handoff'
+import { handoffs, nudge, unknownLabels, wideCommands, wideNudge } from '../hooks/handoff'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -244,4 +244,33 @@ test('the nudge says a named label was never created, and to make the tool call 
   const text = nudge(['(A24 is in the queue)'], ['A24'])
   expect(text).toContain('Your reply named A24, but no such item is in the queue')
   expect(text).toContain('make the tool call before writing the sentence that names a label')
+})
+
+describe('command lines too wide to copy out of tmux', () => {
+  const long = 'sudo systemctl stop heartbeat.timer && sudo rm /etc/systemd/system/heartbeat.* && sudo systemctl daemon-reload'
+
+  test('a long line in a shell block, or a command in an unlabelled block, is caught', () => {
+    expect(long.length).toBeGreaterThan(100)
+    expect(wideCommands(['Run this on each host:', '```bash', long, '```'].join('\n'))).toEqual([long.length])
+    expect(wideCommands(['```', long, '```'].join('\n'))).toEqual([long.length])
+    expect(wideCommands(['```console', `$ ${long}`, '```'].join('\n'))).toEqual([long.length + 2])
+  })
+
+  test('short lines, continuations, prose and other languages pass', () => {
+    const split = ['```bash', 'sudo systemctl stop heartbeat.timer \\', '  && sudo rm /etc/systemd/system/heartbeat.* \\', '  && sudo systemctl daemon-reload', '```']
+    expect(wideCommands(split.join('\n'))).toEqual([])
+    expect(wideCommands(`A paragraph of prose that runs well past a hundred columns: ${long}`)).toEqual([])
+    expect(wideCommands(['```json', `{"command": "${long}"}`, '```'].join('\n'))).toEqual([])
+    const log = 'Oct 26 10:14:03 host1 systemd[1]: heartbeat.service: Deactivated successfully after a long run of checks today.'
+    expect(log.length).toBeGreaterThan(100)
+    expect(wideCommands(['```', log, '```'].join('\n'))).toEqual([])
+  })
+
+  test('the reminder names the width and says to hand over a script or split the lines', () => {
+    const text = wideNudge([112, 140])
+    expect(text).toContain('2 shell command lines over 100 columns')
+    expect(text).toContain('the widest 140')
+    expect(text).toContain('a script with one short line that runs it')
+    expect(text).toContain('`\\` continuations')
+  })
 })

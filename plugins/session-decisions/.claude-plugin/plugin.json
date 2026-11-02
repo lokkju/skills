@@ -27,7 +27,7 @@
     "handoff_check": {
       "type": "boolean",
       "title": "Hand-off check",
-      "description": "When a reply hands you work (\"left for you\", \"you'll need to merge\") that isn't in the decision queue, show a warning and remind the assistant to queue it on its next turn.",
+      "description": "When a reply hands you work (\"left for you\", \"you'll need to merge\") that isn't in the decision queue, or a shell command line too wide to copy out of tmux whole, show a warning and remind the assistant on its next turn.",
       "default": true
     }
   }

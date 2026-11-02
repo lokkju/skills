@@ -187,6 +187,15 @@ To keep false alarms rare, it skips:
 - a heading that's really a sentence (`For you to compare, the two plans are:`), and a bare `Next
   steps:`, which is usually the assistant's own plan.
 
+The same check watches for a shell command too wide to copy whole. Claude Code wraps a long line
+in a code block at the pane width, and copying it out of tmux (and many terminals) turns each wrap
+into a line break, so the pasted command runs in pieces. A line over 100 columns in a `bash`,
+`sh`, `console` or other shell block, or in an unlabelled block where it reads as a command (a `$`
+prompt, `sudo`, an `&&` chain, flags), gets a toast (`A 140-column command line: copied from tmux
+it breaks at the wrap`), and the assistant is reminded to hand it over as a script with one short
+line to run it, or split into short lines with `\` continuations. The skill asks for that in the
+first place.
+
 It reads the main conversation's replies, not a subagent's, and stays quiet while a Stop hook has
 the assistant continuing. Set `handoff_check` to `false` (in `/config`, or under `options` as in
 [Forge hosts](#forge-hosts)) to turn it off.
