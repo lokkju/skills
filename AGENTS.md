@@ -15,11 +15,13 @@
   (GitHub App manifest flow); no skill yet. Standard-library Python plus `openssl`; tests run with
   `uv run --no-project --with pytest pytest plugins/forge-release/tests`.
 - `plugins/forge-tracker/`: issue-tracker working rules and reports (design in
-  `docs/specs/forge-tracker.md`). So far the GitHub layer, `/catchup`, `/next` and `/groom`:
-  a standard-library Python CLI (`skills/forge-tracker/scripts/forge-tracker`) and `commands/`.
-  Only `skills/forge-tracker/scripts/forge_tracker/writes.py` writes to a forge. Tests run with
-  `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over recorded fixtures,
-  no network.
+  `docs/specs/forge-tracker.md`). So far the read layer for GitHub, GitLab (through `glab`) and
+  Forgejo/Gitea, `/catchup`, `/next` and `/groom`: a standard-library Python CLI
+  (`skills/forge-tracker/scripts/forge-tracker`) and `commands/`. Only
+  `skills/forge-tracker/scripts/forge_tracker/writes.py` writes to a forge, and only to GitHub.
+  Tests run with `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over
+  recorded fixtures and per-forge fixture worlds, no network; `tests/test_contract.py` runs the
+  same scenarios against every adapter through a kit per forge in `tests/kits.py`.
 - `plugins/term-recorder/`: drives a terminal program from a step file on a private tmux server
   and captures it (text snaps, asciicast, GIF via agg). A standard-library Python CLI
   (`skills/term-recorder/scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and

@@ -1,0 +1,16 @@
+acme/widgets on code.example.org: 3 proposals, 3 unclear, 2 listed for you
+(merged PRs since 2026-07-22; duplicates among open issues and those closed since 2026-09-20; stale after 14 days, the default while stale_days isn't set)
+
+Proposals
+  1. close #1: merged #5 "feat: read tea's login for the token" closes it, 5555555 is on main
+  2. labels #1 ruling: remove needs-human, add decided: "Ruling (2026-10-19): read tea's token, never run tea for reads." on 2026-10-19, after needs-human was added on 2026-10-10
+  3. delete-branch old-spike: no open PR, 0 commits ahead of main
+Unclear (not acted on)
+  #2 has P2 and no milestone, and 0 open milestones start with 'Tier 2'
+  #3 has P2 and no milestone, and 0 open milestones start with 'Tier 2'
+  branch wip-idea: no open PR, 2 commits not on main, last commit 2026-09-20
+Listed for you
+  #9 conflicts: yes: chore(deps): update tea
+  #9 no activity for 17 days: chore(deps): update tea
+(setup: labels.agent set to ~ in .claude/forge-tracker.local.md, so no label marks those roles yet. `forge-tracker labels suggest` lists the labels it can create for them)
+(writes: unsupported on Forgejo (forge-tracker writes only to GitHub so far), so `groom apply` refuses each proposal; a write_wrapper: in the config can make the approved changes instead)

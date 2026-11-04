@@ -1,0 +1,3330 @@
+{
+ "base": "https://code.example.org/forgejo/api/v1",
+ "routes": [
+  {
+   "path": "/user",
+   "response": {
+    "id": 1,
+    "login": "me",
+    "login_name": "",
+    "full_name": "Me",
+    "email": "me@noreply.code.example.org",
+    "avatar_url": "https://code.example.org/forgejo/avatars/1",
+    "html_url": "https://code.example.org/forgejo/me",
+    "language": "",
+    "is_admin": false,
+    "created": "2026-01-01T00:00:00Z",
+    "restricted": false,
+    "active": true,
+    "visibility": "public",
+    "username": "me"
+   }
+  },
+  {
+   "path": "/repos/issues/search",
+   "query": {
+    "mentioned": "true"
+   },
+   "response": [
+    {
+     "id": 902,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/2",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/2",
+     "number": 2,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Paginate the comments read",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 2,
+       "name": "P2",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+      }
+     ],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-08T10:00:00Z",
+     "updated_at": "2026-10-18T12:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    },
+    {
+     "id": 911,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/11",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/11",
+     "number": 11,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Other repo",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-15T00:00:00Z",
+     "updated_at": "2026-10-18T00:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 43,
+      "name": "gadgets",
+      "owner": "acme",
+      "full_name": "acme/gadgets"
+     },
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets",
+   "response": {
+    "id": 42,
+    "owner": {
+     "id": 1,
+     "login": "me",
+     "login_name": "",
+     "full_name": "Me",
+     "email": "me@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/1",
+     "html_url": "https://code.example.org/forgejo/me",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "me"
+    },
+    "name": "widgets",
+    "full_name": "acme/widgets",
+    "default_branch": "main",
+    "open_issues_count": 4,
+    "open_pr_counter": 3,
+    "has_issues": true,
+    "has_actions": true,
+    "html_url": "https://code.example.org/forgejo/acme/widgets"
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/labels",
+   "response": [
+    {
+     "id": 1,
+     "name": "P1",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+    },
+    {
+     "id": 2,
+     "name": "P2",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+    },
+    {
+     "id": 3,
+     "name": "needs-human",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+    },
+    {
+     "id": 4,
+     "name": "blocked",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/4"
+    },
+    {
+     "id": 5,
+     "name": "decision",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/5"
+    },
+    {
+     "id": 6,
+     "name": "decided",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/6"
+    },
+    {
+     "id": 7,
+     "name": "bug",
+     "exclusive": false,
+     "is_archived": false,
+     "color": "e11d21",
+     "description": "",
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/7"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues",
+   "query": {
+    "state": "open"
+   },
+   "pages": [
+    [
+     {
+      "id": 904,
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/4",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/issues/4",
+      "number": 4,
+      "user": {
+       "id": 2,
+       "login": "alex",
+       "login_name": "",
+       "full_name": "Alex",
+       "email": "alex@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/2",
+       "html_url": "https://code.example.org/forgejo/alex",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "alex"
+      },
+      "original_author": "",
+      "original_author_id": 0,
+      "title": "Ship the Forgejo adapter",
+      "body": "",
+      "ref": "",
+      "assets": [],
+      "labels": [
+       {
+        "id": 1,
+        "name": "P1",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+       }
+      ],
+      "milestone": {
+       "id": 31,
+       "title": "Tier 1",
+       "description": "",
+       "state": "open",
+       "open_issues": 2,
+       "closed_issues": 0,
+       "created_at": "2026-09-01T00:00:00Z",
+       "updated_at": "2026-09-01T00:00:00Z",
+       "closed_at": null,
+       "due_on": "2026-11-30T23:59:59Z"
+      },
+      "assignee": null,
+      "assignees": null,
+      "state": "open",
+      "is_locked": false,
+      "comments": 0,
+      "created_at": "2026-10-10T10:00:00Z",
+      "updated_at": "2026-10-19T15:00:00Z",
+      "closed_at": null,
+      "due_date": null,
+      "pull_request": null,
+      "repository": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      },
+      "pin_order": 0
+     },
+     {
+      "id": 901,
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/1",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+      "number": 1,
+      "user": {
+       "id": 2,
+       "login": "alex",
+       "login_name": "",
+       "full_name": "Alex",
+       "email": "alex@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/2",
+       "html_url": "https://code.example.org/forgejo/alex",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "alex"
+      },
+      "original_author": "",
+      "original_author_id": 0,
+      "title": "Pin the CA bundle for self-hosted instances",
+      "body": "",
+      "ref": "",
+      "assets": [],
+      "labels": [
+       {
+        "id": 1,
+        "name": "P1",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+       },
+       {
+        "id": 3,
+        "name": "needs-human",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+       }
+      ],
+      "milestone": {
+       "id": 31,
+       "title": "Tier 1",
+       "description": "",
+       "state": "open",
+       "open_issues": 2,
+       "closed_issues": 0,
+       "created_at": "2026-09-01T00:00:00Z",
+       "updated_at": "2026-09-01T00:00:00Z",
+       "closed_at": null,
+       "due_on": "2026-11-30T23:59:59Z"
+      },
+      "assignee": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "assignees": [
+       {
+        "id": 1,
+        "login": "me",
+        "login_name": "",
+        "full_name": "Me",
+        "email": "me@noreply.code.example.org",
+        "avatar_url": "https://code.example.org/forgejo/avatars/1",
+        "html_url": "https://code.example.org/forgejo/me",
+        "language": "",
+        "is_admin": false,
+        "created": "2026-01-01T00:00:00Z",
+        "restricted": false,
+        "active": true,
+        "visibility": "public",
+        "username": "me"
+       }
+      ],
+      "state": "open",
+      "is_locked": false,
+      "comments": 0,
+      "created_at": "2026-10-05T10:00:00Z",
+      "updated_at": "2026-10-19T09:00:00Z",
+      "closed_at": null,
+      "due_date": null,
+      "pull_request": null,
+      "repository": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      },
+      "pin_order": 0
+     }
+    ],
+    [
+     {
+      "id": 902,
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/2",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/issues/2",
+      "number": 2,
+      "user": {
+       "id": 2,
+       "login": "alex",
+       "login_name": "",
+       "full_name": "Alex",
+       "email": "alex@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/2",
+       "html_url": "https://code.example.org/forgejo/alex",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "alex"
+      },
+      "original_author": "",
+      "original_author_id": 0,
+      "title": "Paginate the comments read",
+      "body": "",
+      "ref": "",
+      "assets": [],
+      "labels": [
+       {
+        "id": 2,
+        "name": "P2",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+       }
+      ],
+      "milestone": null,
+      "assignee": null,
+      "assignees": null,
+      "state": "open",
+      "is_locked": false,
+      "comments": 0,
+      "created_at": "2026-10-08T10:00:00Z",
+      "updated_at": "2026-10-18T12:00:00Z",
+      "closed_at": null,
+      "due_date": null,
+      "pull_request": null,
+      "repository": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      },
+      "pin_order": 0
+     },
+     {
+      "id": 903,
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/3",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/issues/3",
+      "number": 3,
+      "user": {
+       "id": 2,
+       "login": "alex",
+       "login_name": "",
+       "full_name": "Alex",
+       "email": "alex@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/2",
+       "html_url": "https://code.example.org/forgejo/alex",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "alex"
+      },
+      "original_author": "",
+      "original_author_id": 0,
+      "title": "Read organisation repos",
+      "body": "",
+      "ref": "",
+      "assets": [],
+      "labels": [
+       {
+        "id": 2,
+        "name": "P2",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+       },
+       {
+        "id": 4,
+        "name": "blocked",
+        "exclusive": false,
+        "is_archived": false,
+        "color": "e11d21",
+        "description": "",
+        "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/4"
+       }
+      ],
+      "milestone": null,
+      "assignee": null,
+      "assignees": null,
+      "state": "open",
+      "is_locked": false,
+      "comments": 0,
+      "created_at": "2026-10-09T10:00:00Z",
+      "updated_at": "2026-10-12T12:00:00Z",
+      "closed_at": null,
+      "due_date": null,
+      "pull_request": null,
+      "repository": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      },
+      "pin_order": 0
+     }
+    ]
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues",
+   "query": {
+    "state": "all"
+   },
+   "response": [
+    {
+     "id": 904,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/4",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/4",
+     "number": 4,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Ship the Forgejo adapter",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 1,
+       "name": "P1",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+      }
+     ],
+     "milestone": {
+      "id": 31,
+      "title": "Tier 1",
+      "description": "",
+      "state": "open",
+      "open_issues": 2,
+      "closed_issues": 0,
+      "created_at": "2026-09-01T00:00:00Z",
+      "updated_at": "2026-09-01T00:00:00Z",
+      "closed_at": null,
+      "due_on": "2026-11-30T23:59:59Z"
+     },
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-10T10:00:00Z",
+     "updated_at": "2026-10-19T15:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    },
+    {
+     "id": 901,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/1",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "number": 1,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Pin the CA bundle for self-hosted instances",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 1,
+       "name": "P1",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+      },
+      {
+       "id": 3,
+       "name": "needs-human",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+      }
+     ],
+     "milestone": {
+      "id": 31,
+      "title": "Tier 1",
+      "description": "",
+      "state": "open",
+      "open_issues": 2,
+      "closed_issues": 0,
+      "created_at": "2026-09-01T00:00:00Z",
+      "updated_at": "2026-09-01T00:00:00Z",
+      "closed_at": null,
+      "due_on": "2026-11-30T23:59:59Z"
+     },
+     "assignee": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "assignees": [
+      {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      }
+     ],
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-05T10:00:00Z",
+     "updated_at": "2026-10-19T09:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    },
+    {
+     "id": 905,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/5",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/5",
+     "number": 5,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Subpath API base is ignored",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 7,
+       "name": "bug",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/7"
+      }
+     ],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "state": "closed",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-01T10:00:00Z",
+     "updated_at": "2026-10-19T08:00:00Z",
+     "closed_at": "2026-10-19T08:00:00Z",
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    },
+    {
+     "id": 902,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/2",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/2",
+     "number": 2,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Paginate the comments read",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 2,
+       "name": "P2",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+      }
+     ],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-08T10:00:00Z",
+     "updated_at": "2026-10-18T12:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    },
+    {
+     "id": 903,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/3",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/3",
+     "number": 3,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Read organisation repos",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 2,
+       "name": "P2",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+      },
+      {
+       "id": 4,
+       "name": "blocked",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/4"
+      }
+     ],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-09T10:00:00Z",
+     "updated_at": "2026-10-12T12:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues/1",
+   "response": {
+    "id": 901,
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/1",
+    "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+    "number": 1,
+    "user": {
+     "id": 2,
+     "login": "alex",
+     "login_name": "",
+     "full_name": "Alex",
+     "email": "alex@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/2",
+     "html_url": "https://code.example.org/forgejo/alex",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "alex"
+    },
+    "original_author": "",
+    "original_author_id": 0,
+    "title": "Pin the CA bundle for self-hosted instances",
+    "body": "",
+    "ref": "",
+    "assets": [],
+    "labels": [
+     {
+      "id": 1,
+      "name": "P1",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+     },
+     {
+      "id": 3,
+      "name": "needs-human",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+     }
+    ],
+    "milestone": {
+     "id": 31,
+     "title": "Tier 1",
+     "description": "",
+     "state": "open",
+     "open_issues": 2,
+     "closed_issues": 0,
+     "created_at": "2026-09-01T00:00:00Z",
+     "updated_at": "2026-09-01T00:00:00Z",
+     "closed_at": null,
+     "due_on": "2026-11-30T23:59:59Z"
+    },
+    "assignee": {
+     "id": 1,
+     "login": "me",
+     "login_name": "",
+     "full_name": "Me",
+     "email": "me@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/1",
+     "html_url": "https://code.example.org/forgejo/me",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "me"
+    },
+    "assignees": [
+     {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     }
+    ],
+    "state": "open",
+    "is_locked": false,
+    "comments": 0,
+    "created_at": "2026-10-05T10:00:00Z",
+    "updated_at": "2026-10-19T09:00:00Z",
+    "closed_at": null,
+    "due_date": null,
+    "pull_request": null,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "pin_order": 0
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/issues/2",
+   "response": {
+    "id": 902,
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/2",
+    "html_url": "https://code.example.org/forgejo/acme/widgets/issues/2",
+    "number": 2,
+    "user": {
+     "id": 2,
+     "login": "alex",
+     "login_name": "",
+     "full_name": "Alex",
+     "email": "alex@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/2",
+     "html_url": "https://code.example.org/forgejo/alex",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "alex"
+    },
+    "original_author": "",
+    "original_author_id": 0,
+    "title": "Paginate the comments read",
+    "body": "",
+    "ref": "",
+    "assets": [],
+    "labels": [
+     {
+      "id": 2,
+      "name": "P2",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+     }
+    ],
+    "milestone": null,
+    "assignee": null,
+    "assignees": null,
+    "state": "open",
+    "is_locked": false,
+    "comments": 0,
+    "created_at": "2026-10-08T10:00:00Z",
+    "updated_at": "2026-10-18T12:00:00Z",
+    "closed_at": null,
+    "due_date": null,
+    "pull_request": null,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "pin_order": 0
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/issues/3",
+   "response": {
+    "id": 903,
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/3",
+    "html_url": "https://code.example.org/forgejo/acme/widgets/issues/3",
+    "number": 3,
+    "user": {
+     "id": 2,
+     "login": "alex",
+     "login_name": "",
+     "full_name": "Alex",
+     "email": "alex@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/2",
+     "html_url": "https://code.example.org/forgejo/alex",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "alex"
+    },
+    "original_author": "",
+    "original_author_id": 0,
+    "title": "Read organisation repos",
+    "body": "",
+    "ref": "",
+    "assets": [],
+    "labels": [
+     {
+      "id": 2,
+      "name": "P2",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/2"
+     },
+     {
+      "id": 4,
+      "name": "blocked",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/4"
+     }
+    ],
+    "milestone": null,
+    "assignee": null,
+    "assignees": null,
+    "state": "open",
+    "is_locked": false,
+    "comments": 0,
+    "created_at": "2026-10-09T10:00:00Z",
+    "updated_at": "2026-10-12T12:00:00Z",
+    "closed_at": null,
+    "due_date": null,
+    "pull_request": null,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "pin_order": 0
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/issues/4",
+   "response": {
+    "id": 904,
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/4",
+    "html_url": "https://code.example.org/forgejo/acme/widgets/issues/4",
+    "number": 4,
+    "user": {
+     "id": 2,
+     "login": "alex",
+     "login_name": "",
+     "full_name": "Alex",
+     "email": "alex@noreply.code.example.org",
+     "avatar_url": "https://code.example.org/forgejo/avatars/2",
+     "html_url": "https://code.example.org/forgejo/alex",
+     "language": "",
+     "is_admin": false,
+     "created": "2026-01-01T00:00:00Z",
+     "restricted": false,
+     "active": true,
+     "visibility": "public",
+     "username": "alex"
+    },
+    "original_author": "",
+    "original_author_id": 0,
+    "title": "Ship the Forgejo adapter",
+    "body": "",
+    "ref": "",
+    "assets": [],
+    "labels": [
+     {
+      "id": 1,
+      "name": "P1",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+     }
+    ],
+    "milestone": {
+     "id": 31,
+     "title": "Tier 1",
+     "description": "",
+     "state": "open",
+     "open_issues": 2,
+     "closed_issues": 0,
+     "created_at": "2026-09-01T00:00:00Z",
+     "updated_at": "2026-09-01T00:00:00Z",
+     "closed_at": null,
+     "due_on": "2026-11-30T23:59:59Z"
+    },
+    "assignee": null,
+    "assignees": null,
+    "state": "open",
+    "is_locked": false,
+    "comments": 0,
+    "created_at": "2026-10-10T10:00:00Z",
+    "updated_at": "2026-10-19T15:00:00Z",
+    "closed_at": null,
+    "due_date": null,
+    "pull_request": null,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "pin_order": 0
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/issues/1/dependencies",
+   "response": []
+  },
+  {
+   "path": "/repos/acme/widgets/issues/2/dependencies",
+   "response": [
+    {
+     "id": 901,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/1",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "number": 1,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Pin the CA bundle for self-hosted instances",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 1,
+       "name": "P1",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+      },
+      {
+       "id": 3,
+       "name": "needs-human",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+      }
+     ],
+     "milestone": {
+      "id": 31,
+      "title": "Tier 1",
+      "description": "",
+      "state": "open",
+      "open_issues": 2,
+      "closed_issues": 0,
+      "created_at": "2026-09-01T00:00:00Z",
+      "updated_at": "2026-09-01T00:00:00Z",
+      "closed_at": null,
+      "due_on": "2026-11-30T23:59:59Z"
+     },
+     "assignee": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "assignees": [
+      {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      }
+     ],
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-05T10:00:00Z",
+     "updated_at": "2026-10-19T09:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues/3/dependencies",
+   "response": [
+    {
+     "id": 904,
+     "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/issues/4",
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/4",
+     "number": 4,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "title": "Ship the Forgejo adapter",
+     "body": "",
+     "ref": "",
+     "assets": [],
+     "labels": [
+      {
+       "id": 1,
+       "name": "P1",
+       "exclusive": false,
+       "is_archived": false,
+       "color": "e11d21",
+       "description": "",
+       "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/1"
+      }
+     ],
+     "milestone": {
+      "id": 31,
+      "title": "Tier 1",
+      "description": "",
+      "state": "open",
+      "open_issues": 2,
+      "closed_issues": 0,
+      "created_at": "2026-09-01T00:00:00Z",
+      "updated_at": "2026-09-01T00:00:00Z",
+      "closed_at": null,
+      "due_on": "2026-11-30T23:59:59Z"
+     },
+     "assignee": null,
+     "assignees": null,
+     "state": "open",
+     "is_locked": false,
+     "comments": 0,
+     "created_at": "2026-10-10T10:00:00Z",
+     "updated_at": "2026-10-19T15:00:00Z",
+     "closed_at": null,
+     "due_date": null,
+     "pull_request": null,
+     "repository": {
+      "id": 42,
+      "name": "widgets",
+      "owner": "acme",
+      "full_name": "acme/widgets"
+     },
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues/4/dependencies",
+   "response": []
+  },
+  {
+   "path": "/repos/acme/widgets/issues/comments",
+   "response": [
+    {
+     "id": 501,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1#issuecomment-501",
+     "pull_request_url": "",
+     "issue_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "body": "Ruling (2026-10-19): read tea's token, never run tea for reads.",
+     "assets": [],
+     "created_at": "2026-10-19T09:00:00Z",
+     "updated_at": "2026-10-19T09:00:00Z"
+    },
+    {
+     "id": 502,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/8#issuecomment-502",
+     "pull_request_url": "",
+     "issue_url": "https://code.example.org/forgejo/acme/widgets/issues/8",
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "body": "looks good",
+     "assets": [],
+     "created_at": "2026-10-19T10:00:00Z",
+     "updated_at": "2026-10-19T10:00:00Z"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues/1/comments",
+   "response": [
+    {
+     "id": 501,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/issues/1#issuecomment-501",
+     "pull_request_url": "",
+     "issue_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "original_author": "",
+     "original_author_id": 0,
+     "body": "Ruling (2026-10-19): read tea's token, never run tea for reads.",
+     "assets": [],
+     "created_at": "2026-10-19T09:00:00Z",
+     "updated_at": "2026-10-19T09:00:00Z"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/issues/1/timeline",
+   "response": [
+    {
+     "id": 61,
+     "type": "label",
+     "html_url": "",
+     "pull_request_url": "",
+     "issue_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "body": "1",
+     "created_at": "2026-10-10T10:00:00Z",
+     "updated_at": "2026-10-10T10:00:00Z",
+     "label": {
+      "id": 3,
+      "name": "needs-human",
+      "exclusive": false,
+      "is_archived": false,
+      "color": "e11d21",
+      "description": "",
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/labels/3"
+     }
+    },
+    {
+     "id": 62,
+     "type": "comment",
+     "html_url": "",
+     "pull_request_url": "",
+     "issue_url": "https://code.example.org/forgejo/acme/widgets/issues/1",
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "body": "Ruling (2026-10-19): read tea's token, never run tea for reads.",
+     "created_at": "2026-10-19T09:00:00Z",
+     "updated_at": "2026-10-19T09:00:00Z"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls",
+   "query": {
+    "state": "open"
+   },
+   "response": [
+    {
+     "id": 707,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/7",
+     "number": 7,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "title": "feat(forge-tracker): Forgejo adapter",
+     "body": "Closes #4\n\nReads through urllib.",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": [
+      {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      }
+     ],
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/7",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/7.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/7.patch",
+     "mergeable": true,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "4-forgejo-adapter",
+      "ref": "4-forgejo-adapter",
+      "sha": "7777777777777777777777777777777777777777",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-17T10:00:00Z",
+     "updated_at": "2026-10-19T16:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    },
+    {
+     "id": 708,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/8",
+     "number": 8,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "fix: page through comments",
+     "body": "Fixes #2",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/8",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/8.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/8.patch",
+     "mergeable": true,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "fix/2",
+      "ref": "fix/2",
+      "sha": "8888888888888888888888888888888888888888",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-18T10:00:00Z",
+     "updated_at": "2026-10-19T11:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    },
+    {
+     "id": 709,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/9",
+     "number": 9,
+     "user": {
+      "id": 9,
+      "login": "renovate-bot",
+      "login_name": "",
+      "full_name": "Renovate-Bot",
+      "email": "renovate-bot@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/9",
+      "html_url": "https://code.example.org/forgejo/renovate-bot",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "renovate-bot"
+     },
+     "title": "chore(deps): update tea",
+     "body": "",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/9",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/9.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/9.patch",
+     "mergeable": false,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "renovate/tea",
+      "ref": "renovate/tea",
+      "sha": "9999999999999999999999999999999999999999",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-02T10:00:00Z",
+     "updated_at": "2026-10-03T10:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls",
+   "query": {
+    "state": "closed"
+   },
+   "response": [
+    {
+     "id": 706,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/6",
+     "number": 6,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "fix: honour api_base under a subpath",
+     "body": "Closes #5",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/6",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/6.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/6.patch",
+     "mergeable": true,
+     "merged": true,
+     "merged_at": "2026-10-19T08:00:00Z",
+     "merge_commit_sha": "6666666666666666666666666666666666666666",
+     "merged_by": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "5-subpath",
+      "ref": "5-subpath",
+      "sha": "6666666666666666666666666666666666666666",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-16T10:00:00Z",
+     "updated_at": "2026-10-19T08:00:00Z",
+     "closed_at": "2026-10-19T08:00:00Z",
+     "pin_order": 0
+    },
+    {
+     "id": 705,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/5",
+     "number": 5,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "feat: read tea's login for the token",
+     "body": "Resolves #1 (the token half).\n\n`closes #3` is only an example here.",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/5",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/5.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/5.patch",
+     "mergeable": true,
+     "merged": true,
+     "merged_at": "2026-10-18T09:00:00Z",
+     "merge_commit_sha": "5555555555555555555555555555555555555555",
+     "merged_by": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "1-tea-token",
+      "ref": "1-tea-token",
+      "sha": "5555555555555555555555555555555555555555",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-14T10:00:00Z",
+     "updated_at": "2026-10-18T09:00:00Z",
+     "closed_at": "2026-10-18T09:00:00Z",
+     "pin_order": 0
+    },
+    {
+     "id": 704,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/4",
+     "number": 4,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "spike: tea output parsing",
+     "body": "Closes #3",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/4",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/4.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/4.patch",
+     "mergeable": false,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "spike-tea",
+      "ref": "spike-tea",
+      "sha": "0000000000000000000000000000000000000000",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-09-20T10:00:00Z",
+     "updated_at": "2026-10-01T10:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls",
+   "query": {
+    "state": "all"
+   },
+   "response": [
+    {
+     "id": 707,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/7",
+     "number": 7,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "title": "feat(forge-tracker): Forgejo adapter",
+     "body": "Closes #4\n\nReads through urllib.",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": [
+      {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      }
+     ],
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/7",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/7.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/7.patch",
+     "mergeable": true,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "4-forgejo-adapter",
+      "ref": "4-forgejo-adapter",
+      "sha": "7777777777777777777777777777777777777777",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-17T10:00:00Z",
+     "updated_at": "2026-10-19T16:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    },
+    {
+     "id": 708,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/8",
+     "number": 8,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "fix: page through comments",
+     "body": "Fixes #2",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/8",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/8.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/8.patch",
+     "mergeable": true,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "fix/2",
+      "ref": "fix/2",
+      "sha": "8888888888888888888888888888888888888888",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-18T10:00:00Z",
+     "updated_at": "2026-10-19T11:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    },
+    {
+     "id": 709,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/9",
+     "number": 9,
+     "user": {
+      "id": 9,
+      "login": "renovate-bot",
+      "login_name": "",
+      "full_name": "Renovate-Bot",
+      "email": "renovate-bot@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/9",
+      "html_url": "https://code.example.org/forgejo/renovate-bot",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "renovate-bot"
+     },
+     "title": "chore(deps): update tea",
+     "body": "",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "open",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/9",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/9.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/9.patch",
+     "mergeable": false,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "renovate/tea",
+      "ref": "renovate/tea",
+      "sha": "9999999999999999999999999999999999999999",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-02T10:00:00Z",
+     "updated_at": "2026-10-03T10:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    },
+    {
+     "id": 706,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/6",
+     "number": 6,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "fix: honour api_base under a subpath",
+     "body": "Closes #5",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/6",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/6.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/6.patch",
+     "mergeable": true,
+     "merged": true,
+     "merged_at": "2026-10-19T08:00:00Z",
+     "merge_commit_sha": "6666666666666666666666666666666666666666",
+     "merged_by": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "5-subpath",
+      "ref": "5-subpath",
+      "sha": "6666666666666666666666666666666666666666",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-16T10:00:00Z",
+     "updated_at": "2026-10-19T08:00:00Z",
+     "closed_at": "2026-10-19T08:00:00Z",
+     "pin_order": 0
+    },
+    {
+     "id": 705,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/5",
+     "number": 5,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "feat: read tea's login for the token",
+     "body": "Resolves #1 (the token half).\n\n`closes #3` is only an example here.",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/5",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/5.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/5.patch",
+     "mergeable": true,
+     "merged": true,
+     "merged_at": "2026-10-18T09:00:00Z",
+     "merge_commit_sha": "5555555555555555555555555555555555555555",
+     "merged_by": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "1-tea-token",
+      "ref": "1-tea-token",
+      "sha": "5555555555555555555555555555555555555555",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-10-14T10:00:00Z",
+     "updated_at": "2026-10-18T09:00:00Z",
+     "closed_at": "2026-10-18T09:00:00Z",
+     "pin_order": 0
+    },
+    {
+     "id": 704,
+     "url": "https://code.example.org/forgejo/acme/widgets/pulls/4",
+     "number": 4,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "title": "spike: tea output parsing",
+     "body": "Closes #3",
+     "labels": [],
+     "milestone": null,
+     "assignee": null,
+     "assignees": null,
+     "requested_reviewers": null,
+     "requested_reviewers_teams": null,
+     "state": "closed",
+     "draft": false,
+     "is_locked": false,
+     "comments": 0,
+     "review_comments": 0,
+     "html_url": "https://code.example.org/forgejo/acme/widgets/pulls/4",
+     "diff_url": "https://code.example.org/forgejo/acme/widgets/pulls/4.diff",
+     "patch_url": "https://code.example.org/forgejo/acme/widgets/pulls/4.patch",
+     "mergeable": false,
+     "merged": false,
+     "merged_at": null,
+     "merge_commit_sha": null,
+     "merged_by": null,
+     "allow_maintainer_edit": false,
+     "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "head": {
+      "label": "spike-tea",
+      "ref": "spike-tea",
+      "sha": "0000000000000000000000000000000000000000",
+      "repo_id": 42,
+      "repo": {
+       "id": 42,
+       "name": "widgets",
+       "owner": "acme",
+       "full_name": "acme/widgets"
+      }
+     },
+     "merge_base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "due_date": null,
+     "created_at": "2026-09-20T10:00:00Z",
+     "updated_at": "2026-10-01T10:00:00Z",
+     "closed_at": null,
+     "pin_order": 0
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls/7/reviews",
+   "response": [
+    {
+     "id": 1,
+     "user": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "state": "REQUEST_REVIEW",
+     "body": "",
+     "commit_id": "",
+     "stale": false,
+     "official": true,
+     "dismissed": false,
+     "comments_count": 0,
+     "submitted_at": "2026-10-19T12:00:00Z",
+     "html_url": "",
+     "pull_request_url": ""
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls/8/reviews",
+   "response": [
+    {
+     "id": 2,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "state": "REQUEST_CHANGES",
+     "body": "",
+     "commit_id": "",
+     "stale": false,
+     "official": true,
+     "dismissed": true,
+     "comments_count": 0,
+     "submitted_at": "2026-10-19T12:00:00Z",
+     "html_url": "",
+     "pull_request_url": ""
+    },
+    {
+     "id": 3,
+     "user": {
+      "id": 2,
+      "login": "alex",
+      "login_name": "",
+      "full_name": "Alex",
+      "email": "alex@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/2",
+      "html_url": "https://code.example.org/forgejo/alex",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "alex"
+     },
+     "state": "APPROVED",
+     "body": "",
+     "commit_id": "",
+     "stale": false,
+     "official": true,
+     "dismissed": false,
+     "comments_count": 0,
+     "submitted_at": "2026-10-19T12:00:00Z",
+     "html_url": "",
+     "pull_request_url": ""
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/pulls/9/reviews",
+   "response": []
+  },
+  {
+   "path": "/repos/acme/widgets/commits/7777777777777777777777777777777777777777/status",
+   "response": {
+    "state": "pending",
+    "sha": "7777777777777777777777777777777777777777",
+    "total_count": 1,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "commit_url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/7777777777777777777777777777777777777777",
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/7777777777777777777777777777777777777777/status",
+    "statuses": [
+     {
+      "id": 1,
+      "status": "pending",
+      "target_url": "https://code.example.org/forgejo/acme/widgets/actions/runs/1",
+      "description": "",
+      "url": "",
+      "context": "ci/test",
+      "creator": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "created_at": "2026-10-19T10:00:00Z",
+      "updated_at": "2026-10-19T10:05:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/commits/8888888888888888888888888888888888888888/status",
+   "response": {
+    "state": "success",
+    "sha": "8888888888888888888888888888888888888888",
+    "total_count": 1,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "commit_url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/8888888888888888888888888888888888888888",
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/8888888888888888888888888888888888888888/status",
+    "statuses": [
+     {
+      "id": 1,
+      "status": "success",
+      "target_url": "https://code.example.org/forgejo/acme/widgets/actions/runs/1",
+      "description": "",
+      "url": "",
+      "context": "ci/test",
+      "creator": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "created_at": "2026-10-19T10:00:00Z",
+      "updated_at": "2026-10-19T10:05:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/commits/9999999999999999999999999999999999999999/status",
+   "response": {
+    "state": "failure",
+    "sha": "9999999999999999999999999999999999999999",
+    "total_count": 1,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "commit_url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/9999999999999999999999999999999999999999",
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/9999999999999999999999999999999999999999/status",
+    "statuses": [
+     {
+      "id": 1,
+      "status": "failure",
+      "target_url": "https://code.example.org/forgejo/acme/widgets/actions/runs/1",
+      "description": "",
+      "url": "",
+      "context": "ci/test",
+      "creator": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "created_at": "2026-10-19T10:00:00Z",
+      "updated_at": "2026-10-19T10:05:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/commits/main/status",
+   "response": {
+    "state": "failure",
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "total_count": 2,
+    "repository": {
+     "id": 42,
+     "name": "widgets",
+     "owner": "acme",
+     "full_name": "acme/widgets"
+    },
+    "commit_url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/status",
+    "statuses": [
+     {
+      "id": 1,
+      "status": "success",
+      "target_url": "https://code.example.org/forgejo/acme/widgets/actions/runs/1",
+      "description": "",
+      "url": "",
+      "context": "ci/lint",
+      "creator": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "created_at": "2026-10-19T10:00:00Z",
+      "updated_at": "2026-10-19T10:05:00Z"
+     },
+     {
+      "id": 2,
+      "status": "failure",
+      "target_url": "https://code.example.org/forgejo/acme/widgets/actions/runs/2",
+      "description": "",
+      "url": "",
+      "context": "ci/test",
+      "creator": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "created_at": "2026-10-19T10:00:00Z",
+      "updated_at": "2026-10-19T10:05:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/actions/runs",
+   "response": {
+    "message": "Not Found",
+    "url": "https://code.example.org/forgejo/api/swagger"
+   },
+   "status": 404
+  },
+  {
+   "path": "/repos/acme/widgets/releases",
+   "response": [
+    {
+     "id": 1,
+     "tag_name": "v1.2.0",
+     "target_commitish": "main",
+     "name": "1.2.0",
+     "body": "",
+     "url": "",
+     "html_url": "",
+     "tarball_url": "",
+     "zipball_url": "",
+     "upload_url": "",
+     "draft": false,
+     "prerelease": false,
+     "created_at": "2026-10-18T09:30:00Z",
+     "published_at": "2026-10-18T09:30:00Z",
+     "author": {
+      "id": 1,
+      "login": "me",
+      "login_name": "",
+      "full_name": "Me",
+      "email": "me@noreply.code.example.org",
+      "avatar_url": "https://code.example.org/forgejo/avatars/1",
+      "html_url": "https://code.example.org/forgejo/me",
+      "language": "",
+      "is_admin": false,
+      "created": "2026-01-01T00:00:00Z",
+      "restricted": false,
+      "active": true,
+      "visibility": "public",
+      "username": "me"
+     },
+     "assets": []
+    },
+    {
+     "id": 2,
+     "tag_name": "v2.0.0",
+     "draft": true,
+     "prerelease": false,
+     "created_at": "2026-10-19T00:00:00Z",
+     "published_at": "2026-10-19T00:00:00Z"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/tags",
+   "response": [
+    {
+     "name": "v1.2.0",
+     "message": "",
+     "id": "5555555555555555555555555555555555555555",
+     "commit": {
+      "url": "",
+      "sha": "5555555555555555555555555555555555555555",
+      "created": "2026-10-18T09:00:00Z"
+     },
+     "zipball_url": "",
+     "tarball_url": ""
+    },
+    {
+     "name": "v1.1.0",
+     "message": "",
+     "id": "4444444444444444444444444444444444444444",
+     "commit": {
+      "url": "",
+      "sha": "4444444444444444444444444444444444444444",
+      "created": "2026-09-01T00:00:00Z"
+     },
+     "zipball_url": "",
+     "tarball_url": ""
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/branches",
+   "response": [
+    {
+     "name": "main",
+     "commit": {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": true,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": "main"
+    },
+    {
+     "name": "4-forgejo-adapter",
+     "commit": {
+      "id": "7777777777777777777777777777777777777777",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/7777777777777777777777777777777777777777",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": false,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": ""
+    },
+    {
+     "name": "fix/2",
+     "commit": {
+      "id": "8888888888888888888888888888888888888888",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/8888888888888888888888888888888888888888",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": false,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": ""
+    },
+    {
+     "name": "renovate/tea",
+     "commit": {
+      "id": "9999999999999999999999999999999999999999",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/9999999999999999999999999999999999999999",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": false,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": ""
+    },
+    {
+     "name": "old-spike",
+     "commit": {
+      "id": "cccccccccccccccccccccccccccccccccccccccc",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/cccccccccccccccccccccccccccccccccccccccc",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": false,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": ""
+    },
+    {
+     "name": "wip-idea",
+     "commit": {
+      "id": "dddddddddddddddddddddddddddddddddddddddd",
+      "message": "work",
+      "url": "https://code.example.org/forgejo/acme/widgets/commit/dddddddddddddddddddddddddddddddddddddddd",
+      "author": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "committer": {
+       "name": "Me",
+       "email": "me@example.org",
+       "username": "me"
+      },
+      "verification": null,
+      "timestamp": "2026-10-19T00:00:00Z",
+      "added": null,
+      "removed": null,
+      "modified": null
+     },
+     "protected": false,
+     "required_approvals": 0,
+     "enable_status_check": false,
+     "status_check_contexts": [],
+     "user_can_push": true,
+     "user_can_merge": true,
+     "effective_branch_protection_name": ""
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/compare/main...old-spike",
+   "response": {
+    "total_commits": 0,
+    "commits": [],
+    "files": []
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/compare/main...wip-idea",
+   "response": {
+    "total_commits": 2,
+    "commits": [
+     {
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/git/commits/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "created": "2026-09-19T00:00:00Z",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/commit/eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "commit": {
+       "url": "",
+       "author": {
+        "name": "Me",
+        "email": "me@example.org",
+        "date": "2026-09-19T00:00:00Z"
+       },
+       "committer": {
+        "name": "Me",
+        "email": "me@example.org",
+        "date": "2026-09-19T00:00:00Z"
+       },
+       "message": "work",
+       "tree": {
+        "url": "",
+        "sha": "t",
+        "created": "2026-09-19T00:00:00Z"
+       },
+       "verification": null
+      },
+      "author": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "committer": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "parents": [],
+      "files": null,
+      "stats": null
+     },
+     {
+      "url": "https://code.example.org/forgejo/api/v1/repos/acme/widgets/git/commits/dddddddddddddddddddddddddddddddddddddddd",
+      "sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "created": "2026-09-20T00:00:00Z",
+      "html_url": "https://code.example.org/forgejo/acme/widgets/commit/dddddddddddddddddddddddddddddddddddddddd",
+      "commit": {
+       "url": "",
+       "author": {
+        "name": "Me",
+        "email": "me@example.org",
+        "date": "2026-09-20T00:00:00Z"
+       },
+       "committer": {
+        "name": "Me",
+        "email": "me@example.org",
+        "date": "2026-09-20T00:00:00Z"
+       },
+       "message": "work",
+       "tree": {
+        "url": "",
+        "sha": "t",
+        "created": "2026-09-20T00:00:00Z"
+       },
+       "verification": null
+      },
+      "author": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "committer": {
+       "id": 1,
+       "login": "me",
+       "login_name": "",
+       "full_name": "Me",
+       "email": "me@noreply.code.example.org",
+       "avatar_url": "https://code.example.org/forgejo/avatars/1",
+       "html_url": "https://code.example.org/forgejo/me",
+       "language": "",
+       "is_admin": false,
+       "created": "2026-01-01T00:00:00Z",
+       "restricted": false,
+       "active": true,
+       "visibility": "public",
+       "username": "me"
+      },
+      "parents": [],
+      "files": null,
+      "stats": null
+     }
+    ],
+    "files": []
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/compare/main...5555555555555555555555555555555555555555",
+   "response": {
+    "total_commits": 0,
+    "commits": [],
+    "files": []
+   }
+  },
+  {
+   "path": "/repos/acme/widgets/milestones",
+   "query": {
+    "state": "open"
+   },
+   "response": [
+    {
+     "id": 31,
+     "title": "Tier 1",
+     "description": "",
+     "state": "open",
+     "open_issues": 2,
+     "closed_issues": 0,
+     "created_at": "2026-09-01T00:00:00Z",
+     "updated_at": "2026-09-01T00:00:00Z",
+     "closed_at": null,
+     "due_on": "2026-11-30T23:59:59Z"
+    }
+   ]
+  },
+  {
+   "path": "/repos/acme/widgets/milestones",
+   "query": {
+    "state": "all"
+   },
+   "response": [
+    {
+     "id": 31,
+     "title": "Tier 1",
+     "description": "",
+     "state": "open",
+     "open_issues": 2,
+     "closed_issues": 0,
+     "created_at": "2026-09-01T00:00:00Z",
+     "updated_at": "2026-09-01T00:00:00Z",
+     "closed_at": null,
+     "due_on": "2026-11-30T23:59:59Z"
+    }
+   ]
+  }
+ ]
+}

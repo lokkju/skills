@@ -14,6 +14,20 @@ class ForgeError(Exception):
     """A read that failed. The message is already redacted and short enough to print."""
 
 
+class HTTPStatusError(ForgeError):
+    """A read the forge answered with a non-2xx status; `status` lets an adapter tell a missing
+    endpoint (404 on an older instance) from other failures."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
+
+
+class Unsupported(ForgeError):
+    """A read this forge can't answer (no such API on it). Reports show it as unsupported for the
+    forge, not as empty and not as a failure."""
+
+
 class ConfigError(Exception):
     """A config file or a detection step that can't go on; the message says what to fix."""
 
@@ -27,6 +41,9 @@ class Read(Generic[T]):
 
     data: Optional[T] = None
     error: Optional[str] = None
+    # The forge can't answer this read at all (`error` says why). It isn't `ok`, so no caller
+    # mistakes it for data, but reports show it as unsupported rather than FAILED.
+    unsupported: bool = False
 
     @property
     def ok(self) -> bool:
@@ -34,14 +51,16 @@ class Read(Generic[T]):
 
     def map(self, fn: Callable[[T], U]) -> Read[U]:
         if self.error is not None:
-            return Read(error=self.error)
+            return Read(error=self.error, unsupported=self.unsupported)
         return Read(data=fn(self.data))  # type: ignore[arg-type]
 
 
 def attempt(fn: Callable[[], T]) -> Read[T]:
-    """Run one read and turn a ForgeError into Read(error=...)."""
+    """Run one read and turn a ForgeError into Read(error=...), marked when it's Unsupported."""
     try:
         return Read(data=fn())
+    except Unsupported as error:
+        return Read(error=str(error), unsupported=True)
     except ForgeError as error:
         return Read(error=str(error))
 

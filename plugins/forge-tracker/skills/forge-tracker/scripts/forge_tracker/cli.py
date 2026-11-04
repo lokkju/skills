@@ -11,14 +11,22 @@ import sys
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
-from . import catchup, config, detect, groom, labelsetup, state, workspace, writes
+from . import catchup, config, detect, groom, labelsetup, state, toolconfig, workspace, writes
 from . import next as next_
-from .forges import github, gitlab
+from .forges import forgejo, github, gitlab
 from .model import ConfigError, ForgeError, attempt, iso
-from .transport import Http, ReadTransport, RecordingHttp, gh_token, glab_http, urllib_http
+from .transport import (
+    Http,
+    ReadTransport,
+    RecordingHttp,
+    check_read,
+    gh_token,
+    glab_http,
+    urllib_http,
+)
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
 
@@ -44,10 +52,13 @@ def open_forge(
     environ: Mapping[str, str] = os.environ,
 ) -> Context:
     loaded = config.load(repo_dir)
-    remote, forge = detect.resolve(repo_dir, loaded.forge, run, environ)
+    probe = forgejo_probe(http or urllib_http(loaded.ca_file, timeout=5), environ)
+    remote, forge = detect.resolve(repo_dir, loaded.forge, run, environ, probe)
     cfg = labelsetup.with_decline(loaded, remote, environ)
     if forge == "gitlab":
         return _open_gitlab(repo_dir, remote, cfg, http, run, record)
+    if forge == "forgejo":
+        return _open_forgejo(repo_dir, remote, cfg, http, record, environ)
     token = gh_token(remote.host, run)
     inner = http or urllib_http(cfg.ca_file)
     recorder = RecordingHttp(inner, [token]) if record else None
@@ -82,6 +93,88 @@ def _open_gitlab(
         transport, remote.project, blocking=cfg.blocking, blocked_label=cfg.label("blocked")
     )
     return Context(repo_dir, remote, cfg, "gitlab", adapter, recorder, inner, None)
+
+
+def _open_forgejo(
+    repo_dir: str,
+    remote: detect.Remote,
+    cfg: config.Config,
+    http: Optional[Http],
+    record: bool,
+    environ: Mapping[str, str],
+) -> Context:
+    """Forgejo and Gitea reads go through urllib with the user's token: `FORGEJO_TOKEN`, else the
+    token of tea's login for the host. The API base is `api_base:`, else the tea login's URL (an
+    instance under a subpath), else https://<host>/api/v1; the CA is `ca_file:`."""
+    login = toolconfig.tea_login(remote.host, cfg.api_base, environ)
+    token = environ.get("FORGEJO_TOKEN") or (login or {}).get("token")
+    if not token:
+        raise ForgeError(
+            f"no Forgejo token for {remote.host}: set FORGEJO_TOKEN, or log in with "
+            f"`tea login add --url https://{remote.host}`"
+        )
+    api_base = cfg.api_base or (
+        login["url"].rstrip("/") + "/api/v1"
+        if login and login.get("url", "").startswith("https://")
+        else forgejo.default_api_base(remote.host)
+    )
+    inner = http or urllib_http(cfg.ca_file)
+    recorder = RecordingHttp(inner, [token]) if record else None
+    transport = ReadTransport(
+        api_base=api_base.rstrip("/"),
+        http=recorder or inner,
+        token=token,
+        auth_scheme=forgejo.AUTH_SCHEME,
+        page_size_param="limit",
+        page_size=forgejo.PAGE_SIZE,
+    )
+    adapter = forgejo.Forgejo(transport, remote.project)
+    return Context(repo_dir, remote, cfg, "forgejo", adapter, recorder, inner, token)
+
+
+PROBE_TTL = timedelta(days=1)
+
+
+def forgejo_probe(
+    http: Http, environ: Mapping[str, str], now: Optional[datetime] = None
+) -> Callable[[str], bool]:
+    """The detection probe: an unauthenticated GET of https://<host>/api/v1/version, which
+    Forgejo and Gitea answer with a JSON `version`. Each host's answer is cached for a day in
+    `.../forge-tracker/hosts.json`; a host that gave no HTTP answer at all isn't cached."""
+
+    def probe(host: str) -> bool:
+        path = os.path.join(state.cache_root(environ), "hosts.json")
+        cached = state.read_json(path)
+        cached = cached if isinstance(cached, dict) else {}
+        when = now or datetime.now(timezone.utc)
+        entry = cached.get(host)
+        if isinstance(entry, dict) and isinstance(entry.get("forgejo"), bool):
+            at = entry.get("at")
+            try:
+                fresh = at and when - datetime.fromisoformat(at.replace("Z", "+00:00")) < PROBE_TTL
+            except (TypeError, ValueError):
+                fresh = False
+            if fresh:
+                return entry["forgejo"]
+        url = f"https://{host}/api/v1/version"
+        try:
+            check_read("GET", url, None, None)
+            response = http("GET", url, {"Accept": "application/json"}, None)
+        except Exception:  # noqa: BLE001 - a probe that can't connect just isn't an answer
+            return False
+        try:
+            body = json.loads(response.body) if response.status == 200 else None
+        except ValueError:
+            body = None
+        found = isinstance(body, dict) and isinstance(body.get("version"), str)
+        cached[host] = {"forgejo": found, "at": iso(when)}
+        try:
+            state.write_json(path, cached)
+        except OSError:
+            pass
+        return found
+
+    return probe
 
 
 def _json_default(value: Any) -> Any:
@@ -634,15 +727,11 @@ def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
         checks += [
             (
                 "push run",
-                attempt(lambda: a.latest_run(branch, "push")).map(
-                    lambda r: "none" if r is None else f"{r.id} {r.conclusion or r.status}"
-                ),
+                attempt(lambda: a.latest_run(branch, "push")).map(_run_summary),
             ),
             (
                 "schedule run",
-                attempt(lambda: a.latest_run(branch, "schedule")).map(
-                    lambda r: "none" if r is None else f"{r.id} {r.conclusion or r.status}"
-                ),
+                attempt(lambda: a.latest_run(branch, "schedule")).map(_run_summary),
             ),
             ("passed on retry", attempt(lambda: a.passed_on_retry(branch, since)).map(len)),
             (
@@ -657,17 +746,25 @@ def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
     for name, read in checks:
         if read.ok:
             out.write(f"  {name}: {read.data}\n")
+        elif read.unsupported:
+            out.write(f"  {name}: unsupported on {ctx.forge} ({read.error})\n")
         else:
             ok = False
             out.write(f"  {name}: FAILED ({read.error})\n")
     return EXIT_OK if ok else EXIT_FAILED
 
 
+def _run_summary(run: Any) -> str:
+    if run is None:
+        return "none"
+    return f"{run.id or run.name} {run.conclusion or run.status}"
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="forge-tracker",
         description=(
-            "Read a repo's forge (GitHub and GitLab so far) and report on it. Every command only reads, "
+            "Read a repo's forge (GitHub, GitLab, or Forgejo and Gitea) and report on it. Every command only reads, "
             "except `write`, `link`, `groom apply` and `labels create`, which run named write "
             "operations."
         ),

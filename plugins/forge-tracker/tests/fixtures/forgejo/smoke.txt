@@ -1,0 +1,16 @@
+acme/widgets on code.example.org (forgejo)
+  identity: me (bot: no)
+  repo: default branch main
+  open issues: 4
+  issues updated in 7 days: 5
+  comments in 7 days: 2
+  mentions in 7 days: 1
+  open changes: 3 (conflicts: yes 1, no 2, unknown 0)
+  merged in 7 days: 2
+  blocking links: 2
+  closing references: 4
+  next fingerprint: 6 branch heads
+  push run: commit status of aaaaaaa failure
+  schedule run: unsupported on forgejo (this instance has no Actions runs API, and a commit status doesn't say what triggered it, so there's no schedule run to show)
+  passed on retry: unsupported on forgejo (this instance has no Actions runs API)
+  branches: 5

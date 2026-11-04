@@ -1,10 +1,15 @@
 """What the forge CLIs' own config files say, read without running them: the hosts `glab` is set
-up for. Tokens are never read here.
+up for, and `tea`'s logins. glab's tokens are never read here (glab makes GitLab's requests
+itself); a tea login's token is, because Forgejo's requests are forge-tracker's own, and it goes
+only into their Authorization header.
 
 glab keeps `config.yml` in `$GLAB_CONFIG_DIR`, else `$XDG_CONFIG_HOME/glab-cli`, else
 `~/.config/glab-cli`. Its `hosts:` mapping names each host it's set up for, with an optional
 `api_host` when the API lives elsewhere (a subpath, another name). The standard library has no
 YAML parser, so this reads only the keys of that mapping, by indentation.
+
+tea keeps `config.yml` in `$XDG_CONFIG_HOME/tea`, else `~/.config/tea`: a `logins:` list whose
+items have `name`, `url` (the instance, possibly under a subpath), `token` and `user`.
 """
 
 from __future__ import annotations
@@ -90,3 +95,55 @@ def glab_hosts(environ: Mapping[str, str] = os.environ) -> set[str]:
         elif key == "api_host" and value.strip():
             hosts.add(_host_of(value))
     return {h for h in hosts if h}
+
+
+def tea_config_path(environ: Mapping[str, str] = os.environ) -> str:
+    return os.path.join(_config_home(environ), "tea", "config.yml")
+
+
+def tea_logins(environ: Mapping[str, str] = os.environ) -> list[dict[str, str]]:
+    """Each login in tea's config as its scalar fields (`name`, `url`, `token`, `user`, ...)."""
+    text = _read(tea_config_path(environ))
+    if text is None:
+        return []
+    logins: list[dict[str, str]] = []
+    in_logins = False
+    item_indent: Optional[int] = None
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        # A list may sit at the key's own indent (`logins:` then `- name: ...` at column 0).
+        if indent == 0 and not (in_logins and line.startswith("- ")):
+            in_logins = line.rstrip() == "logins:"
+            continue
+        if not in_logins:
+            continue
+        body = line.strip()
+        if body.startswith("- "):
+            item_indent = indent
+            logins.append({})
+            body = body[2:].strip()
+        elif item_indent is None or indent <= item_indent or not logins:
+            continue
+        key, value = _key_value(body)
+        if key is not None and value.strip():
+            logins[-1][key.strip()] = _unquote(value)
+    return [login for login in logins if login.get("url")]
+
+
+def tea_hosts(environ: Mapping[str, str] = os.environ) -> set[str]:
+    return {_host_of(login["url"]) for login in tea_logins(environ)} - {""}
+
+
+def tea_login(
+    host: str, api_base: Optional[str] = None, environ: Mapping[str, str] = os.environ
+) -> Optional[dict[str, str]]:
+    """The tea login for `host`: when several share the host, the one whose URL the API base
+    starts with (an instance under a subpath), else the first."""
+    matches = [login for login in tea_logins(environ) if _host_of(login["url"]) == host]
+    if api_base:
+        for login in matches:
+            if api_base.startswith(login["url"].rstrip("/") + "/"):
+                return login
+    return matches[0] if matches else None

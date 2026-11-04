@@ -2,11 +2,11 @@
 
 Keeps durable work on the issue tracker of the repo it's about, and keeps that tracker honest
 enough to plan from. The design is [docs/specs/forge-tracker.md](../../docs/specs/forge-tracker.md);
-this release has a read-only forge layer for GitHub and GitLab, `/catchup`, `/next` and
-`/groom`, plus the write operations `/groom` applies and `forge-tracker link` for recording
-blocking (on GitHub; see [GitLab](#gitlab)). The `forge-tracker` skill holds the first working
-rules: record blocking as a native link, and label person-only work when filing it. The rest of
-the working rules and the Forgejo adapter come in later phases.
+this release has a read-only forge layer for GitHub, GitLab and Forgejo (Gitea too),
+`/catchup`, `/next` and `/groom`, plus the write operations `/groom` applies and `forge-tracker
+link` for recording blocking (on GitHub; see [GitLab](#gitlab) and [Forgejo](#forgejo-and-gitea)).
+The `forge-tracker` skill holds the first working rules: record blocking as a native link, and
+label person-only work when filing it. The rest of the working rules come in later phases.
 
 ## Requirements
 
@@ -16,6 +16,9 @@ the working rules and the Forgejo adapter come in later phases.
 - On GitLab, `glab`, logged in to the repo's host (`glab auth login`). Every GitLab read is a
   `glab api` GET, so glab's own login, host settings and pinned `ca_cert` apply, and no GitLab
   token passes through forge-tracker.
+- On Forgejo or Gitea, a token: `FORGEJO_TOKEN`, or a `tea` login for the host (`tea login add`),
+  whose token forge-tracker reads from tea's `config.yml` and sends only in the `Authorization`
+  header of its own requests. tea itself isn't run.
 
 ## Which repo
 
@@ -303,6 +306,36 @@ GitLab works the same as GitHub for all three reports, with these differences:
   with that reason, unless the config sets a `write_wrapper:`, which then does the write. `/groom`
   says so on its report.
 
+## Forgejo and Gitea
+
+Forgejo and Gitea share one adapter (`tracker.forge gitea` reads as `forgejo`). The reports work
+as on GitHub, pull requests stay `#N`, and these differ:
+
+- **Detection.** A host tea has a login for is Forgejo. Otherwise forge-tracker asks the host's
+  `/api/v1/version` without a token, and a JSON `version` answer means Forgejo or Gitea; the
+  answer is cached per host for a day in `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/hosts.json`.
+  `forge: forgejo` or `git config tracker.forge forgejo` skips both.
+- **Self-hosted.** The API base is `api_base:`, else the tea login's URL plus `/api/v1` (so an
+  instance under a subpath needs only its tea login), else `https://<host>/api/v1`. A remote
+  under a subpath is read as its last two segments, `owner/repo`. A private CA is `ca_file:`.
+- **Blocking** is Forgejo's own issue dependencies, read per open issue.
+- **Closing references** aren't an API on Forgejo, so they're read from the closing keywords in PR
+  bodies (`Closes #4`, `fixes #5`, `Resolves #6, #7`; code spans and blocks don't count). That
+  read covers every PR, open, merged or closed.
+- **Mergeability.** `mergeable: true` is `conflicts: no` and `false` is `yes`. Forgejo's API has
+  no separate "still checking" state, so a PR read in the seconds after its base moved can show a
+  conflict until the check finishes.
+- **CI.** Where the instance has the Actions runs API, runs are read as on GitHub. Where it
+  doesn't, the push run is the default branch head's combined commit status (shown as `commit
+  status of <sha>`, with the failed status contexts as its failed jobs), and the scheduled run and
+  the retried jobs are `unsupported on Forgejo`: shown as such, not as none, and not a failure, so
+  `/catchup`'s marker still moves.
+- **What it costs.** Each open PR is read once more for its head commit's status and once for its
+  reviews, and each open issue once for its dependencies.
+- **Bots** are told by name only (`[bot]`, `-bot`), since Forgejo's API doesn't flag them.
+- **Writes aren't built for Forgejo yet**, the same as on GitLab: each operation is refused unless
+  a `write_wrapper:` is set.
+
 ## Configuration
 
 Per repo, in `.claude/forge-tracker.local.md`. Only the YAML frontmatter is read, every key is
@@ -339,7 +372,8 @@ blocking: relates_to+blocked  # GitLab CE: a relates_to link plus the blocked la
 Free notes for the assistant.
 ```
 
-The file also accepts `ca_file`, which the Forgejo phase reads; the design doc describes it.
+`ca_file: /etc/ssl/example-root.pem` pins the CA for Forgejo and GitHub Enterprise requests
+(GitLab uses glab's `ca_cert`).
 
 ### Per clone: `tracker.web` and `tracker.forge`
 
@@ -353,7 +387,8 @@ git config tracker.forge github                          # github, gitlab, forge
 ```
 
 `tracker.forge` wins over `forge:` in the config file, and both win over the built-in host rules
-(`github.com`, `gitlab.com`, and any host in glab's config is GitLab). Put `forge:` in the file when it holds for every clone, which matters
+(`github.com`, `gitlab.com`, any host in glab's config is GitLab, any host with a tea login is
+Forgejo, and a host whose `/api/v1/version` answers is Forgejo). Put `forge:` in the file when it holds for every clone, which matters
 when the file is committed; use `tracker.forge` for what is true only of this clone. `api_base:`
 and `ca_file:` still come only from the config file, since git config holds the web address and
 not the API's. A value forge-tracker can't use stops the command with the key named. The standard library has no YAML parser, so the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
@@ -414,11 +449,14 @@ a fake wrapper. `tests/test_contract.py` is #21's contract suite: each scenario 
 issue fields, three-valued mergeability, merged changes, native links, a read failing alone, a
 page cap, a token in an error) is written once and run against every adapter, with a kit per
 forge in `tests/kits.py` that puts it in that forge's response shapes. `tests/fixtures/gitlab/`
-is a small GitLab project in the shapes GitLab's REST documentation gives, served under a subpath
-`api_base`, with the `/catchup`, `/next`, `/groom` and `smoke` output it produces.
+and `tests/fixtures/forgejo/` are a small project each, in the shapes the forge's REST
+documentation gives and served under a subpath `api_base`, with the `/catchup`, `/next`, `/groom`
+and `smoke` output each produces; the Forgejo one has no Actions runs API, so it shows the
+unsupported lines.
 `tests/fixtures/github/` holds `/catchup`, `/next` and `/groom` runs recorded
 from a live repo with `--record <file>` (scrubbed of tokens and thinned of fields no adapter reads) and the
 report they produce; the edge cases a live repo rarely shows at once (conflicts, retries, bots,
 failures, page caps) are built in the tests. The GitHub fixtures will move to a dedicated seeded
-repo. The GitLab world is to be replaced by responses recorded from the docker-compose stack of
-GitLab CE and Forgejo in `tests/live/` once that exists; `--record` works on GitLab the same way.
+repo. The GitLab and Forgejo worlds are to be replaced by responses recorded from the
+docker-compose stack of GitLab CE and Forgejo in `tests/live/` once that exists; `--record` works
+on both the same way.

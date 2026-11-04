@@ -16,7 +16,7 @@
     {
       "name": "forge-tracker",
       "source": "./plugins/forge-tracker",
-      "description": "Keeps work on the forge's issue tracker and the tracker honest enough to plan from; for now on GitHub and GitLab: /catchup (what changed and what's waiting on you), /next (what to work on) and /groom (tracker drift, fixed only on your approval)."
+      "description": "Keeps work on the forge's issue tracker and the tracker honest enough to plan from; on GitHub, GitLab and Forgejo: /catchup (what changed and what's waiting on you), /next (what to work on) and /groom (tracker drift, fixed only on your approval)."
     },
     {
       "name": "term-recorder",

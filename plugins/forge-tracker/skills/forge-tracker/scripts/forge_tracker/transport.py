@@ -23,7 +23,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from .model import ForgeError
+from .model import ForgeError, HTTPStatusError
 
 USER_AGENT = "forge-tracker"
 DEFAULT_PAGE_CAP = 50
@@ -327,12 +327,17 @@ class ReadTransport:
     graphql_url: Optional[str] = None
     page_cap: int = DEFAULT_PAGE_CAP
     extra_headers: Mapping[str, str] = field(default_factory=dict)
+    # How the token is sent (`Authorization: <scheme> <token>`), and how a list asks for a page
+    # size: GitHub and GitLab take `per_page`, Forgejo and Gitea `limit` (at most 50 by default).
+    auth_scheme: str = "Bearer"
+    page_size_param: str = "per_page"
+    page_size: int = PER_PAGE
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
         headers.update(self.extra_headers)
         if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+            headers["Authorization"] = f"{self.auth_scheme} {self.token}"
         return headers
 
     def _secrets(self) -> list[str]:
@@ -355,17 +360,19 @@ class ReadTransport:
         response = self.http(method, url, headers, body)
         try:
             parsed = json.loads(response.body) if response.body else None
+            not_json = False
         except ValueError:
-            parsed = None
+            parsed, not_json = None, True
         if not 200 <= response.status < 300:
             message = parsed.get("message") if isinstance(parsed, dict) else None
             if not message:
                 message = response.body.decode("utf-8", "replace")
             path = urllib.parse.urlsplit(url).path
-            raise ForgeError(
-                redact(f"HTTP {response.status} from {path}: {message}", self._secrets())
+            raise HTTPStatusError(
+                redact(f"HTTP {response.status} from {path}: {message}", self._secrets()),
+                response.status,
             )
-        if parsed is None and response.body:
+        if not_json:
             raise ForgeError(f"{urllib.parse.urlsplit(url).path} returned something not JSON")
         return parsed, response
 
@@ -373,11 +380,22 @@ class ReadTransport:
         return self.send("GET", self.url(path, params))[0]
 
     def get_all(
-        self, path: str, params: Optional[Mapping[str, Any]] = None, key: Optional[str] = None
+        self,
+        path: str,
+        params: Optional[Mapping[str, Any]] = None,
+        key: Optional[str] = None,
+        stop: Optional[Callable[[Any], bool]] = None,
     ) -> list[Any]:
         """Every item across every page. `key` names the list inside an object body (GitHub's
-        `workflow_runs`, `items`); without it the body itself is the list."""
-        url: Optional[str] = self.url(path, dict({"per_page": PER_PAGE}, **(params or {})))
+        `workflow_runs`, `items`); without it the body itself is the list.
+
+        `stop(item)` ends the read at the first item it's true for, which isn't kept: for lists
+        ordered so that everything after it is out of range (newest first, read back to a time),
+        or a search that needs only the first match. A stop is the end of the range, not a cap,
+        so it isn't a failure; a cap hit before it still is."""
+        url: Optional[str] = self.url(
+            path, dict({self.page_size_param: self.page_size}, **(params or {}))
+        )
         items: list[Any] = []
         pages = 0
         while url:
@@ -393,9 +411,14 @@ class ReadTransport:
                 if body.get("incomplete_results"):
                     raise ForgeError(f"{path} reported incomplete results")
                 body = body[key]
+            if body is None:
+                body = []  # Forgejo and Gitea answer an empty list as JSON null
             if not isinstance(body, list):
                 raise ForgeError(f"{path} returned something other than a list")
-            items.extend(body)
+            for item in body:
+                if stop is not None and stop(item):
+                    return items
+                items.append(item)
             url = next_link(response.headers) or _next_page(url, response.headers)
         return items
 

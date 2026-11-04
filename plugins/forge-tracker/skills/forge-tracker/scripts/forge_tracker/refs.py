@@ -36,6 +36,36 @@ def change_ref(forge: Optional[str], number: int) -> str:
     return f"!{number}" if forge == "gitlab" else f"#{number}"
 
 
+# Forgejo's (and Gitea's) default closing keywords, then one reference or a comma- or
+# "and"-separated list of them.
+_CLOSING = re.compile(
+    r"(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+"
+    r"((?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#\d+(?:\s*(?:,|and)\s*(?:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#\d+)*)",
+    re.IGNORECASE,
+)
+_ONE_REF = re.compile(r"(?:([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#(\d+)")
+
+
+def closing_numbers(body: str, project: Optional[str] = None) -> list[int]:
+    """The issues in this project a pull request body closes with a closing keyword (`Closes #4`,
+    `fixes acme/widgets#5`, `Resolves #6, #7`), in order and once each. A reference to another
+    project doesn't count. Forgejo has no API for these links, so its adapter reads them here."""
+    out: list[int] = []
+    for match in _CLOSING.finditer(_strip_code(body or "")):
+        for other, number in _ONE_REF.findall(match.group(1)):
+            if other and (project is None or other.lower() != project.lower()):
+                continue
+            if int(number) not in out:
+                out.append(int(number))
+    return out
+
+
+def _strip_code(text: str) -> str:
+    """The text without fenced code blocks and inline code spans, where a keyword is an example."""
+    text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
+    return re.sub(r"`[^`\n]*`", " ", text)
+
+
 def change_word(forge: Optional[str]) -> str:
     """What the forge calls a change: MR on GitLab, PR elsewhere."""
     return "MR" if forge == "gitlab" else "PR"
