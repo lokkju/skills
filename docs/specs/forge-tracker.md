@@ -39,11 +39,13 @@ plugins/forge-tracker/
   skills/forge-tracker/scripts/forge-tracker   entry point (python3, standard library only)
   skills/forge-tracker/scripts/forge_tracker/
     detect.py                     origin URL or tracker.web, tracker.forge -> forge, host, project
+    toolconfig.py                 the hosts glab is set up for, read from its config file
     config.py                     .claude/forge-tracker.local.md frontmatter, strict
     labelsetup.py                 first use: a config proposed from the repo's labels, the approved
                                   labels created, a declined offer
     transport.py                  read transport (GET only) and the separate write transport
     forges/github.py gitlab.py forgejo.py    one adapter each, same normalized shape
+    forges/common.py              what the adapters share (picking the newest release or tag)
     model.py                      Issue, Change, Pipeline, Branch, Release, Read[T] (data or named error)
     catchup.py next.py groom.py   the three reports
     workspace.py                  /catchup over a folder of repos: discovery, one combined report
@@ -102,7 +104,10 @@ The forge is decided in this order:
 2. `forge:` in `.claude/forge-tracker.local.md`, when set (`github`, `gitlab` or `forgejo`).
 3. The host (from `tracker.web`, else the remote): `github.com` is GitHub and `gitlab.com` is
    GitLab.
-4. A host that `glab` knows (`glab config get host --host <host>` succeeds) is GitLab.
+4. A host glab is set up for is GitLab: a key under `hosts:` (or its `api_host`) in glab's
+   `config.yml` (`$GLAB_CONFIG_DIR`, else `$XDG_CONFIG_HOME/glab-cli`, else
+   `~/.config/glab-cli`), or `GITLAB_HOST`. The file is read, not glab run, and no token in it
+   is read.
 5. An unauthenticated probe of `https://<host>/api/v1/version`. A JSON `version` field means
    Forgejo or Gitea. The result is cached per host for a day.
 6. Otherwise the command stops and asks for `forge:` in the config file, or `tracker.forge` for
@@ -126,7 +131,7 @@ pull requests, `!N` for GitLab merge requests, and `group/project#N` across proj
 | Forge | Reads through | Auth | CA |
 | --- | --- | --- | --- |
 | GitHub | `urllib` against REST, and GraphQL where REST needs one call per item | the token from `gh auth token` | system |
-| GitLab | `glab api` (REST), `glab api graphql` for the same reason | `glab auth` | `glab`'s `ca_cert` for the host |
+| GitLab | `glab api --include` (REST; GraphQL turned out not to be needed) | `glab auth` | `glab`'s `ca_cert` for the host |
 | Forgejo | `urllib` against `/api/v1` | `FORGEJO_TOKEN`, else the matching login in `tea`'s config | `ca_file:` in the config file |
 
 Forgejo goes through `urllib` and not `tea` because `tea`'s output is meant for terminals and
@@ -144,14 +149,15 @@ error, never an empty list standing in for a failure.
 | --- | --- | --- | --- | --- |
 | Identity | login, is_bot | `GET /user` (`type == "Bot"`, `[bot]` suffix) | `GET /user` (`bot`) | `GET /user` |
 | Issues open, or updated since T | number, title, labels, milestone (title, due), assignees, created, updated, closed | `GET /issues?state=all&since=` (PRs filtered out) | `GET /issues?updated_after=` | `GET /issues?type=issues&since=` |
-| Comments since T | issue, author, created, body | `GET /issues/comments?since=` (repo-wide) | project events with `target_type=note` | `GET /issues/comments?since=` |
-| Mentions of you since T | issue or change, author, time | search `mentions:<login>` | `GET /todos?action=mentioned` | search `mentioned=true` (verify) |
+| Comments since T | issue, author, created, body | `GET /issues/comments?since=` (repo-wide) | `GET /events?target_type=note&after=` (the day before T), notes on issues | `GET /issues/comments?since=` |
+| Mentions of you since T | issue or change, author, time | search `mentions:<login>` | `GET /todos?project_id=` (pending; `mentioned`, `directly_addressed`) | search `mentioned=true` (verify) |
 | Blocking links | blocked, blocker, kind (native or convention) | GraphQL `blockedBy`, `subIssues` | `GET /issues/:iid/links` (`blocks` on tiers that have it) | `GET /issues/{i}/dependencies` |
-| Open changes | number, title, source branch, draft, reviewers, assignees, conflicts, head pipeline, review decision | GraphQL `pullRequests` (`mergeable` is missing from the REST list) | `GET /merge_requests?state=opened`, then one GET per MR for `head_pipeline` | `GET /pulls?state=open` |
-| Merged since T | number, title, branch, merge sha, merged at, closing issues | GraphQL `closingIssuesReferences` | `GET /merge_requests?state=merged&updated_after=`, `closes_issues` | `GET /pulls?state=closed` filtered on `merged` |
-| Closing references to open issues | issue, change, change state, base branch | GraphQL `closedByPullRequestsReferences(includeClosedPrs: true)` | `GET /issues/:iid/closed_by` (verify) | closing keywords in open and merged PR bodies (verify) |
-| CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs with `include_retried=true` | Actions runs where the instance has the API, else commit status |
-| Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare` | `GET /branches`, `GET /compare` |
+| Open changes | number, title, source branch, draft, reviewers, assignees, conflicts, head pipeline, review decision | GraphQL `pullRequests` (`mergeable` is missing from the REST list) | `GET /merge_requests?state=opened`, then per MR `GET /merge_requests/:iid` (`head_pipeline`, settled merge status) and `/approvals` | `GET /pulls?state=open` |
+| Merged since T | number, title, branch, merge sha, merged at, closing issues | GraphQL `closingIssuesReferences` | `GET /merge_requests?state=merged&updated_after=`, per MR `closes_issues` | `GET /pulls?state=closed` filtered on `merged` |
+| Closing references to open issues | issue, change, change state, base branch | GraphQL `closedByPullRequestsReferences(includeClosedPrs: true)` | per open issue `GET /issues/:iid/closed_by` | closing keywords in open and merged PR bodies (verify) |
+| CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs (`include_retried=true` for retries, newest attempt by job id) | Actions runs where the instance has the API, else commit status |
+| Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare?from=&to=` | `GET /branches`, `GET /compare` |
+| Merge commit on the default branch (`/groom`) | yes or no | `GET /compare/<default>...<sha>` | `GET /repository/commits/:sha/refs?type=branch` | `GET /compare` |
 | Tags and releases | name, sha, date | `GET /tags`, `GET /releases` | `GET /repository/tags`, `GET /releases` | `GET /tags`, `GET /releases` |
 | Labels (setup only) | name, description | `GET /labels` | `GET /labels` | `GET /labels` |
 
@@ -173,7 +179,7 @@ and `has_conflicts: false` until it re-checks, and GitHub's `mergeable: null` is
 | Forge | `yes` | `no` | `unknown` |
 | --- | --- | --- | --- |
 | GitHub | `CONFLICTING` / `false` | `MERGEABLE` / `true` | `UNKNOWN` / `null` |
-| GitLab | `detailed_merge_status: conflict` | a checked status with `has_conflicts: false` | `unchecked`, `checking`, `preparing`, `approvals_syncing`, or a missing status |
+| GitLab | `detailed_merge_status: conflict`, or a checked status with `has_conflicts: true` | a checked status with `has_conflicts: false` | `unchecked`, `checking`, `preparing`, `approvals_syncing`, `cannot_be_merged_recheck`, or a missing status |
 | Forgejo | `mergeable: false` once confirmed | `mergeable: true` | `mergeable: false` on a PR whose base moved within the last 10 minutes (verify on a live instance) |
 
 `has_conflicts` is read only when the status says the check ran. Every consumer treats
@@ -206,6 +212,36 @@ never re-poll to wait for an answer.
   replaced by `***`.
 - **Injectable fetch.** Adapters take a `Fetch` callable (method, path, params) and never import
   `subprocess` or `urllib` themselves. Tests pass canned payloads per forge.
+
+### As built on GitLab (phase 5)
+
+- Every read is `glab api --hostname <host> --include --method GET <endpoint>`, parsed for the
+  status, the `Link` and `X-Next-Page` headers and the body; glab exits non-zero on an HTTP error
+  but still prints the response, so the error names the status and GitLab's message. A URL under
+  `https://<host>/api/v4` goes to glab as a path, so glab's own base for the host (its
+  `api_host`) applies; `api_base:` and pagination links go as full URLs. The glab transport
+  refuses anything but a GET as well, below `check_read`.
+- The project is `/projects/<url-encoded path>`. Pagination follows `Link`, or `X-Next-Page`
+  where only that is sent, under the same page cap.
+- The list endpoints leave out an MR's head pipeline, its closing issues and an issue's links and
+  closing MRs, so those are one read per item, four at a time. `/next`'s fingerprint reads each
+  open MR once for its head commit and pipeline status, on top of the project, branches, newest
+  issue and MR, and milestones.
+- A pipeline's `source` is the trigger (`push`, `schedule`). Its status maps to a finished run's
+  conclusion (`failed` is a failure, `canceled` cancelled, `manual` waiting on an action); a head
+  pipeline maps to the reports' check words (`running` and `created` are pending, `skipped` is no
+  CI). A job that failed and then passed on retry is two jobs with one name in the pipeline's
+  `include_retried` list, the newest with the highest id.
+- The review decision comes from `/approvals`: `approved` or `review_required` when approvals are
+  required, `approved` when someone approved anyway, and none otherwise, which is how GitHub
+  reports a branch that requires no review; `detailed_merge_status: requested_changes` is
+  `changes_requested`.
+- Bots: `/user`'s `bot` flag, and the `project_<id>_bot_*` and `group_<id>_bot_*` usernames of
+  access-token bots in authors.
+- Milestones carry their global `id` as the number, which an issue update takes.
+- Writes aren't built for GitLab: without a `write_wrapper:` every operation is refused with that
+  reason, and `/groom`'s report says so. The link checks still read through the adapter before a
+  wrapper runs.
 
 ## Writes
 
@@ -866,6 +902,13 @@ with only forge-tracker installed gets every feature here. The same goes for git
   bot detection, native and convention links, and a token in stderr coming out as `***`.
   Fixtures are real responses recorded from the live targets below and scrubbed, stored under
   `tests/fixtures/<forge>/`; CI reads only these, so it stays fast and needs no network.
+- **As built (phase 5).** The contract suite is `tests/test_contract.py`: each scenario is
+  written once and a kit per forge (`tests/kits.py`) puts it in that forge's response shapes.
+  The docker-compose stack doesn't exist yet, so GitLab's report fixtures are a fixture world
+  (`tests/fixtures/gitlab/world.json`) written from GitLab's documented REST shapes, served by
+  route under a subpath `api_base`, with the text each report produces. Its shapes were checked
+  by an unauthenticated read-only run of the adapter against a public gitlab.com project; the
+  reads that need a login (labels, milestones, notes, links, `/user`) haven't run live.
 - **Live targets.** GitHub uses a dedicated public repo, `lokkju/forge-tracker-fixtures`, created
   through Pulumi in lokkju/infra and seeded with issues, PRs, labels, milestones and blocking
   links. GitLab CE and Forgejo run from a docker-compose stack in
@@ -911,7 +954,8 @@ Each phase is a releasable PR or two.
 4. **`/groom` on GitHub.** The checks, the unclear bucket, the remaining writes.
 5. **GitLab adapter.** The docker-compose stack and its seed script, the contract suite with
    GitLab fixtures recorded from it, self-hosted subpath and CA, the `relates_to` convention.
-   Every report then works on GitLab with no other change.
+   Every report then works on GitLab with no other change. Built without the stack (see
+   [Testing](#testing)); recording from it, and GitLab writes, are still to do.
 6. **Forgejo adapter.** Forgejo joins the stack; the same, plus the Forgejo mergeability
    measurement.
 7. **Later, not now:** the status pane from #24 that shows the slate's top items, reading only

@@ -346,6 +346,11 @@ def classify(
     branches = _part(facts, "branches")
     pickups = pickups or {}
     this_project = facts.get("project")
+    forge = facts.get("forge")
+
+    def cref(number: int) -> str:
+        return refs.change_ref(forge, number)
+
     result: dict[str, Any] = {
         "items": [],
         "cycles": [],
@@ -417,13 +422,13 @@ def classify(
             closes.setdefault(ref["change"], set()).add(ref["issue"])
         elif ref["state"] == "merged":
             merged_by.setdefault(ref["issue"], []).append(
-                {"ref": f"#{ref['change']}", "base": ref["base"], "merged_at": ref["merged_at"]}
+                {"ref": cref(ref["change"]), "base": ref["base"], "merged_at": ref["merged_at"]}
             )
 
     def change_entry(c: dict[str, Any], via: str) -> dict[str, Any]:
         return {
             "kind": "change",
-            "ref": f"#{c['number']}",
+            "ref": cref(c["number"]),
             "branch": c["branch"],
             "draft": c["draft"],
             "conflicts": c["conflicts"],
@@ -445,7 +450,7 @@ def classify(
             for issue_number in sorted(issue_numbers):
                 fly(
                     issue_number,
-                    {"kind": "change", "ref": f"#{number}", "via": ["closing reference"]},
+                    {"kind": "change", "ref": cref(number), "via": ["closing reference"]},
                 )
     claimed_branches: set[str] = set()
     for b in branches or []:
@@ -477,7 +482,7 @@ def classify(
     # Every open change, for the slate's recommendation (what's ready to merge).
     result["open_changes"] = [
         {
-            "ref": f"#{c['number']}",
+            "ref": cref(c["number"]),
             "title": c["title"],
             "draft": c["draft"],
             "conflicts": c["conflicts"],
@@ -489,7 +494,7 @@ def classify(
 
     # Open changes with no open issue behind them: the mirror of a branch with no change.
     for c in changes or []:
-        ref = f"#{c['number']}"
+        ref = cref(c["number"])
         if ref in attached:
             continue
         result["other_changes"].append(
@@ -899,6 +904,9 @@ def validate_recommend(
         return out
 
     def ref_of(value: Any) -> Optional[str]:
+        # `!N` names a GitLab merge request, whose numbers are apart from the issues'.
+        if isinstance(value, str) and re.fullmatch(r"!\d+", value.strip()):
+            return value.strip()
         number = _ref_number(value)
         return None if number is None else f"#{number}"
 
@@ -1362,7 +1370,7 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
 
     # Open changes no open issue has in flight: still work in flight, so they get their own list.
     if report["other_changes"]:
-        lines.append("Open PRs with no open issue")
+        lines.append(f"Open {refs.change_word(report.get('forge'))}s with no open issue")
         for c in report["other_changes"]:
             refs_named = f", names {', '.join(c['names'])} (not open)" if c["names"] else ""
             lines.append(
@@ -1396,7 +1404,8 @@ def render(report: Mapping[str, Any], now: datetime, tz: Optional[tzinfo] = None
         flags.append(f"  blocking cycle: {' -> '.join(cycle + cycle[:1])}")
     for b in report["other_branches"]:
         ahead = f"{b['ahead_by']} ahead" if b["ahead_by"] is not None else "ahead unknown"
-        flags.append(f"  branch {b['name']} has no PR and names no open issue ({ahead})")
+        word = refs.change_word(report.get("forge"))
+        flags.append(f"  branch {b['name']} has no {word} and names no open issue ({ahead})")
     if not issues_failed:
         flags += failure("closing")
         if "closing" in failed:

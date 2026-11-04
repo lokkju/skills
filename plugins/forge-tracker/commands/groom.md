@@ -98,6 +98,10 @@ Only after the user answers with numbers or `all`:
    config sets `write_wrapper:`. Show every result line as printed: what was written, `REFUSED
    (...)` (the wrapper said no, or a branch moved or an issue closed since the check), or
    `FAILED (...)`. Exit status 1 means at least one didn't go through; the rest still ran.
+   On a forge other than GitHub, forge-tracker has no writes of its own yet: the report's
+   `writes: unsupported` line says so, and without a write-wrapper every approved proposal comes
+   back `REFUSED`. Say that before asking which to apply, so the user can make the changes
+   themselves instead.
 
 On `none`, or no clear answer, write nothing and stop. If the user asks you to change an
 unclear or listed item, that's an ordinary request outside `/groom`: confirm the exact change

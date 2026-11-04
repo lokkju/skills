@@ -2,17 +2,20 @@
 
 Keeps durable work on the issue tracker of the repo it's about, and keeps that tracker honest
 enough to plan from. The design is [docs/specs/forge-tracker.md](../../docs/specs/forge-tracker.md);
-this release has a read-only forge layer for GitHub, `/catchup`, `/next` and `/groom`, plus the
-write operations `/groom` applies and `forge-tracker link` for recording blocking. The
-`forge-tracker` skill holds the first working rules: record blocking as a native link, and label
-person-only work when filing it. The rest of the working rules and the GitLab and Forgejo
-adapters come in later phases.
+this release has a read-only forge layer for GitHub and GitLab, `/catchup`, `/next` and
+`/groom`, plus the write operations `/groom` applies and `forge-tracker link` for recording
+blocking (on GitHub; see [GitLab](#gitlab)). The `forge-tracker` skill holds the first working
+rules: record blocking as a native link, and label person-only work when filing it. The rest of
+the working rules and the Forgejo adapter come in later phases.
 
 ## Requirements
 
 - `python3` 3.9 or newer (standard library only) and `git`.
-- `gh`, logged in to the repo's host (`gh auth login`). forge-tracker reads the token with
-  `gh auth token` and sends it only in the `Authorization` header of its own requests.
+- On GitHub, `gh`, logged in to the repo's host (`gh auth login`). forge-tracker reads the
+  token with `gh auth token` and sends it only in the `Authorization` header of its own requests.
+- On GitLab, `glab`, logged in to the repo's host (`glab auth login`). Every GitLab read is a
+  `glab api` GET, so glab's own login, host settings and pinned `ca_cert` apply, and no GitLab
+  token passes through forge-tracker.
 
 ## Which repo
 
@@ -271,6 +274,35 @@ root with the same JSON on stdin (plus `repo`), and the wrapper does the write a
 exits non-zero to refuse; its stderr is shown. Every operation, written, refused or failed, is
 appended to `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
+## GitLab
+
+GitLab works the same as GitHub for all three reports, with these differences:
+
+- **Detection.** `gitlab.com` is GitLab, and so is any host glab is set up for: forge-tracker reads
+  the host keys (and `api_host`) of glab's `config.yml` without running glab, so a self-hosted
+  GitLab needs nothing more than `glab auth login --hostname <host>`. A host glab doesn't know
+  needs `forge: gitlab` in the config file or `git config tracker.forge gitlab`.
+- **Self-hosted under a subpath.** When the API isn't at `https://<host>/api/v4` (an instance at
+  `https://code.example.org/gitlab/`), set `api_base: https://code.example.org/gitlab/api/v4`;
+  the subpath can't be told apart from a group in the remote URL. The project path keeps its
+  subgroups (`group/sub/project`). The CA comes from glab's `ca_cert` for the host.
+- **Merge requests are `!N`** in every report, and the reports say MR where they'd say PR.
+- **Blocking.** GitLab's native `blocks` links exist only on the paid tiers. On CE, set
+  `blocking: relates_to+blocked`: a `relates_to` link from an issue carrying the blocked label
+  then counts as that issue being blocked by the linked one, and the reports mark it
+  `(convention)`. Without the key only native links count.
+- **What it costs.** GitLab's lists leave out what a per-item read has, so an open MR is read once
+  more for its head pipeline, merge status and approvals, a merged MR once for the issues it
+  closes, and each open issue once for its links and once for the MRs that close it. Four run at
+  a time.
+- **Mentions** are your pending GitLab to-do items in the project that mention you, and
+  **comments** come from the project's note events. Mergeability is read from
+  `detailed_merge_status`, and `unchecked` or `checking` is `conflicts: unknown` even when
+  `has_conflicts` says false.
+- **Writes aren't built for GitLab yet.** `groom apply`, `write` and `link` refuse each operation
+  with that reason, unless the config sets a `write_wrapper:`, which then does the write. `/groom`
+  says so on its report.
+
 ## Configuration
 
 Per repo, in `.claude/forge-tracker.local.md`. Only the YAML frontmatter is read, every key is
@@ -283,8 +315,8 @@ commands use:
 
 ```markdown
 ---
-forge: github                 # only for a GitHub Enterprise host; git config tracker.forge wins
-api_base: https://git.corp.example/api/v3   # only when the host's API isn't at /api/v3
+forge: github                 # only when detection can't tell; git config tracker.forge wins
+api_base: https://git.corp.example/api/v3   # only when the API isn't where the forge puts it
 labels:
   needs_human: needs-human     # person-only (firm)
   decision: decision           # person-only (firm)
@@ -302,12 +334,12 @@ stale_days: 14                # /groom: when a PR or an unmerged branch counts a
 write_wrapper: ./scripts/tracker-write   # every write runs `<wrapper> <op>` instead
 groom:
   keep_branches: ["release/*", "gh-pages"]   # /groom: never propose deleting these (globs)
+blocking: relates_to+blocked  # GitLab CE: a relates_to link plus the blocked label blocks
 ---
 Free notes for the assistant.
 ```
 
-The file also accepts the keys later phases read (`ca_file`, `blocking`); the design doc
-describes them.
+The file also accepts `ca_file`, which the Forgejo phase reads; the design doc describes it.
 
 ### Per clone: `tracker.web` and `tracker.forge`
 
@@ -321,7 +353,7 @@ git config tracker.forge github                          # github, gitlab, forge
 ```
 
 `tracker.forge` wins over `forge:` in the config file, and both win over the built-in host rules
-(`github.com`, `gitlab.com`). Put `forge:` in the file when it holds for every clone, which matters
+(`github.com`, `gitlab.com`, and any host in glab's config is GitLab). Put `forge:` in the file when it holds for every clone, which matters
 when the file is committed; use `tracker.forge` for what is true only of this clone. `api_base:`
 and `ca_file:` still come only from the config file, since git config holds the web address and
 not the API's. A value forge-tracker can't use stops the command with the key named. The standard library has no YAML parser, so the frontmatter is a strict subset: `key: value`, one level of nesting, `[a, b]` and `- item`
@@ -378,9 +410,15 @@ uv run --no-project --with pytest pytest plugins/forge-tracker/tests
 ```
 
 No test touches the network, and no test writes to a forge: writes go to a fake transport or
-a fake wrapper. `tests/fixtures/github/` holds `/catchup`, `/next` and `/groom` runs recorded
+a fake wrapper. `tests/test_contract.py` is #21's contract suite: each scenario (bot detection,
+issue fields, three-valued mergeability, merged changes, native links, a read failing alone, a
+page cap, a token in an error) is written once and run against every adapter, with a kit per
+forge in `tests/kits.py` that puts it in that forge's response shapes. `tests/fixtures/gitlab/`
+is a small GitLab project in the shapes GitLab's REST documentation gives, served under a subpath
+`api_base`, with the `/catchup`, `/next`, `/groom` and `smoke` output it produces.
+`tests/fixtures/github/` holds `/catchup`, `/next` and `/groom` runs recorded
 from a live repo with `--record <file>` (scrubbed of tokens and thinned of fields no adapter reads) and the
 report they produce; the edge cases a live repo rarely shows at once (conflicts, retries, bots,
 failures, page caps) are built in the tests. The GitHub fixtures will move to a dedicated seeded
-repo, and the docker-compose stack of GitLab CE and Forgejo that the GitLab and Forgejo phases
-record from will live in `tests/live/`.
+repo. The GitLab world is to be replaced by responses recorded from the docker-compose stack of
+GitLab CE and Forgejo in `tests/live/` once that exists; `--record` works on GitLab the same way.

@@ -1,6 +1,6 @@
-"""The contract suite for the GitHub adapter. Payload shapes follow the recorded responses in
-fixtures/github/; the edge cases (conflicts, retries, bots, failures) are set up here because a
-live repo rarely has all of them at once."""
+"""The GitHub adapter beyond the shared contract (test_contract.py). Payload shapes follow the
+recorded responses in fixtures/github/; the edge cases (conflicts, retries, bots) are set up here
+because a live repo rarely has all of them at once."""
 
 import urllib.parse
 from datetime import datetime, timezone
@@ -393,33 +393,6 @@ def test_blocking_links_are_native_and_mark_closed_blockers(transport_for):
     ]
 
 
-def test_each_read_fails_on_its_own(transport_for):
-    world = (
-        World()
-        .route("/user", {"login": "me"})
-        .route("/repos/acme/widgets/issues", {"message": "Server Error"}, status=502)
-    )
-    a = adapter(world, transport_for)
-    ident, issues = attempt(a.identity), attempt(a.open_issues)
-    assert ident.ok and ident.data.login == "me"
-    assert not issues.ok and "HTTP 502" in issues.error
-    assert issues.data is None
-
-
-def test_a_page_cap_is_a_failed_read(transport_for):
-    def endless(url):
-        return response(
-            [issue(1)],
-            headers={
-                "Link": '<https://api.github.com/repos/acme/widgets/issues?page=2>; rel="next"'
-            },
-        )
-
-    world = World().route("/repos/acme/widgets/issues", endless)
-    read = attempt(adapter(world, transport_for, page_cap=4).open_issues)
-    assert not read.ok and "page cap of 4 pages hit" in read.error
-
-
 def test_project_must_be_owner_repo(transport_for):
     with pytest.raises(ForgeError):
         github.GitHub(transport_for(World()), "group/sub/project")
@@ -531,11 +504,6 @@ def test_closing_refs_past_the_first_page_fail_the_read(transport_for):
     )
     read = attempt(adapter(world, transport_for).closing_refs)
     assert not read.ok and "#14 has more than 1 closing references" in read.error
-
-
-def test_open_issues_keep_their_body(transport_for):
-    world = World().route("/repos/acme/widgets/issues", [issue(3, body="the details")])
-    assert adapter(world, transport_for).open_issues()[0].body == "the details"
 
 
 # --- /groom's reads ---------------------------------------------------------------------------

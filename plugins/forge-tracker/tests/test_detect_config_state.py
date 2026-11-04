@@ -4,7 +4,7 @@ import stat
 
 import pytest
 from conftest import FakeRun
-from forge_tracker import config, detect, state
+from forge_tracker import config, detect, state, toolconfig
 from forge_tracker.model import ConfigError
 
 # --- detection ---------------------------------------------------------------------------------
@@ -48,10 +48,51 @@ def test_detect_forge_order():
     assert detect.detect_forge(ghe, "github") == "github"
     with pytest.raises(ConfigError, match="set forge:"):
         detect.detect_forge(ghe, None)
-    with pytest.raises(ConfigError, match="only GitHub so far"):
-        detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None)
-    with pytest.raises(ConfigError, match="only GitHub so far"):
+    assert detect.detect_forge(detect.Remote("gitlab.com", "a/b"), None, environ={}) == "gitlab"
+    with pytest.raises(ConfigError, match="only GitHub and GitLab so far"):
         detect.detect_forge(ghe, "forgejo")
+
+
+GLAB_CONFIG = """\
+# glab's own file; only the host keys are read
+git_protocol: ssh
+hosts:
+    gitlab.com:
+        token: glpat-not-read-here
+        api_protocol: https
+    code.example.org:
+        api_host: code.example.org/gitlab
+        ca_cert: /etc/ssl/example-root.pem
+    "lab.internal:8443":
+        api_protocol: https
+check_update: false
+"""
+
+
+def test_glab_hosts_reads_the_host_keys_and_api_hosts(tmp_path):
+    (tmp_path / "config.yml").write_text(GLAB_CONFIG)
+    environ = {"GLAB_CONFIG_DIR": str(tmp_path)}
+    assert toolconfig.glab_hosts(environ) == {"gitlab.com", "code.example.org", "lab.internal"}
+    assert toolconfig.glab_hosts({"GITLAB_HOST": "https://git.acme.test/"}) >= {"git.acme.test"}
+
+
+def test_glab_config_follows_xdg_and_home(tmp_path):
+    assert toolconfig.glab_config_path({"XDG_CONFIG_HOME": "/x"}) == "/x/glab-cli/config.yml"
+    assert toolconfig.glab_config_path({"XDG_CONFIG_HOME": "rel", "HOME": "/h"}) == (
+        "/h/.config/glab-cli/config.yml"
+    )
+    assert toolconfig.glab_hosts({"HOME": str(tmp_path)}) == set()
+
+
+def test_a_host_glab_is_set_up_for_is_gitlab(tmp_path):
+    (tmp_path / "config.yml").write_text(GLAB_CONFIG)
+    environ = {"GLAB_CONFIG_DIR": str(tmp_path)}
+    remote = detect.Remote("code.example.org", "group/sub/project")
+    assert detect.detect_forge(remote, None, environ=environ) == "gitlab"
+    with pytest.raises(ConfigError, match="can't tell which forge"):
+        detect.detect_forge(detect.Remote("other.example.org", "a/b"), None, environ=environ)
+    # A kind named in git config or the config file wins over glab's hosts.
+    assert detect.detect_forge(remote, "github", environ=environ) == "github"
 
 
 # --- per-clone git config keys (tracker.forge, tracker.web) -------------------------------------

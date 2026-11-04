@@ -1,0 +1,21 @@
+acme/platform/widgets on gitlab.example.org, 2026-10-17 12:00 to 2026-10-20 12:00 (--since; the marker isn't read or moved)
+
+Waiting on you
+  !7 review requested: feat(forge-tracker): GitLab adapter (#4) (draft no, conflicts: unknown)
+  !8 yours to merge: fix: page through note events (draft no, conflicts: no)
+  #1 assigned, needs-human, updated 2026-10-19: Pin the CA bundle for self-hosted instances
+  #2 mentioned, updated 2026-10-18: Paginate the note events read
+  standing: none (not updated in the window)
+  (setup: labels.agent set to ~ in .claude/forge-tracker.local.md, so no label marks those roles yet. `forge-tracker labels suggest` lists the labels it can create for them)
+Merged since
+  #1  1 MR: !5 feat: pin the CA in glab's config
+  #5  1 MR: !6 fix: honour api_base under a subpath
+Decisions made
+  #1  Ruling (2026-10-19): pin the CA through glab's ca_cert, not our own file.
+Board movement
+  untiered +0 -1
+Health
+  main push run 5100 (pipeline): FAILED (jobs: test)
+  scheduled run 5090 (pipeline): passed
+  flaky: none
+  tags v*: v1.2.0 (2026-10-18)

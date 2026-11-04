@@ -1,0 +1,2938 @@
+{
+ "base": "https://gitlab.example.org/code/api/v4",
+ "routes": [
+  {
+   "path": "/user",
+   "response": {
+    "id": 1,
+    "username": "me",
+    "name": "Me",
+    "state": "active",
+    "locked": false,
+    "avatar_url": null,
+    "web_url": "https://gitlab.example.org/code/me",
+    "bot": false,
+    "email": "me@example.org",
+    "is_admin": false
+   }
+  },
+  {
+   "path": "/todos",
+   "query": {
+    "project_id": 4242
+   },
+   "response": [
+    {
+     "id": 77,
+     "project": {
+      "id": 4242,
+      "name": "widgets",
+      "path_with_namespace": "acme/platform/widgets"
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "action_name": "mentioned",
+     "target_type": "Issue",
+     "target": {
+      "id": 900002,
+      "iid": 2,
+      "project_id": 4242,
+      "title": "Paginate the note events read",
+      "description": "Blocked by: #1 (the CA work changes the transport)",
+      "state": "opened",
+      "created_at": "2026-10-08T10:00:00.000Z",
+      "updated_at": "2026-10-18T12:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P2"
+      ],
+      "milestone": null,
+      "assignees": [],
+      "assignee": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+      "references": {
+       "short": "#2",
+       "relative": "#2",
+       "full": "acme/platform/widgets#2"
+      },
+      "has_tasks": false
+     },
+     "target_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+     "body": "@me can you check the paging limit?",
+     "state": "pending",
+     "created_at": "2026-10-18T12:00:00.000Z",
+     "updated_at": "2026-10-18T12:00:00.000Z"
+    },
+    {
+     "id": 76,
+     "project": {
+      "id": 4242,
+      "name": "widgets",
+      "path_with_namespace": "acme/platform/widgets"
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "action_name": "assigned",
+     "target_type": "Issue",
+     "target": {
+      "id": 900002,
+      "iid": 2,
+      "project_id": 4242,
+      "title": "Paginate the note events read",
+      "description": "Blocked by: #1 (the CA work changes the transport)",
+      "state": "opened",
+      "created_at": "2026-10-08T10:00:00.000Z",
+      "updated_at": "2026-10-18T12:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P2"
+      ],
+      "milestone": null,
+      "assignees": [],
+      "assignee": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+      "references": {
+       "short": "#2",
+       "relative": "#2",
+       "full": "acme/platform/widgets#2"
+      },
+      "has_tasks": false
+     },
+     "target_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+     "body": "@me can you check the paging limit?",
+     "state": "pending",
+     "created_at": "2026-10-01T00:00:00.000Z",
+     "updated_at": "2026-10-18T12:00:00.000Z"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets",
+   "response": {
+    "id": 4242,
+    "name": "widgets",
+    "path": "widgets",
+    "path_with_namespace": "acme/platform/widgets",
+    "default_branch": "main",
+    "open_issues_count": 4,
+    "visibility": "private",
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets",
+    "issues_enabled": true
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/labels",
+   "response": [
+    {
+     "id": 1,
+     "name": "P1",
+     "color": "#d9534f",
+     "description": "urgent"
+    },
+    {
+     "id": 2,
+     "name": "P2",
+     "color": "#d9534f",
+     "description": ""
+    },
+    {
+     "id": 3,
+     "name": "needs-human",
+     "color": "#d9534f",
+     "description": "a person must act"
+    },
+    {
+     "id": 4,
+     "name": "blocked",
+     "color": "#d9534f",
+     "description": ""
+    },
+    {
+     "id": 5,
+     "name": "decision",
+     "color": "#d9534f",
+     "description": ""
+    },
+    {
+     "id": 6,
+     "name": "decided",
+     "color": "#d9534f",
+     "description": ""
+    },
+    {
+     "id": 7,
+     "name": "bug",
+     "color": "#d9534f",
+     "description": ""
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues",
+   "query": {
+    "state": "opened"
+   },
+   "pages": [
+    [
+     {
+      "id": 900004,
+      "iid": 4,
+      "project_id": 4242,
+      "title": "Ship the GitLab adapter",
+      "description": "",
+      "state": "opened",
+      "created_at": "2026-10-10T10:00:00.000Z",
+      "updated_at": "2026-10-19T15:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P1"
+      ],
+      "milestone": {
+       "id": 31,
+       "iid": 1,
+       "project_id": 4242,
+       "title": "Tier 1",
+       "description": "",
+       "state": "active",
+       "created_at": "2026-09-01T00:00:00.000Z",
+       "updated_at": "2026-09-01T00:00:00.000Z",
+       "due_date": "2026-11-30",
+       "start_date": null,
+       "expired": false,
+       "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+      },
+      "assignees": [],
+      "assignee": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/4",
+      "references": {
+       "short": "#4",
+       "relative": "#4",
+       "full": "acme/platform/widgets#4"
+      },
+      "has_tasks": false
+     },
+     {
+      "id": 900001,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Pin the CA bundle for self-hosted instances",
+      "description": "",
+      "state": "opened",
+      "created_at": "2026-10-05T10:00:00.000Z",
+      "updated_at": "2026-10-19T09:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P1",
+       "needs-human"
+      ],
+      "milestone": {
+       "id": 31,
+       "iid": 1,
+       "project_id": 4242,
+       "title": "Tier 1",
+       "description": "",
+       "state": "active",
+       "created_at": "2026-09-01T00:00:00.000Z",
+       "updated_at": "2026-09-01T00:00:00.000Z",
+       "due_date": "2026-11-30",
+       "start_date": null,
+       "expired": false,
+       "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+      },
+      "assignees": [
+       {
+        "id": 1,
+        "username": "me",
+        "name": "Me",
+        "state": "active",
+        "locked": false,
+        "avatar_url": null,
+        "web_url": "https://gitlab.example.org/code/me"
+       }
+      ],
+      "assignee": {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      },
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/1",
+      "references": {
+       "short": "#1",
+       "relative": "#1",
+       "full": "acme/platform/widgets#1"
+      },
+      "has_tasks": false
+     }
+    ],
+    [
+     {
+      "id": 900002,
+      "iid": 2,
+      "project_id": 4242,
+      "title": "Paginate the note events read",
+      "description": "Blocked by: #1 (the CA work changes the transport)",
+      "state": "opened",
+      "created_at": "2026-10-08T10:00:00.000Z",
+      "updated_at": "2026-10-18T12:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P2"
+      ],
+      "milestone": null,
+      "assignees": [],
+      "assignee": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+      "references": {
+       "short": "#2",
+       "relative": "#2",
+       "full": "acme/platform/widgets#2"
+      },
+      "has_tasks": false
+     },
+     {
+      "id": 900003,
+      "iid": 3,
+      "project_id": 4242,
+      "title": "Read subgroup projects",
+      "description": "",
+      "state": "opened",
+      "created_at": "2026-10-09T10:00:00.000Z",
+      "updated_at": "2026-10-12T12:00:00.000Z",
+      "closed_at": null,
+      "closed_by": null,
+      "labels": [
+       "P2",
+       "blocked"
+      ],
+      "milestone": null,
+      "assignees": [],
+      "assignee": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "type": "ISSUE",
+      "user_notes_count": 0,
+      "merge_requests_count": 0,
+      "upvotes": 0,
+      "downvotes": 0,
+      "due_date": null,
+      "confidential": false,
+      "discussion_locked": null,
+      "issue_type": "issue",
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/3",
+      "references": {
+       "short": "#3",
+       "relative": "#3",
+       "full": "acme/platform/widgets#3"
+      },
+      "has_tasks": false
+     }
+    ]
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues",
+   "query": {
+    "per_page": 1
+   },
+   "response": [
+    {
+     "id": 900004,
+     "iid": 4,
+     "project_id": 4242,
+     "title": "Ship the GitLab adapter",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-10T10:00:00.000Z",
+     "updated_at": "2026-10-19T15:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/4",
+     "references": {
+      "short": "#4",
+      "relative": "#4",
+      "full": "acme/platform/widgets#4"
+     },
+     "has_tasks": false
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues",
+   "response": [
+    {
+     "id": 900004,
+     "iid": 4,
+     "project_id": 4242,
+     "title": "Ship the GitLab adapter",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-10T10:00:00.000Z",
+     "updated_at": "2026-10-19T15:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/4",
+     "references": {
+      "short": "#4",
+      "relative": "#4",
+      "full": "acme/platform/widgets#4"
+     },
+     "has_tasks": false
+    },
+    {
+     "id": 900001,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Pin the CA bundle for self-hosted instances",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-05T10:00:00.000Z",
+     "updated_at": "2026-10-19T09:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1",
+      "needs-human"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "assignee": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/1",
+     "references": {
+      "short": "#1",
+      "relative": "#1",
+      "full": "acme/platform/widgets#1"
+     },
+     "has_tasks": false
+    },
+    {
+     "id": 900005,
+     "iid": 5,
+     "project_id": 4242,
+     "title": "Subpath API base is ignored",
+     "description": "",
+     "state": "closed",
+     "created_at": "2026-10-01T10:00:00.000Z",
+     "updated_at": "2026-10-19T08:00:00.000Z",
+     "closed_at": "2026-10-19T08:00:00.000Z",
+     "closed_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "labels": [
+      "bug"
+     ],
+     "milestone": null,
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/5",
+     "references": {
+      "short": "#5",
+      "relative": "#5",
+      "full": "acme/platform/widgets#5"
+     },
+     "has_tasks": false
+    },
+    {
+     "id": 900002,
+     "iid": 2,
+     "project_id": 4242,
+     "title": "Paginate the note events read",
+     "description": "Blocked by: #1 (the CA work changes the transport)",
+     "state": "opened",
+     "created_at": "2026-10-08T10:00:00.000Z",
+     "updated_at": "2026-10-18T12:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P2"
+     ],
+     "milestone": null,
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+     "references": {
+      "short": "#2",
+      "relative": "#2",
+      "full": "acme/platform/widgets#2"
+     },
+     "has_tasks": false
+    },
+    {
+     "id": 900003,
+     "iid": 3,
+     "project_id": 4242,
+     "title": "Read subgroup projects",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-09T10:00:00.000Z",
+     "updated_at": "2026-10-12T12:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P2",
+      "blocked"
+     ],
+     "milestone": null,
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/3",
+     "references": {
+      "short": "#3",
+      "relative": "#3",
+      "full": "acme/platform/widgets#3"
+     },
+     "has_tasks": false
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1",
+   "response": {
+    "id": 900001,
+    "iid": 1,
+    "project_id": 4242,
+    "title": "Pin the CA bundle for self-hosted instances",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-05T10:00:00.000Z",
+    "updated_at": "2026-10-19T09:00:00.000Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [
+     "P1",
+     "needs-human"
+    ],
+    "milestone": {
+     "id": 31,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Tier 1",
+     "description": "",
+     "state": "active",
+     "created_at": "2026-09-01T00:00:00.000Z",
+     "updated_at": "2026-09-01T00:00:00.000Z",
+     "due_date": "2026-11-30",
+     "start_date": null,
+     "expired": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+    },
+    "assignees": [
+     {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    ],
+    "assignee": {
+     "id": 1,
+     "username": "me",
+     "name": "Me",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/me"
+    },
+    "author": {
+     "id": 2,
+     "username": "alex",
+     "name": "Alex",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/alex"
+    },
+    "type": "ISSUE",
+    "user_notes_count": 0,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/1",
+    "references": {
+     "short": "#1",
+     "relative": "#1",
+     "full": "acme/platform/widgets#1"
+    },
+    "has_tasks": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/2",
+   "response": {
+    "id": 900002,
+    "iid": 2,
+    "project_id": 4242,
+    "title": "Paginate the note events read",
+    "description": "Blocked by: #1 (the CA work changes the transport)",
+    "state": "opened",
+    "created_at": "2026-10-08T10:00:00.000Z",
+    "updated_at": "2026-10-18T12:00:00.000Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [
+     "P2"
+    ],
+    "milestone": null,
+    "assignees": [],
+    "assignee": null,
+    "author": {
+     "id": 2,
+     "username": "alex",
+     "name": "Alex",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/alex"
+    },
+    "type": "ISSUE",
+    "user_notes_count": 0,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/2",
+    "references": {
+     "short": "#2",
+     "relative": "#2",
+     "full": "acme/platform/widgets#2"
+    },
+    "has_tasks": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/3",
+   "response": {
+    "id": 900003,
+    "iid": 3,
+    "project_id": 4242,
+    "title": "Read subgroup projects",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-09T10:00:00.000Z",
+    "updated_at": "2026-10-12T12:00:00.000Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [
+     "P2",
+     "blocked"
+    ],
+    "milestone": null,
+    "assignees": [],
+    "assignee": null,
+    "author": {
+     "id": 2,
+     "username": "alex",
+     "name": "Alex",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/alex"
+    },
+    "type": "ISSUE",
+    "user_notes_count": 0,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/3",
+    "references": {
+     "short": "#3",
+     "relative": "#3",
+     "full": "acme/platform/widgets#3"
+    },
+    "has_tasks": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/4",
+   "response": {
+    "id": 900004,
+    "iid": 4,
+    "project_id": 4242,
+    "title": "Ship the GitLab adapter",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-10T10:00:00.000Z",
+    "updated_at": "2026-10-19T15:00:00.000Z",
+    "closed_at": null,
+    "closed_by": null,
+    "labels": [
+     "P1"
+    ],
+    "milestone": {
+     "id": 31,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Tier 1",
+     "description": "",
+     "state": "active",
+     "created_at": "2026-09-01T00:00:00.000Z",
+     "updated_at": "2026-09-01T00:00:00.000Z",
+     "due_date": "2026-11-30",
+     "start_date": null,
+     "expired": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+    },
+    "assignees": [],
+    "assignee": null,
+    "author": {
+     "id": 2,
+     "username": "alex",
+     "name": "Alex",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/alex"
+    },
+    "type": "ISSUE",
+    "user_notes_count": 0,
+    "merge_requests_count": 0,
+    "upvotes": 0,
+    "downvotes": 0,
+    "due_date": null,
+    "confidential": false,
+    "discussion_locked": null,
+    "issue_type": "issue",
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/4",
+    "references": {
+     "short": "#4",
+     "relative": "#4",
+     "full": "acme/platform/widgets#4"
+    },
+    "has_tasks": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/2/links",
+   "response": [
+    {
+     "id": 900001,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Pin the CA bundle for self-hosted instances",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-05T10:00:00.000Z",
+     "updated_at": "2026-10-19T09:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1",
+      "needs-human"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "assignee": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/1",
+     "references": {
+      "short": "#1",
+      "relative": "#1",
+      "full": "acme/platform/widgets#1"
+     },
+     "has_tasks": false,
+     "issue_link_id": 11,
+     "link_type": "is_blocked_by",
+     "link_created_at": "2026-10-12T00:00:00.000Z",
+     "link_updated_at": "2026-10-12T00:00:00.000Z"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/3/links",
+   "response": [
+    {
+     "id": 900004,
+     "iid": 4,
+     "project_id": 4242,
+     "title": "Ship the GitLab adapter",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-10T10:00:00.000Z",
+     "updated_at": "2026-10-19T15:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/4",
+     "references": {
+      "short": "#4",
+      "relative": "#4",
+      "full": "acme/platform/widgets#4"
+     },
+     "has_tasks": false,
+     "issue_link_id": 12,
+     "link_type": "relates_to",
+     "link_created_at": "2026-10-12T00:00:00.000Z",
+     "link_updated_at": "2026-10-12T00:00:00.000Z"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/4/links",
+   "response": [
+    {
+     "id": 900003,
+     "iid": 3,
+     "project_id": 4242,
+     "title": "Read subgroup projects",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-09T10:00:00.000Z",
+     "updated_at": "2026-10-12T12:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P2",
+      "blocked"
+     ],
+     "milestone": null,
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/3",
+     "references": {
+      "short": "#3",
+      "relative": "#3",
+      "full": "acme/platform/widgets#3"
+     },
+     "has_tasks": false,
+     "issue_link_id": 12,
+     "link_type": "relates_to",
+     "link_created_at": "2026-10-12T00:00:00.000Z",
+     "link_updated_at": "2026-10-12T00:00:00.000Z"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1/links",
+   "response": []
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1/closed_by",
+   "response": [
+    {
+     "id": 700005,
+     "iid": 5,
+     "project_id": 4242,
+     "title": "feat: pin the CA in glab's config",
+     "description": "",
+     "state": "merged",
+     "created_at": "2026-10-14T10:00:00.000Z",
+     "updated_at": "2026-10-18T09:00:00.000Z",
+     "merged_at": "2026-10-18T09:00:00.000Z",
+     "merged_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "merge_user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "1-pin-ca",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "0000000000000000000000000000000000000000",
+     "merge_commit_sha": "5555555555555555555555555555555555555555",
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/5",
+     "references": {
+      "short": "!5",
+      "relative": "!5",
+      "full": "acme/platform/widgets!5"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/2/closed_by",
+   "response": [
+    {
+     "id": 700008,
+     "iid": 8,
+     "project_id": 4242,
+     "title": "fix: page through note events",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-18T10:00:00.000Z",
+     "updated_at": "2026-10-19T11:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "fix/2",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "8888888888888888888888888888888888888888",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/8",
+     "references": {
+      "short": "!8",
+      "relative": "!8",
+      "full": "acme/platform/widgets!8"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/3/closed_by",
+   "response": []
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/4/closed_by",
+   "response": [
+    {
+     "id": 700007,
+     "iid": 7,
+     "project_id": 4242,
+     "title": "feat(forge-tracker): GitLab adapter (#4)",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-17T10:00:00.000Z",
+     "updated_at": "2026-10-19T16:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "4-gitlab-adapter",
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "unchecked",
+     "detailed_merge_status": "unchecked",
+     "has_conflicts": false,
+     "sha": "7777777777777777777777777777777777777777",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/7",
+     "references": {
+      "short": "!7",
+      "relative": "!7",
+      "full": "acme/platform/widgets!7"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1/resource_label_events",
+   "response": [
+    {
+     "id": 1,
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "created_at": "2026-10-10T10:00:00.000Z",
+     "resource_type": "Issue",
+     "resource_id": 900001,
+     "label": {
+      "id": 3,
+      "name": "needs-human"
+     },
+     "action": "add"
+    },
+    {
+     "id": 2,
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "created_at": "2026-10-10T10:00:01.000Z",
+     "resource_type": "Issue",
+     "resource_id": 900001,
+     "label": {
+      "id": 1,
+      "name": "P1"
+     },
+     "action": "add"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1/notes",
+   "response": [
+    {
+     "id": 501,
+     "type": null,
+     "body": "Ruling (2026-10-19): pin the CA through glab's ca_cert, not our own file.",
+     "attachment": null,
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "created_at": "2026-10-19T09:00:00.000Z",
+     "updated_at": "2026-10-19T09:00:00.000Z",
+     "system": false,
+     "noteable_id": 900001,
+     "noteable_type": "Issue",
+     "noteable_iid": 1,
+     "project_id": 4242,
+     "resolvable": false,
+     "confidential": false,
+     "internal": false
+    },
+    {
+     "id": 502,
+     "type": null,
+     "body": "added ~123 label",
+     "attachment": null,
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "created_at": "2026-10-19T09:01:00.000Z",
+     "updated_at": "2026-10-19T09:01:00.000Z",
+     "system": true,
+     "noteable_id": 900001,
+     "noteable_type": "Issue",
+     "noteable_iid": 1,
+     "project_id": 4242,
+     "resolvable": false,
+     "confidential": false,
+     "internal": false
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/events",
+   "query": {
+    "target_type": "note"
+   },
+   "response": [
+    {
+     "id": 1001,
+     "project_id": 4242,
+     "action_name": "commented on",
+     "target_id": 501,
+     "target_iid": 501,
+     "target_type": "Note",
+     "author_id": 1,
+     "target_title": "Pin the CA bundle for self-hosted instances",
+     "created_at": "2026-10-19T09:00:00.000Z",
+     "note": {
+      "id": 501,
+      "type": null,
+      "body": "Ruling (2026-10-19): pin the CA through glab's ca_cert, not our own file.",
+      "attachment": null,
+      "author": {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      },
+      "created_at": "2026-10-19T09:00:00.000Z",
+      "updated_at": "2026-10-19T09:00:00.000Z",
+      "system": false,
+      "noteable_id": 900001,
+      "noteable_type": "Issue",
+      "noteable_iid": 1,
+      "project_id": 4242,
+      "resolvable": false,
+      "confidential": false,
+      "internal": false
+     },
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "author_username": "me"
+    },
+    {
+     "id": 1002,
+     "project_id": 4242,
+     "action_name": "commented on",
+     "target_id": 502,
+     "target_iid": 502,
+     "target_type": "Note",
+     "author_id": 1,
+     "target_title": "Pin the CA bundle for self-hosted instances",
+     "created_at": "2026-10-19T09:01:00.000Z",
+     "note": {
+      "id": 502,
+      "type": null,
+      "body": "added ~123 label",
+      "attachment": null,
+      "author": {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      },
+      "created_at": "2026-10-19T09:01:00.000Z",
+      "updated_at": "2026-10-19T09:01:00.000Z",
+      "system": true,
+      "noteable_id": 900001,
+      "noteable_type": "Issue",
+      "noteable_iid": 1,
+      "project_id": 4242,
+      "resolvable": false,
+      "confidential": false,
+      "internal": false
+     },
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "author_username": "me"
+    },
+    {
+     "id": 1003,
+     "project_id": 4242,
+     "action_name": "commented on",
+     "target_id": 503,
+     "target_iid": 503,
+     "target_type": "Note",
+     "author_id": 2,
+     "target_title": "Pin the CA bundle for self-hosted instances",
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "note": {
+      "id": 503,
+      "type": null,
+      "body": "Ruling (2026-10-19): looks good",
+      "attachment": null,
+      "author": {
+       "id": 2,
+       "username": "alex",
+       "name": "Alex",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/alex"
+      },
+      "created_at": "2026-10-19T10:00:00.000Z",
+      "updated_at": "2026-10-19T10:00:00.000Z",
+      "system": false,
+      "noteable_id": 900007,
+      "noteable_type": "MergeRequest",
+      "noteable_iid": 7,
+      "project_id": 4242,
+      "resolvable": false,
+      "confidential": false,
+      "internal": false
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "author_username": "alex"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests",
+   "query": {
+    "state": "opened"
+   },
+   "response": [
+    {
+     "id": 700007,
+     "iid": 7,
+     "project_id": 4242,
+     "title": "feat(forge-tracker): GitLab adapter (#4)",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-17T10:00:00.000Z",
+     "updated_at": "2026-10-19T16:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "4-gitlab-adapter",
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "unchecked",
+     "detailed_merge_status": "unchecked",
+     "has_conflicts": false,
+     "sha": "7777777777777777777777777777777777777777",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/7",
+     "references": {
+      "short": "!7",
+      "relative": "!7",
+      "full": "acme/platform/widgets!7"
+     }
+    },
+    {
+     "id": 700008,
+     "iid": 8,
+     "project_id": 4242,
+     "title": "fix: page through note events",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-18T10:00:00.000Z",
+     "updated_at": "2026-10-19T11:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "fix/2",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "8888888888888888888888888888888888888888",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/8",
+     "references": {
+      "short": "!8",
+      "relative": "!8",
+      "full": "acme/platform/widgets!8"
+     }
+    },
+    {
+     "id": 700009,
+     "iid": 9,
+     "project_id": 4242,
+     "title": "chore(deps): update glab",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-02T10:00:00.000Z",
+     "updated_at": "2026-10-03T10:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "renovate/glab",
+     "author": {
+      "id": 9,
+      "username": "project_4242_bot_3f2a",
+      "name": "Project 4242 Bot 3F2A",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/project_4242_bot_3f2a"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "cannot_be_merged",
+     "detailed_merge_status": "conflict",
+     "has_conflicts": true,
+     "sha": "9999999999999999999999999999999999999999",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/9",
+     "references": {
+      "short": "!9",
+      "relative": "!9",
+      "full": "acme/platform/widgets!9"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests",
+   "query": {
+    "state": "merged"
+   },
+   "response": [
+    {
+     "id": 700006,
+     "iid": 6,
+     "project_id": 4242,
+     "title": "fix: honour api_base under a subpath",
+     "description": "",
+     "state": "merged",
+     "created_at": "2026-10-16T10:00:00.000Z",
+     "updated_at": "2026-10-19T08:00:00.000Z",
+     "merged_at": "2026-10-19T08:00:00.000Z",
+     "merged_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "merge_user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "5-subpath",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "0000000000000000000000000000000000000000",
+     "merge_commit_sha": "6666666666666666666666666666666666666666",
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/6",
+     "references": {
+      "short": "!6",
+      "relative": "!6",
+      "full": "acme/platform/widgets!6"
+     }
+    },
+    {
+     "id": 700005,
+     "iid": 5,
+     "project_id": 4242,
+     "title": "feat: pin the CA in glab's config",
+     "description": "",
+     "state": "merged",
+     "created_at": "2026-10-14T10:00:00.000Z",
+     "updated_at": "2026-10-18T09:00:00.000Z",
+     "merged_at": "2026-10-18T09:00:00.000Z",
+     "merged_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "merge_user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "1-pin-ca",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "0000000000000000000000000000000000000000",
+     "merge_commit_sha": "5555555555555555555555555555555555555555",
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/5",
+     "references": {
+      "short": "!5",
+      "relative": "!5",
+      "full": "acme/platform/widgets!5"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests",
+   "query": {
+    "per_page": 1
+   },
+   "response": [
+    {
+     "id": 700007,
+     "iid": 7,
+     "project_id": 4242,
+     "title": "feat(forge-tracker): GitLab adapter (#4)",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-17T10:00:00.000Z",
+     "updated_at": "2026-10-19T16:00:00.000Z",
+     "merged_at": null,
+     "merged_by": null,
+     "merge_user": null,
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "4-gitlab-adapter",
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "unchecked",
+     "detailed_merge_status": "unchecked",
+     "has_conflicts": false,
+     "sha": "7777777777777777777777777777777777777777",
+     "merge_commit_sha": null,
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/7",
+     "references": {
+      "short": "!7",
+      "relative": "!7",
+      "full": "acme/platform/widgets!7"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/7",
+   "response": {
+    "id": 700007,
+    "iid": 7,
+    "project_id": 4242,
+    "title": "feat(forge-tracker): GitLab adapter (#4)",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-17T10:00:00.000Z",
+    "updated_at": "2026-10-19T16:00:00.000Z",
+    "merged_at": null,
+    "merged_by": null,
+    "merge_user": null,
+    "closed_at": null,
+    "target_branch": "main",
+    "source_branch": "4-gitlab-adapter",
+    "author": {
+     "id": 2,
+     "username": "alex",
+     "name": "Alex",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/alex"
+    },
+    "assignees": [],
+    "assignee": null,
+    "reviewers": [
+     {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    ],
+    "source_project_id": 4242,
+    "target_project_id": 4242,
+    "labels": [],
+    "draft": false,
+    "work_in_progress": false,
+    "milestone": null,
+    "merge_when_pipeline_succeeds": false,
+    "merge_status": "unchecked",
+    "detailed_merge_status": "unchecked",
+    "has_conflicts": false,
+    "sha": "7777777777777777777777777777777777777777",
+    "merge_commit_sha": null,
+    "squash_commit_sha": null,
+    "squash": false,
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/7",
+    "references": {
+     "short": "!7",
+     "relative": "!7",
+     "full": "acme/platform/widgets!7"
+    },
+    "head_pipeline": {
+     "id": 6007,
+     "iid": 1007,
+     "project_id": 4242,
+     "sha": "7777777777777777777777777777777777777777",
+     "ref": "4-gitlab-adapter",
+     "status": "running",
+     "source": "merge_request_event",
+     "created_at": "2026-10-19T16:00:00.000Z",
+     "updated_at": "2026-10-19T16:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/6007",
+     "name": null,
+     "coverage": null
+    },
+    "diff_refs": {
+     "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "head_sha": "7777777777777777777777777777777777777777",
+     "start_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/8",
+   "response": {
+    "id": 700008,
+    "iid": 8,
+    "project_id": 4242,
+    "title": "fix: page through note events",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-18T10:00:00.000Z",
+    "updated_at": "2026-10-19T11:00:00.000Z",
+    "merged_at": null,
+    "merged_by": null,
+    "merge_user": null,
+    "closed_at": null,
+    "target_branch": "main",
+    "source_branch": "fix/2",
+    "author": {
+     "id": 1,
+     "username": "me",
+     "name": "Me",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/me"
+    },
+    "assignees": [],
+    "assignee": null,
+    "reviewers": [],
+    "source_project_id": 4242,
+    "target_project_id": 4242,
+    "labels": [],
+    "draft": false,
+    "work_in_progress": false,
+    "milestone": null,
+    "merge_when_pipeline_succeeds": false,
+    "merge_status": "can_be_merged",
+    "detailed_merge_status": "mergeable",
+    "has_conflicts": false,
+    "sha": "8888888888888888888888888888888888888888",
+    "merge_commit_sha": null,
+    "squash_commit_sha": null,
+    "squash": false,
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/8",
+    "references": {
+     "short": "!8",
+     "relative": "!8",
+     "full": "acme/platform/widgets!8"
+    },
+    "head_pipeline": {
+     "id": 6008,
+     "iid": 1008,
+     "project_id": 4242,
+     "sha": "8888888888888888888888888888888888888888",
+     "ref": "fix/2",
+     "status": "success",
+     "source": "merge_request_event",
+     "created_at": "2026-10-19T11:00:00.000Z",
+     "updated_at": "2026-10-19T11:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/6008",
+     "name": null,
+     "coverage": null
+    },
+    "diff_refs": {
+     "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "head_sha": "8888888888888888888888888888888888888888",
+     "start_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/9",
+   "response": {
+    "id": 700009,
+    "iid": 9,
+    "project_id": 4242,
+    "title": "chore(deps): update glab",
+    "description": "",
+    "state": "opened",
+    "created_at": "2026-10-02T10:00:00.000Z",
+    "updated_at": "2026-10-03T10:00:00.000Z",
+    "merged_at": null,
+    "merged_by": null,
+    "merge_user": null,
+    "closed_at": null,
+    "target_branch": "main",
+    "source_branch": "renovate/glab",
+    "author": {
+     "id": 9,
+     "username": "project_4242_bot_3f2a",
+     "name": "Project 4242 Bot 3F2A",
+     "state": "active",
+     "locked": false,
+     "avatar_url": null,
+     "web_url": "https://gitlab.example.org/code/project_4242_bot_3f2a"
+    },
+    "assignees": [],
+    "assignee": null,
+    "reviewers": [],
+    "source_project_id": 4242,
+    "target_project_id": 4242,
+    "labels": [],
+    "draft": false,
+    "work_in_progress": false,
+    "milestone": null,
+    "merge_when_pipeline_succeeds": false,
+    "merge_status": "cannot_be_merged",
+    "detailed_merge_status": "conflict",
+    "has_conflicts": true,
+    "sha": "9999999999999999999999999999999999999999",
+    "merge_commit_sha": null,
+    "squash_commit_sha": null,
+    "squash": false,
+    "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/9",
+    "references": {
+     "short": "!9",
+     "relative": "!9",
+     "full": "acme/platform/widgets!9"
+    },
+    "head_pipeline": {
+     "id": 6009,
+     "iid": 1009,
+     "project_id": 4242,
+     "sha": "9999999999999999999999999999999999999999",
+     "ref": "renovate/glab",
+     "status": "failed",
+     "source": "merge_request_event",
+     "created_at": "2026-10-03T10:00:00.000Z",
+     "updated_at": "2026-10-03T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/6009",
+     "name": null,
+     "coverage": null
+    },
+    "diff_refs": {
+     "base_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "head_sha": "9999999999999999999999999999999999999999",
+     "start_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/7/approvals",
+   "response": {
+    "id": 700007,
+    "iid": 7,
+    "project_id": 4242,
+    "approved": false,
+    "approvals_required": 1,
+    "approvals_left": 1,
+    "approved_by": []
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/8/approvals",
+   "response": {
+    "id": 700008,
+    "iid": 8,
+    "project_id": 4242,
+    "approved": false,
+    "approvals_required": 0,
+    "approvals_left": 0,
+    "approved_by": []
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/9/approvals",
+   "response": {
+    "id": 700009,
+    "iid": 9,
+    "project_id": 4242,
+    "approved": false,
+    "approvals_required": 0,
+    "approvals_left": 0,
+    "approved_by": []
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/6/closes_issues",
+   "response": [
+    {
+     "id": 900005,
+     "iid": 5,
+     "project_id": 4242,
+     "title": "Subpath API base is ignored",
+     "description": "",
+     "state": "closed",
+     "created_at": "2026-10-01T10:00:00.000Z",
+     "updated_at": "2026-10-19T08:00:00.000Z",
+     "closed_at": "2026-10-19T08:00:00.000Z",
+     "closed_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "labels": [
+      "bug"
+     ],
+     "milestone": null,
+     "assignees": [],
+     "assignee": null,
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/5",
+     "references": {
+      "short": "#5",
+      "relative": "#5",
+      "full": "acme/platform/widgets#5"
+     },
+     "has_tasks": false
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/5/closes_issues",
+   "response": [
+    {
+     "id": 900001,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Pin the CA bundle for self-hosted instances",
+     "description": "",
+     "state": "opened",
+     "created_at": "2026-10-05T10:00:00.000Z",
+     "updated_at": "2026-10-19T09:00:00.000Z",
+     "closed_at": null,
+     "closed_by": null,
+     "labels": [
+      "P1",
+      "needs-human"
+     ],
+     "milestone": {
+      "id": 31,
+      "iid": 1,
+      "project_id": 4242,
+      "title": "Tier 1",
+      "description": "",
+      "state": "active",
+      "created_at": "2026-09-01T00:00:00.000Z",
+      "updated_at": "2026-09-01T00:00:00.000Z",
+      "due_date": "2026-11-30",
+      "start_date": null,
+      "expired": false,
+      "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+     },
+     "assignees": [
+      {
+       "id": 1,
+       "username": "me",
+       "name": "Me",
+       "state": "active",
+       "locked": false,
+       "avatar_url": null,
+       "web_url": "https://gitlab.example.org/code/me"
+      }
+     ],
+     "assignee": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "author": {
+      "id": 2,
+      "username": "alex",
+      "name": "Alex",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/alex"
+     },
+     "type": "ISSUE",
+     "user_notes_count": 0,
+     "merge_requests_count": 0,
+     "upvotes": 0,
+     "downvotes": 0,
+     "due_date": null,
+     "confidential": false,
+     "discussion_locked": null,
+     "issue_type": "issue",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/issues/1",
+     "references": {
+      "short": "#1",
+      "relative": "#1",
+      "full": "acme/platform/widgets#1"
+     },
+     "has_tasks": false
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines",
+   "query": {
+    "source": "push"
+   },
+   "response": [
+    {
+     "id": 5100,
+     "iid": 100,
+     "project_id": 4242,
+     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "ref": "main",
+     "status": "failed",
+     "source": "push",
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "updated_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/5100",
+     "name": null
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines",
+   "query": {
+    "source": "schedule"
+   },
+   "response": [
+    {
+     "id": 5090,
+     "iid": 90,
+     "project_id": 4242,
+     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "ref": "main",
+     "status": "success",
+     "source": "schedule",
+     "created_at": "2026-10-19T03:00:00.000Z",
+     "updated_at": "2026-10-19T03:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/5090",
+     "name": null
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines",
+   "response": [
+    {
+     "id": 5100,
+     "iid": 100,
+     "project_id": 4242,
+     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "ref": "main",
+     "status": "failed",
+     "source": "push",
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "updated_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/5100",
+     "name": null
+    },
+    {
+     "id": 5095,
+     "iid": 95,
+     "project_id": 4242,
+     "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "ref": "main",
+     "status": "success",
+     "source": "push",
+     "created_at": "2026-10-18T10:00:00.000Z",
+     "updated_at": "2026-10-18T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/pipelines/5095",
+     "name": null
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines/5100/jobs",
+   "query": {
+    "include_retried": "true"
+   },
+   "response": [
+    {
+     "id": 31,
+     "name": "lint",
+     "stage": "test",
+     "status": "success",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/31",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 32,
+     "name": "test",
+     "stage": "test",
+     "status": "failed",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/32",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 33,
+     "name": "docs",
+     "stage": "test",
+     "status": "failed",
+     "allow_failure": true,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/33",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines/5100/jobs",
+   "response": [
+    {
+     "id": 31,
+     "name": "lint",
+     "stage": "test",
+     "status": "success",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/31",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 32,
+     "name": "test",
+     "stage": "test",
+     "status": "failed",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/32",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 33,
+     "name": "docs",
+     "stage": "test",
+     "status": "failed",
+     "allow_failure": true,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/33",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/pipelines/5095/jobs",
+   "query": {
+    "include_retried": "true"
+   },
+   "response": [
+    {
+     "id": 21,
+     "name": "e2e",
+     "stage": "test",
+     "status": "failed",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/21",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 22,
+     "name": "lint",
+     "stage": "test",
+     "status": "success",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/22",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    },
+    {
+     "id": 24,
+     "name": "e2e",
+     "stage": "test",
+     "status": "success",
+     "allow_failure": false,
+     "created_at": "2026-10-19T10:00:00.000Z",
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/jobs/24",
+     "user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/releases",
+   "response": [
+    {
+     "tag_name": "v1.2.0",
+     "name": "1.2.0",
+     "created_at": "2026-10-18T09:30:00.000Z",
+     "released_at": "2026-10-18T09:30:00.000Z",
+     "upcoming_release": false
+    },
+    {
+     "tag_name": "v2.0.0",
+     "name": "2.0.0",
+     "created_at": "2026-10-19T00:00:00.000Z",
+     "released_at": "2026-12-01T00:00:00.000Z",
+     "upcoming_release": true
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/repository/tags",
+   "response": [
+    {
+     "name": "v1.2.0",
+     "message": "",
+     "target": "5555555555555555555555555555555555555555",
+     "commit": {
+      "id": "5555555555555555555555555555555555555555",
+      "short_id": "55555555",
+      "title": "work",
+      "message": "work",
+      "author_name": "Me",
+      "committed_date": "2026-10-18T09:00:00.000+00:00",
+      "created_at": "2026-10-18T09:00:00.000+00:00",
+      "parent_ids": []
+     }
+    },
+    {
+     "name": "v1.1.0",
+     "message": "",
+     "target": "4444444444444444444444444444444444444444",
+     "commit": {
+      "id": "4444444444444444444444444444444444444444",
+      "short_id": "44444444",
+      "title": "work",
+      "message": "work",
+      "author_name": "Me",
+      "committed_date": "2026-09-01T00:00:00.000+00:00",
+      "created_at": "2026-09-01T00:00:00.000+00:00",
+      "parent_ids": []
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/repository/branches",
+   "response": [
+    {
+     "name": "main",
+     "merged": false,
+     "protected": true,
+     "default": true,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/main",
+     "commit": {
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "short_id": "aaaaaaaa",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    },
+    {
+     "name": "4-gitlab-adapter",
+     "merged": false,
+     "protected": false,
+     "default": false,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/4-gitlab-adapter",
+     "commit": {
+      "id": "7777777777777777777777777777777777777777",
+      "short_id": "77777777",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    },
+    {
+     "name": "fix/2",
+     "merged": false,
+     "protected": false,
+     "default": false,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/fix/2",
+     "commit": {
+      "id": "8888888888888888888888888888888888888888",
+      "short_id": "88888888",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    },
+    {
+     "name": "renovate/glab",
+     "merged": false,
+     "protected": false,
+     "default": false,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/renovate/glab",
+     "commit": {
+      "id": "9999999999999999999999999999999999999999",
+      "short_id": "99999999",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    },
+    {
+     "name": "old-spike",
+     "merged": false,
+     "protected": false,
+     "default": false,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/old-spike",
+     "commit": {
+      "id": "cccccccccccccccccccccccccccccccccccccccc",
+      "short_id": "cccccccc",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    },
+    {
+     "name": "wip-idea",
+     "merged": false,
+     "protected": false,
+     "default": false,
+     "developers_can_push": false,
+     "developers_can_merge": false,
+     "can_push": true,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/tree/wip-idea",
+     "commit": {
+      "id": "dddddddddddddddddddddddddddddddddddddddd",
+      "short_id": "dddddddd",
+      "title": "commit",
+      "committed_date": "2026-10-19T00:00:00.000+00:00"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/repository/compare",
+   "query": {
+    "to": "old-spike"
+   },
+   "response": {
+    "commit": null,
+    "commits": [],
+    "diffs": [],
+    "compare_timeout": false,
+    "compare_same_ref": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/repository/compare",
+   "query": {
+    "to": "wip-idea"
+   },
+   "response": {
+    "commit": {
+     "id": "dddddddddddddddddddddddddddddddddddddddd",
+     "short_id": "dddddddd",
+     "title": "work",
+     "message": "work",
+     "author_name": "Me",
+     "committed_date": "2026-09-20T00:00:00.000+00:00",
+     "created_at": "2026-09-20T00:00:00.000+00:00",
+     "parent_ids": []
+    },
+    "commits": [
+     {
+      "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "short_id": "eeeeeeee",
+      "title": "work",
+      "message": "work",
+      "author_name": "Me",
+      "committed_date": "2026-09-19T00:00:00.000+00:00",
+      "created_at": "2026-09-19T00:00:00.000+00:00",
+      "parent_ids": []
+     },
+     {
+      "id": "dddddddddddddddddddddddddddddddddddddddd",
+      "short_id": "dddddddd",
+      "title": "work",
+      "message": "work",
+      "author_name": "Me",
+      "committed_date": "2026-09-20T00:00:00.000+00:00",
+      "created_at": "2026-09-20T00:00:00.000+00:00",
+      "parent_ids": []
+     }
+    ],
+    "diffs": [],
+    "compare_timeout": false,
+    "compare_same_ref": false
+   }
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/repository/commits/5555555555555555555555555555555555555555/refs",
+   "query": {
+    "type": "branch"
+   },
+   "response": [
+    {
+     "type": "branch",
+     "name": "main"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/milestones",
+   "query": {
+    "state": "active"
+   },
+   "response": [
+    {
+     "id": 31,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Tier 1",
+     "description": "",
+     "state": "active",
+     "created_at": "2026-09-01T00:00:00.000Z",
+     "updated_at": "2026-09-01T00:00:00.000Z",
+     "due_date": "2026-11-30",
+     "start_date": null,
+     "expired": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/milestones",
+   "response": [
+    {
+     "id": 31,
+     "iid": 1,
+     "project_id": 4242,
+     "title": "Tier 1",
+     "description": "",
+     "state": "active",
+     "created_at": "2026-09-01T00:00:00.000Z",
+     "updated_at": "2026-09-01T00:00:00.000Z",
+     "due_date": "2026-11-30",
+     "start_date": null,
+     "expired": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/milestones/1"
+    }
+   ]
+  }
+ ]
+}

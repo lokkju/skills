@@ -30,13 +30,16 @@ DEFAULT_PAGE_CAP = 50
 PER_PAGE = 100
 ERROR_LIMIT = 300
 
-# Token shapes that must never reach output: GitHub (classic and fine-grained), GitLab, and any
-# Authorization header value.
+# Token shapes that must never reach output: GitHub (classic and fine-grained), GitLab (personal,
+# OAuth, runner, deploy, trigger, feed and other prefixed tokens), and any Authorization or
+# PRIVATE-TOKEN header value.
 _TOKEN_PATTERNS = [
     re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{10,}"),
     re.compile(r"\bgithub_pat_[A-Za-z0-9_]{10,}"),
-    re.compile(r"\bglpat-[A-Za-z0-9_\-]{10,}"),
-    re.compile(r"(?i)(authorization\s*[:=]\s*)(\S+(\s+\S+)?)"),
+    re.compile(
+        r"\b(?:glpat|gloas|glrt|gldt|glptt|glft|glsoat|glimt|glcbt|glagent|glffct)-[A-Za-z0-9_\-]{10,}"
+    ),
+    re.compile(r"(?i)((?:authorization|private-token)\s*[:=]\s*)(\S+(\s+\S+)?)"),
 ]
 
 
@@ -229,6 +232,79 @@ def urllib_http(cafile: Optional[str] = None, timeout: float = 30) -> Http:
             raise ForgeError(redact(f"{method} {url} failed: {reason}")) from None
 
     return http
+
+
+def glab_http(
+    host: str,
+    default_base: Optional[str] = None,
+    run: Callable[..., Any] = subprocess.run,
+    timeout: float = 60,
+) -> Http:
+    """An Http that sends each GET through `glab api --include`, so glab's own login, host
+    settings (`api_host`, a subpath) and pinned `ca_cert` apply and no token passes through
+    forge-tracker. A URL under `default_base` (https://<host>/api/v4) goes to glab as a path, so
+    glab resolves it against its own base for the host; any other URL (an `api_base:` from the
+    config, a pagination link) goes as given.
+
+    It sends GETs only; `check_read` has already refused anything else before this is reached,
+    and this refuses again rather than build a command that could write."""
+    prefix = (default_base or "").rstrip("/") + "/"
+
+    def http(
+        method: str, url: str, headers: Mapping[str, str], body: Optional[bytes] = None
+    ) -> Response:
+        if method.upper() != "GET" or body:
+            raise ForgeError(f"refused: glab carries reads only, not {method}")
+        endpoint = url[len(prefix) :] if default_base and url.startswith(prefix) else url
+        argv = ["glab", "api", "--hostname", host, "--include", "--method", "GET", endpoint]
+        try:
+            result = run(argv, capture_output=True, timeout=timeout, stdin=subprocess.DEVNULL)
+        except FileNotFoundError:
+            raise ForgeError(
+                "glab isn't on PATH; it reads GitLab (install it and run glab auth login)"
+            ) from None
+        except subprocess.TimeoutExpired:
+            raise ForgeError(f"glab api timed out after {timeout:.0f}s") from None
+        stdout = (
+            result.stdout if isinstance(result.stdout, bytes) else (result.stdout or "").encode()
+        )
+        stderr = (
+            result.stderr
+            if isinstance(result.stderr, str)
+            else (result.stderr or b"").decode("utf-8", "replace")
+        )
+        parsed = parse_included(stdout)
+        if parsed is None:
+            detail = redact(stderr) or f"exit {result.returncode}"
+            path = urllib.parse.urlsplit(url).path
+            raise ForgeError(f"glab api {path} failed: {detail}")
+        return parsed
+
+    return http
+
+
+def parse_included(raw: bytes) -> Optional[Response]:
+    """`glab api --include` output: a status line, headers, a blank line, then the body. None
+    when it doesn't start with a status line (glab failed before any response)."""
+    if not raw.startswith(b"HTTP/"):
+        return None
+    for separator in (b"\r\n\r\n", b"\n\n"):
+        head, found, body = raw.partition(separator)
+        if found:
+            break
+    else:
+        head, body = raw, b""
+    lines = head.decode("iso-8859-1").splitlines()
+    try:
+        status = int(lines[0].split()[1])
+    except (IndexError, ValueError):
+        return None
+    headers: dict[str, str] = {}
+    for line in lines[1:]:
+        name, colon, value = line.partition(":")
+        if colon:
+            headers[name.strip().lower()] = value.strip()
+    return Response(status, headers, body.strip())
 
 
 _LINK = re.compile(r'<([^>]+)>\s*;\s*rel="([^"]+)"')

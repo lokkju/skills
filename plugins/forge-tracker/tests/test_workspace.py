@@ -235,10 +235,10 @@ def test_a_failed_repo_keeps_only_its_own_marker_and_exits_1(ws):
 
 
 def test_a_repo_that_cant_be_opened_is_a_failed_line(ws):
-    git_repo(ws["root"] / "lab", "git@gitlab.com:group/lab.git")
+    git_repo(ws["root"] / "lab", "git@code.example.org:group/lab.git")
     code, text, _ = catchup(ws)
     assert code == 1
-    assert "\nlab: FAILED (gitlab.com is gitlab, and forge-tracker reads only GitHub so far" in text
+    assert "\nlab: FAILED (can't tell which forge code.example.org runs" in text
     assert len(list(ws["markers"].iterdir())) == 2
 
 

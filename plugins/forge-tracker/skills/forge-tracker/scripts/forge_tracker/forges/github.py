@@ -4,7 +4,6 @@ on failure; callers wrap each one in `attempt` so it fails on its own."""
 
 from __future__ import annotations
 
-import fnmatch
 from collections import Counter
 from dataclasses import replace
 from datetime import datetime
@@ -33,6 +32,7 @@ from ..model import (
     parse_time,
 )
 from ..transport import ReadTransport
+from .common import pick_tags
 
 API_VERSION = "2022-11-28"
 
@@ -378,24 +378,12 @@ class GitHub:
         globs = [p for p in patterns if not p.startswith("registry:")]
         releases = self.t.get_all(f"{self.repo_path}/releases") if globs else []
         tags = self.t.get_all(f"{self.repo_path}/tags") if globs else []
-        out = []
-        for pattern in patterns:
-            if pattern.startswith("registry:"):
-                out.append(Tag(pattern, None, note="registry tags aren't read on GitHub yet"))
-                continue
-            dated = [
-                (parse_time(r.get("published_at") or r.get("created_at")), r["tag_name"])
-                for r in releases
-                if not r.get("draft") and fnmatch.fnmatchcase(r.get("tag_name") or "", pattern)
-            ]
-            dated = [d for d in dated if d[0] is not None]
-            if dated:
-                when, name = max(dated)
-                out.append(Tag(pattern, name, when))
-                continue
-            names = [t["name"] for t in tags if fnmatch.fnmatchcase(t.get("name") or "", pattern)]
-            out.append(Tag(pattern, names[0] if names else None))
-        return out
+        dated = [
+            (parse_time(r.get("published_at") or r.get("created_at")), r.get("tag_name") or "")
+            for r in releases
+            if not r.get("draft")
+        ]
+        return pick_tags(patterns, dated, [t.get("name") or "" for t in tags], "GitHub")
 
     def branches(self, default_branch: str, open_changes: list[Change]) -> list[Branch]:
         with_change = {c.branch for c in open_changes}

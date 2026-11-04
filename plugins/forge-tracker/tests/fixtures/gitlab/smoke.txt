@@ -1,0 +1,16 @@
+acme/platform/widgets on gitlab.example.org (gitlab)
+  identity: me (bot: no)
+  repo: default branch main
+  open issues: 4
+  issues updated in 7 days: 5
+  comments in 7 days: 1
+  mentions in 7 days: 1
+  open changes: 3 (conflicts: yes 1, no 1, unknown 1)
+  merged in 7 days: 2
+  blocking links: 2
+  closing references: 3
+  next fingerprint: 6 branch heads
+  push run: 5100 failure
+  schedule run: 5090 success
+  passed on retry: 1
+  branches: 5
