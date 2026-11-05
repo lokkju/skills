@@ -597,6 +597,11 @@ def test_a_title_or_branch_mention_is_never_a_close_proposal(env):
         ("branches", "stale branches: FAILED (branches: HTTP 502"),
         ("changes", "conflicted or stale PRs: FAILED (open changes: GraphQL error"),
         ("issues", "likely duplicates: FAILED (open issues: HTTP 502"),
+        (
+            "cross_refs",
+            "possibly done without a closing reference: FAILED (cross-references: GraphQL error",
+        ),
+        ("files", "possibly done without a closing reference: FAILED (files of #35: HTTP 502"),
     ],
 )
 def test_each_check_fails_on_its_own_and_says_failed(env, broken, part):
@@ -610,6 +615,53 @@ def test_each_check_fails_on_its_own_and_says_failed(env, broken, part):
     # The checks that don't need the broken read still report.
     if broken != "branches" and broken != "changes":
         assert "delete-branch old-1" in text
+
+
+def test_possibly_done_is_listed_never_proposed(env):
+    _, text = run_cli(env, "groom", "--json")
+    report = json.loads(text)
+    by_issue = {item["issue"]: item for item in report["possibly_done"]}
+    assert set(by_issue) == {42, 43}
+    assert by_issue[42]["names_changed_by"] == [
+        {"change": 35, "paths": ["src/parse.py"], "symbols": ["parse_rows"]}
+    ]
+    assert by_issue[43]["cross_referenced_by"] == [36]
+    assert by_issue[43]["last_comment"] == "2026-10-12T00:00:00Z"
+    # #14's cross-reference is its closing reference (a close proposal, not "possibly done"); a
+    # mention from issue #50 and one from open #60 aren't merged changes; #44 has a comment
+    # after #35 merged.
+    assert not {14, 44} & set(by_issue)
+    assert not any(p["payload"].get("issue") in (42, 43) for p in report["proposals"])
+    code, _, forge = apply(env, ["close #42"])
+    assert code == 2 and forge.writes == []
+
+
+def test_possibly_done_signals_fail_on_their_own(env):
+    """With the cross-references broken, the path signal still lists #42, and the check still
+    counts as run; with the merged list broken too, it didn't run at all."""
+    repo = Repo()
+    repo.broken = {"cross_refs"}
+    code, text = run_cli(env, "groom", http=repo.world())
+    assert code == 1
+    assert "#42 'parser drops header rows': merged #35" in text
+    assert "#43" not in text.split("Possibly done")[1].split("FAILED")[0]
+    assert "possibly done without a closing reference, " in text.split("\n")[2]
+
+    repo.broken = {"cross_refs", "merged"}
+    code, text = run_cli(env, "groom", http=repo.world())
+    assert code == 1
+    checks = text.split("\n")[2]
+    assert checks.startswith("Checks run (10 of 12): ")
+    assert "possibly done" not in checks
+
+
+def test_a_failed_comment_read_still_lists_and_says_so(env):
+    world = Repo().world()
+    world.route("/repos/acme/widgets/issues/43/comments", {"message": "boom"}, status=502)
+    code, text = run_cli(env, "groom", http=world)
+    assert code == 1
+    assert "cross-references it; whether it has comments since FAILED" in text
+    assert "possibly done without a closing reference: FAILED (comments on #43: HTTP 502" in text
 
 
 def test_a_failed_reachability_check_is_unclear_and_failed(env):

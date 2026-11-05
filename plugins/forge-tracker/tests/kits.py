@@ -179,6 +179,50 @@ class GitHubKit:
         )
         world.route("/repos/acme/widgets/tags", [{"name": t} for t in tags])
 
+    # --- /groom: possibly done
+
+    patches = True
+    can_miss_files = False
+
+    def cross_refs(self, world, mentions):
+        """`mentions`: open issue -> [(change, state, merged_at)], plus a mention from another
+        issue, which isn't a change."""
+        nodes = []
+        for issue, changes in mentions.items():
+            items = [{"willCloseTarget": False, "source": {"__typename": "Issue", "number": 99}}]
+            for change, state, merged in changes:
+                items.append(
+                    {
+                        "willCloseTarget": False,
+                        "source": {
+                            "__typename": "PullRequest",
+                            "number": change,
+                            "title": f"change {change}",
+                            "state": state.upper(),
+                            "mergedAt": merged,
+                            "baseRefName": "main",
+                            "repository": {"nameWithOwner": "acme/widgets"},
+                        },
+                    }
+                )
+            nodes.append(
+                {"number": issue, "timelineItems": {"totalCount": len(items), "nodes": items}}
+            )
+        world.op("CrossRefs", self._connection(nodes, key="issues"))
+
+    def files(self, world, number, files):
+        world.route(
+            f"/repos/acme/widgets/pulls/{number}/files",
+            [
+                dict(
+                    {"filename": path, "status": "renamed" if old else "modified"},
+                    **({"patch": patch} if patch else {}),
+                    **({"previous_filename": old} if old else {}),
+                )
+                for path, patch, old in files
+            ],
+        )
+
 
 class GitLabKit:
     name = "gitlab"
@@ -307,6 +351,43 @@ class GitLabKit:
             [{"tag_name": t, "released_at": d} for t, d in releases],
         )
         world.route(f"{self.P}/repository/tags", [{"name": t} for t in tags])
+
+    # --- /groom: possibly done
+
+    patches = True
+    can_miss_files = True
+
+    def cross_refs(self, world, mentions):
+        world.route(f"{self.P}/issues", [self._issue({"number": n}) for n in mentions])
+        for issue, changes in mentions.items():
+            world.route(
+                f"{self.P}/issues/{issue}/related_merge_requests",
+                [
+                    dict(
+                        self._mr({"number": change, "merged": merged}),
+                        state="opened" if state == "open" else state,
+                        references={"full": f"acme/widgets!{change}"},
+                    )
+                    for change, state, merged in changes
+                ],
+            )
+
+    def files(self, world, number, files):
+        world.route(
+            f"{self.P}/merge_requests/{number}/diffs",
+            [
+                {
+                    "old_path": old or path,
+                    "new_path": path,
+                    "renamed_file": bool(old),
+                    "diff": patch or "",
+                }
+                for path, patch, old in files
+            ],
+        )
+
+    def missing_files(self, world, number):
+        world.route(f"{self.P}/merge_requests/{number}/diffs", {"message": "404 Not found"}, 404)
 
 
 FORGEJO_TOKEN = "f0rgejo5ecret0token1234567890abcdef"
@@ -457,6 +538,46 @@ class ForgejoKit:
             [{"tag_name": t, "published_at": d, "draft": False} for t, d in releases],
         )
         world.route(f"{self.R}/tags", [{"name": t} for t in tags])
+
+    # --- /groom: possibly done
+
+    patches = False  # Forgejo's changed-file list has names only
+    can_miss_files = True
+
+    def cross_refs(self, world, mentions):
+        world.route(f"{self.R}/issues", [self._issue({"number": n}) for n in mentions])
+        for issue, changes in mentions.items():
+            events = [
+                {"type": "comment", "body": "a plain comment"},
+                # An issue (not a PR) naming this one: not a change.
+                {"type": "issue_ref", "ref_issue": dict(self._issue({"number": 99}))},
+            ]
+            for change, state, merged in changes:
+                events.append(
+                    {
+                        "type": "pull_ref",
+                        "ref_issue": dict(
+                            self._issue({"number": change, "title": f"change {change}"}),
+                            state="closed" if state == "merged" else state,
+                            repository={"full_name": "acme/widgets"},
+                            pull_request={"merged": state == "merged", "merged_at": merged},
+                        ),
+                    }
+                )
+            world.route(f"{self.R}/issues/{issue}/timeline", events)
+
+    def files(self, world, number, files):
+        world.route(
+            f"{self.R}/pulls/{number}/files",
+            [
+                dict({"filename": path}, **({"previous_filename": old} if old else {}))
+                for path, _patch, old in files
+            ],
+        )
+
+    def missing_files(self, world, number):
+        world.route(self.R, {"default_branch": "main"})
+        world.route(f"{self.R}/pulls/{number}/files", {"message": "not found"}, 404)
 
 
 KITS = [GitHubKit(), GitLabKit(), ForgejoKit()]

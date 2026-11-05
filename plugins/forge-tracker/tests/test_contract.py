@@ -179,3 +179,40 @@ def test_references_are_written_the_forges_way(kit):
     a = kit.adapter(kit.world())
     assert a.ref(5) == "#5"
     assert a.ref(5, change=True) == f"{kit.change_sigil}5"
+
+
+# --- /groom's possibly-done reads ---------------------------------------------------------------
+
+
+def test_cross_refs_are_the_changes_that_mention_an_open_issue(kit):
+    world = kit.world()
+    kit.cross_refs(
+        world,
+        {3: [(9, "merged", "2026-10-12T00:00:00Z"), (10, "open", None)], 4: []},
+    )
+    found = sorted(kit.adapter(world).cross_refs(), key=lambda r: (r.issue, r.change))
+    assert [(r.issue, r.change, r.state, r.merged_at, r.change_project) for r in found] == [
+        (3, 9, "merged", datetime(2026, 10, 12, tzinfo=timezone.utc), None),
+        (3, 10, "open", None, None),
+    ]
+    assert found[0].title == "change 9"
+
+
+def test_change_files_name_each_path_with_its_diff_where_the_forge_has_one(kit):
+    world = kit.world()
+    patch = "@@ -1,2 +1,2 @@ def parse_rows():\n-    x\n+    y"
+    kit.files(world, 9, [("src/a.py", patch, None), ("src/new.py", None, "src/old.py")])
+    one, two = kit.adapter(world).change_files(9)
+    assert (one.path, one.previous_path) == ("src/a.py", None)
+    assert (two.path, two.previous_path, two.patch) == ("src/new.py", "src/old.py", None)
+    assert one.patch == (patch if kit.patches else None)
+    assert kit.adapter(world).file_patches is kit.patches
+
+
+def test_a_forge_without_a_changed_files_read_says_unsupported(kit):
+    if not kit.can_miss_files:
+        pytest.skip(f"{kit.name} always has the changed-files read")
+    world = kit.world()
+    kit.missing_files(world, 9)
+    read = attempt(lambda: kit.adapter(world).change_files(9))
+    assert not read.ok and read.unsupported
