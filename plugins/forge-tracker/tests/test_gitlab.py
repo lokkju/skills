@@ -3,15 +3,17 @@ reads GitLab answers its own way (note events, to-do items, per-MR detail, retri
 MRs), and the three reports over a fixture world in the shapes GitLab documents."""
 
 import io
+import json
 import subprocess
 from datetime import datetime, timezone
 
 import pytest
 from conftest import FIXTURES, FakeRun, RouteHttp, World, response
-from forge_tracker import cli
+from forge_tracker import cli, writes
 from forge_tracker.forges import gitlab
 from forge_tracker.model import ForgeError, attempt
 from forge_tracker.transport import ReadTransport, glab_http, parse_included
+from write_kits import GitLabWriteKit
 
 T0 = datetime(2026, 10, 10, tzinfo=timezone.utc)
 BASE = "https://gitlab.example.org/api/v4"
@@ -524,6 +526,8 @@ def test_page_cap_through_x_next_page_alone():
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
 WORLD = FIXTURES / "gitlab"
+LAB_BASE = "https://gitlab.example.org/code/api/v4"
+P_LAB = "/projects/acme%2Fplatform%2Fwidgets"
 
 
 @pytest.fixture
@@ -534,17 +538,23 @@ def lab(tmp_path):
     environ = {"XDG_CACHE_HOME": str(tmp_path / "cache"), "HOME": str(tmp_path)}
     origin = (WORLD / "origin.txt").read_text().strip()
 
-    def run_cli(*args):
+    def run_cli(*args, run=None, extra=None, stdin=None):
+        """`extra(url)` answers a GET before the world does, when it returns a response."""
         http = RouteHttp(WORLD / "world.json")
+
+        def served(method, url, headers, body=None):
+            return (extra and extra(url)) or http(method, url, headers, body)
+
         out = io.StringIO()
         code = cli.main(
             ["--repo", str(repo), *args],
-            http=http,
-            run=FakeRun(origin=origin),
+            http=served if extra else http,
+            run=run or FakeRun(origin=origin),
             now=NOW,
             environ=environ,
             out=out,
             tz=timezone.utc,
+            stdin=io.StringIO(stdin) if stdin is not None else None,
         )
         return code, out.getvalue(), http
 
@@ -568,9 +578,211 @@ def test_reports_over_the_fixture_world_match_their_goldens(lab, args, golden):
     assert all(c[0] == "GET" and c[1].startswith(f"{http.base}/") for c in http.calls)
 
 
-def test_groom_apply_on_gitlab_refuses_without_a_wrapper(lab, monkeypatch):
-    monkeypatch.setattr("sys.stdin", io.StringIO('{"approved": ["close #1"]}'))
-    code, text, http = lab("groom", "apply")
-    assert code == 1
-    assert "REFUSED (forge-tracker writes only to GitHub so far, not gitlab" in text
+def test_groom_apply_on_gitlab_writes_through_glab(lab):
+    """The approved proposals go out through `glab api` with explicit methods, under the
+    configured api_base, and the reads they check first stay GETs on the read transport."""
+    run = FakeRun(origin=(WORLD / "origin.txt").read_text().strip())
+    run.answer(["glab", "api"], 0, "HTTP/1.1 200 OK\r\n\r\n{}", "")
+    head = {"name": "old-spike", "commit": {"id": "c" * 40}, "protected": False}
+
+    def extra(url):
+        return response(head) if url.endswith(f"{P_LAB}/repository/branches/old-spike") else None
+
+    approved = '{"approved": ["close #1", "labels #1 ruling", "delete-branch old-spike"]}'
+    code, text, http = lab("groom", "apply", run=run, extra=extra, stdin=approved)
+    assert code == 0, text
+    assert text == (
+        "close #1: commented on and closed #1\n"
+        "labels #1 ruling: #1: added decided; removed needs-human\n"
+        "delete-branch old-spike: deleted branch old-spike (was ccccccc)\n"
+    )
+    sent = [
+        (argv[6], argv[7].removeprefix(LAB_BASE), kw.get("input"))
+        for argv, kw in zip(run.calls, run.kwargs)
+        if argv[:2] == ["glab", "api"]
+    ]
+    assert [(method, path) for method, path, _ in sent] == [
+        ("POST", f"{P_LAB}/issues/1/notes"),
+        ("PUT", f"{P_LAB}/issues/1"),
+        ("PUT", f"{P_LAB}/issues/1"),
+        ("DELETE", f"{P_LAB}/repository/branches/old-spike"),
+    ]
+    assert json.loads(sent[1][2]) == {"state_event": "close"}
+    assert json.loads(sent[2][2]) == {"add_labels": "decided", "remove_labels": "needs-human"}
+    assert sent[3][2] is None
     assert all(c[0] == "GET" for c in http.calls)
+
+
+# --- writes GitLab makes its own way (the shared ones are in test_contract.py) ------------------
+
+CONVENTION = {"blocking": "relates_to+blocked", "labels": {"blocked": "blocked"}}
+WK = GitLabWriteKit()
+
+
+def relates(number):
+    return {
+        "target_project_id": "acme/widgets",
+        "target_issue_iid": number,
+        "link_type": "relates_to",
+    }
+
+
+def test_convention_link_add_writes_a_relates_to_link_and_the_blocked_label(tmp_path):
+    world = WK.world()
+    WK.blocked(world, 70, [], link_type="relates_to")
+    WK.issue(world, 70)
+    WK.issue(world, 71)
+    result = WK.writer(world, tmp_path, **CONVENTION).apply(
+        "link-add", {"issue": 70, "blocker": 71}
+    )
+    assert result.detail == (
+        "#70: now blocked by #71 (a relates_to link and the blocked label, the configured "
+        "convention)"
+    )
+    assert [(m, p.removeprefix(WK.W), b) for m, p, b in world.sent] == [
+        ("POST", "/issues/70/links", relates(71)),
+        ("PUT", "/issues/70", {"add_labels": "blocked"}),
+    ]
+
+
+def test_convention_link_add_keeps_a_relates_to_link_already_there(tmp_path):
+    """Without the label the relates_to link doesn't count as blocking yet; the label makes it."""
+    world = WK.world()
+    WK.blocked(world, 70, [(71, "open", None)], link_type="relates_to")
+    WK.issue(world, 70)
+    result = WK.writer(world, tmp_path, **CONVENTION).apply(
+        "link-add", {"issue": 70, "blocker": 71}
+    )
+    assert result.ok, result.detail
+    assert "(the blocked label, the configured convention)" in result.detail
+    assert [(m, p.removeprefix(WK.W)) for m, p, _ in world.sent] == [("PUT", "/issues/70")]
+
+
+def test_convention_link_remove_takes_the_label_off_with_the_last_link(tmp_path):
+    world = WK.world()
+    WK.blocked(world, 70, [(71, "open", None)], link_type="relates_to")
+    WK.issue(world, 70, labels=("blocked",))
+    result = WK.writer(world, tmp_path, **CONVENTION).apply(
+        "link-remove", {"issue": 70, "blocker": 71}
+    )
+    assert result.detail == "#70: no longer blocked by #71; removed blocked, its last blocker"
+    assert [(m, p.removeprefix(WK.W), b) for m, p, b in world.sent] == [
+        ("DELETE", "/issues/70/links/571", None),
+        ("PUT", "/issues/70", {"remove_labels": "blocked"}),
+    ]
+
+
+def test_convention_link_remove_keeps_the_label_while_another_blocker_is_linked(tmp_path):
+    world = WK.world()
+    WK.blocked(world, 70, [(71, "open", None), (72, "open", None)], link_type="relates_to")
+    WK.issue(world, 70, labels=("blocked",))
+    result = WK.writer(world, tmp_path, **CONVENTION).apply(
+        "link-remove", {"issue": 70, "blocker": 71}
+    )
+    assert result.detail == "#70: no longer blocked by #71"
+    assert [m for m, _, _ in world.sent] == ["DELETE"]
+
+
+def _native_link_add(tmp_path, answer):
+    world = WK.world()
+    WK.blocked(world, 70, [])
+    WK.issue(world, 70)
+    WK.issue(world, 71)
+    world.answers[("POST", f"{WK.W}/issues/70/links")] = answer
+    result = WK.writer(world, tmp_path).apply("link-add", {"issue": 70, "blocker": 71})
+    return result, world
+
+
+def test_a_native_link_on_a_tier_without_blocks_is_unsupported(tmp_path):
+    result, world = _native_link_add(
+        tmp_path, (403, {"message": "Blocked issues not available for current license"})
+    )
+    assert result.status == "unsupported"
+    assert "has no blocking links" in result.detail and "relates_to+blocked" in result.detail
+    assert len(world.sent) == 1
+
+
+def test_a_relates_to_link_made_in_place_of_a_native_one_is_taken_back(tmp_path):
+    """GitLab CE ignores link_type and makes a relates_to link; the write takes it back and says
+    blocking links are unsupported there."""
+    world = WK.world()
+    WK.issue(world, 70)
+    WK.issue(world, 71)
+    world.answers[("POST", f"{WK.W}/issues/70/links")] = (201, {"link_type": "relates_to"})
+    stray = [
+        {
+            "iid": 71,
+            "issue_link_id": 571,
+            "project_id": 42,
+            "references": {"full": "acme/widgets#71"},
+            "state": "opened",
+            "link_type": "relates_to",
+        }
+    ]
+    world.route(f"{WK.P}/issues/70/links", lambda url: response(stray if world.sent else []))
+    result = WK.writer(world, tmp_path).apply("link-add", {"issue": 70, "blocker": 71})
+    assert result.status == "unsupported"
+    assert result.detail.endswith("the relates_to link it made instead was removed")
+    assert [(m, p.removeprefix(WK.W)) for m, p, _ in world.sent] == [
+        ("POST", "/issues/70/links"),
+        ("DELETE", "/issues/70/links/571"),
+    ]
+    assert writes.render(result).startswith("link-add: UNSUPPORTED (this GitLab has no")
+
+
+def test_a_label_with_a_comma_is_refused_before_anything_is_sent(tmp_path):
+    world = WK.world()
+    WK.issue(world, 22)
+    result = WK.writer(world, tmp_path).apply("labels", {"issue": 22, "add": ["a,b"]})
+    assert result.status == "refused" and "comma" in result.detail
+    assert world.sent == []
+
+
+def test_a_blocker_in_a_subgroup_project_is_accepted_on_gitlab(tmp_path):
+    world = WK.world()
+    WK.blocked(world, 70, [])
+    WK.issue(world, 70)
+    WK.issue(world, 4, project="acme/sub/other")
+    payload = cli.link_payload("70", "acme/sub/other#4")
+    result = WK.writer(world, tmp_path).apply("link-add", payload)
+    assert result.detail == "#70: now blocked by acme/sub/other#4"
+    assert world.sent[0][2]["target_project_id"] == "acme/sub/other"
+
+
+def test_glab_writes_name_the_method_and_send_the_body_on_stdin():
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return subprocess.CompletedProcess(argv, 0, b"HTTP/1.1 201 Created\r\n\r\n{}", b"")
+
+    http = writes.glab_write_http("gitlab.example.org", BASE, run)
+    http("PUT", f"{BASE}/projects/acme%2Fwidgets/issues/3", {}, b'{"state_event": "close"}')
+    http("DELETE", "https://other.example.org/api/v4/projects/1/issues/3/links/9", {}, None)
+    (put, put_kw), (delete, delete_kw) = calls
+    assert put == [
+        "glab", "api", "--hostname", "gitlab.example.org", "--include", "--method", "PUT",
+        "projects/acme%2Fwidgets/issues/3",
+        "--header", "Content-Type: application/json", "--input", "-",
+    ]  # fmt: skip
+    assert put_kw["input"] == b'{"state_event": "close"}'
+    assert delete[6:] == ["DELETE", "https://other.example.org/api/v4/projects/1/issues/3/links/9"]
+    assert delete_kw["stdin"] == subprocess.DEVNULL and "input" not in delete_kw
+    with pytest.raises(ForgeError, match="refused"):
+        http("GET", f"{BASE}/projects/1", {}, None)
+    assert len(calls) == 2
+
+
+def test_glab_missing_or_failing_before_a_response_is_a_failure():
+    def missing(argv, **kwargs):
+        raise FileNotFoundError
+
+    with pytest.raises(ForgeError, match="glab isn't on PATH"):
+        writes.glab_write_http("h", BASE, missing)("POST", f"{BASE}/x", {}, b"{}")
+
+    def broken(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 1, b"", "error: glpat-AbCdEfGhIjKlMnOpQrSt bad")
+
+    with pytest.raises(ForgeError) as raised:
+        writes.glab_write_http("h", BASE, broken)("POST", f"{BASE}/x", {}, b"{}")
+    assert "glpat-" not in str(raised.value) and "***" in str(raised.value)

@@ -1,12 +1,17 @@
 """#21's contract suite: the same scenarios run against every forge's adapter, each written in that
 forge's own response shapes by its kit (kits.py), and every adapter must read them back into the
-same normalized shapes. Forge-specific reads live in test_github.py and test_gitlab.py."""
+same normalized shapes. Forge-specific reads live in test_github.py and test_gitlab.py.
 
+The write half (#154) runs each write operation through the write layer the CLI builds for every
+forge, over a write kit's fake forge (write_kits.py), and asserts the exact calls sent."""
+
+import json
 from datetime import datetime, timezone
 
 import pytest
-from forge_tracker.model import attempt
+from forge_tracker.model import ForgeError, attempt
 from kits import KITS
+from write_kits import WRITE_KITS
 
 T0 = datetime(2026, 10, 10, tzinfo=timezone.utc)
 
@@ -216,3 +221,293 @@ def test_a_forge_without_a_changed_files_read_says_unsupported(kit):
     kit.missing_files(world, 9)
     read = attempt(lambda: kit.adapter(world).change_files(9))
     assert not read.ok and read.unsupported
+
+
+# --- the write layer ----------------------------------------------------------------------------
+# Each scenario runs one operation through the write layer the CLI builds for that forge and
+# asserts the exact calls it sent: (method, path under the project's REST path, JSON body).
+
+COMMENT = "Closing: merged #31 closes it."
+
+
+@pytest.fixture(params=WRITE_KITS, ids=lambda kit: kit.name)
+def wkit(request):
+    return request.param
+
+
+def sent(world, kit):
+    return [(m, p.removeprefix(kit.W), body) for m, p, body in world.sent]
+
+
+def apply(kit, world, tmp_path, op, payload, **config):
+    return kit.writer(world, tmp_path, **config).apply(op, payload)
+
+
+EXPECT_CLOSE = {
+    "github": [
+        ("POST", "/issues/14/comments", {"body": COMMENT}),
+        ("PATCH", "/issues/14", {"state": "closed", "state_reason": "completed"}),
+    ],
+    "gitlab": [
+        ("POST", "/issues/14/notes", {"body": COMMENT}),
+        ("PUT", "/issues/14", {"state_event": "close"}),
+    ],
+}
+
+
+def test_write_close_comments_then_closes(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 14)
+    result = apply(wkit, world, tmp_path, "close", {"issue": 14, "comment": COMMENT})
+    assert (result.status, result.detail) == ("written", "commented on and closed #14")
+    assert sent(world, wkit) == EXPECT_CLOSE[wkit.name]
+
+
+def test_write_close_refuses_an_issue_already_closed(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 14, state="closed")
+    result = apply(wkit, world, tmp_path, "close", {"issue": 14, "comment": COMMENT})
+    assert (result.status, result.detail) == ("refused", "#14 is already closed; nothing written")
+    assert world.sent == []
+
+
+def test_a_failed_write_is_failed_with_the_secret_hidden(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 14)
+    comment_path = EXPECT_CLOSE[wkit.name][0][1]
+    wkit.fail(world, "POST", comment_path, 403, f"forbidden {wkit.secret}")
+    result = apply(wkit, world, tmp_path, "close", {"issue": 14, "comment": COMMENT})
+    assert result.status == "failed" and "HTTP 403" in result.detail
+    assert wkit.secret not in result.detail and "***" in result.detail
+    assert len(world.sent) == 1  # nothing after the failed comment
+
+
+EXPECT_LABELS = {
+    "github": [
+        ("POST", "/issues/22/labels", {"labels": ["P2"]}),
+        ("DELETE", "/issues/22/labels/P1", None),
+        ("DELETE", "/issues/22/labels/stale", None),
+    ],
+    "gitlab": [("PUT", "/issues/22", {"add_labels": "P2", "remove_labels": "P1"})],
+}
+
+
+def test_write_labels_adds_removes_and_says_what_was_already_off(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 22, labels=("P1",))
+    payload = {"issue": 22, "add": ["P2"], "remove": ["P1", "stale"]}
+    result = apply(wkit, world, tmp_path, "labels", payload)
+    assert (result.status, result.detail) == (
+        "written",
+        "#22: added P2; removed P1; stale already off",
+    )
+    assert sent(world, wkit) == EXPECT_LABELS[wkit.name]
+
+
+EXPECT_MILESTONE = {
+    "github": [
+        ("PATCH", "/issues/20", {"milestone": 3}),
+        ("PATCH", "/issues/20", {"milestone": None}),
+    ],
+    "gitlab": [
+        ("PUT", "/issues/20", {"milestone_id": 3}),
+        ("PUT", "/issues/20", {"milestone_id": 0}),
+    ],
+}
+
+
+def test_write_milestone_sets_and_clears(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 20)
+    writer = wkit.writer(world, tmp_path)
+    one = writer.apply("milestone", {"issue": 20, "milestone": {"number": 3, "title": "Tier 1"}})
+    two = writer.apply("milestone", {"issue": 20, "milestone": None})
+    assert (one.detail, two.detail) == ("#20: milestone set to Tier 1", "#20: milestone cleared")
+    assert sent(world, wkit) == EXPECT_MILESTONE[wkit.name]
+
+
+EXPECT_UNLINK_LABEL = {
+    "github": [("DELETE", "/issues/25/labels/blocked", None)],
+    "gitlab": [("PUT", "/issues/25", {"remove_labels": "blocked"})],
+}
+
+
+def test_write_unlink_takes_off_the_blocked_label(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 25, labels=("blocked",))
+    result = apply(wkit, world, tmp_path, "unlink", {"issue": 25, "label": "blocked"})
+    assert (result.status, result.detail) == ("written", "#25: removed blocked")
+    assert sent(world, wkit) == EXPECT_UNLINK_LABEL[wkit.name]
+
+
+def test_write_unlink_refuses_a_label_already_gone(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 25, labels=())
+    result = apply(wkit, world, tmp_path, "unlink", {"issue": 25, "label": "blocked"})
+    assert (result.status, result.detail) == (
+        "refused",
+        "#25 no longer has blocked; nothing written",
+    )
+
+
+EXPECT_UNLINK_BLOCKER = {
+    "github": [("DELETE", "/issues/26/dependencies/blocked_by/9019", None)],
+    "gitlab": [("DELETE", "/issues/26/links/519", None)],
+}
+
+
+def test_write_unlink_removes_the_link_to_a_closed_blocker(wkit, tmp_path):
+    world = wkit.world()
+    wkit.blocked(world, 26, [(19, "closed", None)])
+    result = apply(wkit, world, tmp_path, "unlink", {"issue": 26, "blocker": 19})
+    assert (result.status, result.detail) == ("written", "#26: no longer blocked by #19")
+    assert sent(world, wkit) == EXPECT_UNLINK_BLOCKER[wkit.name]
+
+
+def test_write_unlink_keeps_the_link_to_a_blocker_open_again(wkit, tmp_path):
+    world = wkit.world()
+    wkit.blocked(world, 26, [(19, "open", None)])
+    result = apply(wkit, world, tmp_path, "unlink", {"issue": 26, "blocker": 19})
+    assert (result.status, result.detail) == ("refused", "#19 is open again; the link stays")
+    assert world.sent == []
+
+
+def _link(project, number):
+    return {"target_project_id": project, "target_issue_iid": number, "link_type": "is_blocked_by"}
+
+
+EXPECT_LINK_ADD = {
+    "github": [
+        ("POST", "/issues/70/dependencies/blocked_by", {"issue_id": 9071}),
+        ("POST", "/issues/70/dependencies/blocked_by", {"issue_id": 7004}),
+    ],
+    "gitlab": [
+        ("POST", "/issues/70/links", _link("acme/widgets", 71)),
+        ("POST", "/issues/70/links", _link("acme/other", 4)),
+    ],
+}
+
+
+def test_write_link_add_records_a_native_link_here_and_across_projects(wkit, tmp_path):
+    world = wkit.world()
+    wkit.blocked(world, 70, [])
+    wkit.issue(world, 70)
+    wkit.issue(world, 71)
+    wkit.issue(world, 4, project="acme/other")
+    writer = wkit.writer(world, tmp_path)
+    here = writer.apply("link-add", {"issue": 70, "blocker": 71})
+    there = writer.apply("link-add", {"issue": 70, "blocker": 4, "blocker_project": "acme/other"})
+    assert (here.detail, there.detail) == (
+        "#70: now blocked by #71",
+        "#70: now blocked by acme/other#4",
+    )
+    assert sent(world, wkit) == EXPECT_LINK_ADD[wkit.name]
+
+
+def test_write_link_add_refuses_a_link_already_there(wkit, tmp_path):
+    world = wkit.world()
+    wkit.blocked(world, 70, [(71, "open", None)])
+    wkit.issue(world, 70)
+    result = apply(wkit, world, tmp_path, "link-add", {"issue": 70, "blocker": 71})
+    assert (result.status, result.detail) == (
+        "refused",
+        "#70 is already blocked by #71; nothing written",
+    )
+    assert world.sent == []
+
+
+EXPECT_LINK_REMOVE = {
+    "github": [("DELETE", "/issues/70/dependencies/blocked_by/9071", None)],
+    "gitlab": [("DELETE", "/issues/70/links/571", None)],
+}
+
+
+def test_write_link_remove_deletes_the_link_whatever_the_blockers_state(wkit, tmp_path):
+    world = wkit.world()
+    wkit.blocked(world, 70, [(71, "open", None)])
+    result = apply(wkit, world, tmp_path, "link-remove", {"issue": 70, "blocker": 71})
+    assert (result.status, result.detail) == ("written", "#70: no longer blocked by #71")
+    assert sent(world, wkit) == EXPECT_LINK_REMOVE[wkit.name]
+
+
+EXPECT_DELETE_BRANCH = {
+    "github": [("DELETE", "/git/refs/heads/feat/old-1", None)],
+    "gitlab": [("DELETE", "/repository/branches/feat%2Fold-1", None)],
+}
+
+
+def test_write_delete_branch_deletes_one_still_at_the_checked_sha(wkit, tmp_path):
+    world = wkit.world()
+    wkit.branch(world, "feat/old-1", "d" * 40)
+    payload = {"branch": "feat/old-1", "sha": "d" * 40}
+    result = apply(wkit, world, tmp_path, "delete-branch", payload)
+    assert (result.status, result.detail) == ("written", "deleted branch feat/old-1 (was ddddddd)")
+    assert sent(world, wkit) == EXPECT_DELETE_BRANCH[wkit.name]
+
+
+@pytest.mark.parametrize(
+    "head, protected, detail",
+    [
+        ("e" * 40, False, "feat/old-1 moved to eeeeeee since ddddddd was checked; kept"),
+        ("d" * 40, True, "feat/old-1 is protected; kept"),
+    ],
+)
+def test_write_delete_branch_keeps_a_moved_or_protected_branch(
+    wkit, tmp_path, head, protected, detail
+):
+    world = wkit.world()
+    wkit.branch(world, "feat/old-1", head, protected=protected)
+    payload = {"branch": "feat/old-1", "sha": "d" * 40}
+    result = apply(wkit, world, tmp_path, "delete-branch", payload)
+    assert (result.status, result.detail) == ("refused", detail)
+    assert world.sent == []
+
+
+EXPECT_LABEL_CREATE = {
+    "github": [("POST", "/labels", {"name": "needs-human", "color": "d93f0b", "description": "x"})],
+    "gitlab": [
+        ("POST", "/labels", {"name": "needs-human", "color": "#d93f0b", "description": "x"})
+    ],
+}
+
+
+def test_write_label_create(wkit, tmp_path):
+    world = wkit.world()
+    wkit.repo_labels(world, ["bug"])
+    payload = {"name": "needs-human", "color": "D93F0B", "description": "x"}
+    result = apply(wkit, world, tmp_path, "label-create", payload)
+    assert (result.status, result.detail) == ("written", "created label needs-human (#d93f0b)")
+    assert sent(world, wkit) == EXPECT_LABEL_CREATE[wkit.name]
+
+
+def test_the_write_transport_sends_only_its_forges_write_calls(wkit, tmp_path):
+    world = wkit.world()
+    transport = wkit.writer(world, tmp_path).forge.w
+    base = transport.repo_path
+    for method, path in (
+        ("GET", f"{base}/issues/1"),
+        ("POST", f"{base}/issues/1"),
+        ("DELETE", base),
+        ("POST", f"{base}/hooks"),
+        ("DELETE", f"{base}/issues/1/labels/x/y"),
+        ("POST", "/projects/acme%2Fother/issues/1/notes"),
+        ("POST", "/repos/acme/other/issues/1/comments"),
+        ("POST", "/graphql"),
+    ):
+        with pytest.raises(ForgeError, match="refused"):
+            transport.send(method, path, {})
+    assert world.sent == []
+
+
+def test_every_write_is_logged_with_its_result(wkit, tmp_path):
+    world = wkit.world()
+    wkit.issue(world, 14, state="closed")
+    writer = wkit.writer(world, tmp_path)
+    writer.apply("close", {"issue": 14, "comment": COMMENT})
+    writer.apply("milestone", {"issue": 14, "milestone": None})
+    with open(writer.log_path) as log:
+        entries = [json.loads(line) for line in log]
+    assert [(e["op"], e["status"], e["via"]) for e in entries] == [
+        ("close", "refused", "forge"),
+        ("milestone", "written", "forge"),
+    ]

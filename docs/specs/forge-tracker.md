@@ -262,9 +262,9 @@ never re-poll to wait for an answer.
 - Bots: `/user`'s `bot` flag, and the `project_<id>_bot_*` and `group_<id>_bot_*` usernames of
   access-token bots in authors.
 - Milestones carry their global `id` as the number, which an issue update takes.
-- Writes aren't built for GitLab: without a `write_wrapper:` every operation is refused with that
-  reason, and `/groom`'s report says so. The link checks still read through the adapter before a
-  wrapper runs.
+- Writes ([#154](https://github.com/lokkju/skills/issues/154)) go through `glab api --method <M>`
+  with the JSON body on stdin, by an Http defined in `writes.py`; the read side's glab Http still
+  sends GETs only. See "Writes on GitLab" below.
 
 ### As built on Forgejo (phase 6)
 
@@ -335,7 +335,8 @@ own when a wrapper is set.
 
 **Built so far (phase 4).** `close`, `labels`, `milestone`, `unlink` and `delete-branch`, on
 GitHub; `file` and `rule` come with phase 2. The write transport is defined in `writes.py` and
-sends only POST, PATCH and DELETE under the project's own REST path. Each payload is checked
+sends only the forge's listed write calls under the project's own REST path (POST, PATCH and
+DELETE on GitHub). Each payload is checked
 before anything is sent (a payload naming another `repo` is refused), and the operations that
 can go stale check first through the read transport: `close` refuses an issue that's already
 closed, `unlink` a blocker that reopened, and `delete-branch` a branch that moved off the
@@ -358,7 +359,34 @@ when either is a pull request or closed. On GitHub `link-add` is `POST
 `link-remove` is `DELETE .../dependencies/blocked_by/{id}`, both under the blocked issue's
 repo. `unlink` stays the `/groom` fix that removes a link only once its blocker has closed.
 
-Every operation, written, refused or failed, is appended to
+**The allowlist.** Each forge's write transport takes the list of write calls its operations
+make, as a method and a path pattern under the project's REST path (`GITHUB_ROUTES`,
+`GITLAB_ROUTES`), and refuses any other call before the network: a GET, a path outside the
+project, a method the forge's list doesn't have, GraphQL.
+
+**Writes on GitLab** ([#154](https://github.com/lokkju/skills/issues/154)). The same operations,
+the same checks first, and every call through `glab api` with an explicit method:
+
+| Operation | GitLab calls |
+| --- | --- |
+| `close` | `POST /issues/:iid/notes`, then `PUT /issues/:iid` with `state_event: close` |
+| `labels` | one `PUT /issues/:iid` with `add_labels` and `remove_labels` (comma-separated, so a name with a comma is refused); the issue is read first, so a label already off is noted and not sent |
+| `milestone` | `PUT /issues/:iid` with `milestone_id` (the global id the adapter reads; 0 clears) |
+| `unlink` | the label: `PUT` with `remove_labels`, refused when the issue no longer has it; a blocker: `DELETE /issues/:iid/links/:issue_link_id`, refused when the blocker reopened |
+| `delete-branch` | `GET /repository/branches/:branch` (`commit.id`, `protected`), then `DELETE` it |
+| `label-create` | `POST /labels` with the color as `#rrggbb` |
+| `link-add` | `POST /issues/:iid/links` with `target_project_id`, `target_issue_iid` and `link_type: is_blocked_by` |
+| `link-remove` | `DELETE /issues/:iid/links/:issue_link_id`, the id read from `GET /issues/:iid/links` |
+
+`blocks` links are a paid-tier feature. A GitLab on the free tier answers the `is_blocked_by` link
+with a 403 naming the licence, and plain CE makes a `relates_to` link instead; either way
+`link-add` is `UNSUPPORTED` (a status of its own, for that write only), and in the second case
+the stray `relates_to` link is deleted first. Under `blocking: relates_to+blocked`, `link-add`
+posts a `relates_to` link (kept when one exists) and adds the blocked label, `link-remove` deletes
+the link and removes the label when no blocking link is left, and `unlink` of a closed blocker
+deletes either kind of link. A `blocker_project` may be a subgroup path (`group/sub/project`).
+
+Every operation, written, refused, unsupported or failed, is appended to
 `.../forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
 ## Configuration

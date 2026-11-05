@@ -98,11 +98,12 @@ Only after the user answers with numbers or `all`:
    2; tell the user, run `/groom` again and ask again.
 3. Each approved proposal is written one at a time, through the repo's write-wrapper when its
    config sets `write_wrapper:`. Show every result line as printed: what was written, `REFUSED
-   (...)` (the wrapper said no, or a branch moved or an issue closed since the check), or
-   `FAILED (...)`. Exit status 1 means at least one didn't go through; the rest still ran.
-   On a forge other than GitHub, forge-tracker has no writes of its own yet: the report's
-   `writes: unsupported` line says so, and without a write-wrapper every approved proposal comes
-   back `REFUSED`. Say that before asking which to apply, so the user can make the changes
+   (...)` (the wrapper said no, or a branch moved or an issue closed since the check),
+   `UNSUPPORTED (...)` (the forge can't make that write, such as a blocking link on a GitLab
+   tier without them), or `FAILED (...)`. Exit status 1 means at least one didn't go through;
+   the rest still ran. Where the report has a `writes: unsupported` line, forge-tracker has no
+   writes of its own on that forge yet, and without a write-wrapper every approved proposal
+   comes back `REFUSED`. Say that before asking which to apply, so the user can make the changes
    themselves instead.
 
 On `none`, or no clear answer, write nothing and stop. If the user asks you to change an
