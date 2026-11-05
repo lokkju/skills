@@ -21,9 +21,11 @@ claude plugin install session-decisions@lokkju
 ```
 
 Restart Claude Code. There's nothing you have to configure; the skill tells the assistant when to
-queue something, and the hook keeps it honest. There are two options:
-[`forge_hosts`](#forge-hosts) is for repositories on a self-hosted forge, and
-[`handoff_check`](#hand-off-check) turns off the check for work handed to you outside the queue.
+queue something, and the hook keeps it honest. There are four options:
+[`forge_hosts`](#forge-hosts) is for repositories on a self-hosted forge,
+[`handoff_check`](#hand-off-check) turns off the check for work handed to you outside the queue,
+and [`reply_list` and `push_notifications`](#from-your-phone) set how the queue reaches you over
+Remote Control.
 
 ## How it works
 
@@ -122,9 +124,57 @@ web JSON`.
 | --- | --- |
 | `/decisions` | Lists the open items |
 | `/decisions all` | Adds the settled ones, with their rulings |
+| `/decisions list` | Prints the open items as plain text, one short block each (`list all` adds the settled ones) |
+| `/decisions list on`, `off`, `auto` | Sets whether replies end with a list of the open items, for this session |
 | `/decisions pane` | Opens the sidebar |
 | `/decisions reconcile` | Has the assistant check every open item against the session and propose, in one table, which to close, revise or keep |
 | `/decisions wrap` | Has the assistant settle every open item before the session ends: escalate it to the tracker, carry it into the handoff, or drop it |
+
+### From your phone
+
+Over Remote Control (the Claude mobile app or claude.ai/code driving a session on your machine)
+you see the assistant's replies and its tool rows, but not the cards, the sidebar, the footer or
+the toasts; Claude Code draws those on the terminal alone. Three things make the queue usable
+from there.
+
+**Plain text.** `/decisions` sent from your phone prints the open items as short blocks, and
+`/decisions list` does the same anywhere. At the terminal each line is wrapped to fit the window
+and never wider than 72 columns; on a phone the app wraps them.
+
+```text
+Open: 1 decision, 1 action
+
+D1 · decision · 2h 0m
+  Move the session store to Postgres before the beta?
+  Recommend: Postgres now, while the schema is small
+  Link: https://github.com/lokkju/demo/issues/52
+
+A1 · action · 5m
+  put the client secret in Vault so the build can restart
+
+Answer by typing "D1: go", "D1: <your answer>", "A1: done"; one message
+can answer several.
+```
+
+Typed answers work as the buttons' lines do: `D1: go`, `D1: SQLite after all`, `A1: done`.
+
+**A list in each reply.** Claude Code marks each prompt with where it came from, and one sent over
+Remote Control tells the plugin you're away from the terminal. While that holds, the assistant
+reads, beside each prompt, the open items and a request to end its replies with them, one line
+each: `- D1: Move the session store to Postgres before the beta? (recommend Postgres now)`. The
+next prompt you type at the terminal turns it off. The `reply_list` option sets this: `auto` (the
+default) as described, `always`, or `never`; `/decisions list on`, `off` or `auto` overrides it for
+the session. A cloud session on claude.ai/code (`CLAUDE_CODE_REMOTE` set) always counts as remote.
+
+**A push for each new item.** Each new decision or action is pushed to your phone with its label,
+its question and its recommendation, through Claude Code's own `PushNotification` tool, and pushed
+again only if its recommendation changes; a revised question with the same recommendation, or a
+settled item, isn't. That tool pushes only while Remote Control is connected, only with **Push
+when Claude decides** turned on in `/config`, and not while you're active at the terminal, so
+pushes reach you when you're away and stay quiet when you're not. Builds of Claude Code without
+the push feature don't offer the tool; then, or when push is off in `/config` or a permission rule
+denies the tool, the plugin says why in one toast and doesn't try to change your settings. Set
+`push_notifications` to `false` to turn pushes off.
 
 ### Reconciling
 
@@ -429,6 +479,13 @@ and desktop); the transcript lines, the sidebar and `/decisions` work everywhere
 - ctrl+t is Claude Code's own task list, which a plugin can't add to, so items added with
   `decision_add` (no task tools in the session) never appear there. Everything else this plugin
   draws shows them.
+- Whether you're on Remote Control comes from the latest prompt's origin, so the reply list
+  starts with your first prompt from the phone, not when the phone connects; Claude Code raises no
+  attach event for a Remote Control client. A prompt that doesn't come from you (a background
+  task's notification, a scheduled prompt) leaves it as it was.
+- Pushes depend on Claude Code's `PushNotification` tool, which is behind a feature flag and
+  isn't in every build. The plugin pushes once per item and recommendation within a session; a
+  resumed session pushes a revised item again only if its recommendation changes.
 - Function hooks are early access and their API can change between Claude Code releases.
 
 ## Development
