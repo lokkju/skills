@@ -2,6 +2,186 @@
  "base": "https://gitlab.example.org/code/api/v4",
  "routes": [
   {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/1/related_merge_requests",
+   "response": [
+    {
+     "id": 700005,
+     "iid": 5,
+     "project_id": 4242,
+     "title": "feat: pin the CA in glab's config",
+     "description": "",
+     "state": "merged",
+     "created_at": "2026-10-14T10:00:00.000Z",
+     "updated_at": "2026-10-18T09:00:00.000Z",
+     "merged_at": "2026-10-18T09:00:00.000Z",
+     "merged_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "merge_user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "1-pin-ca",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "0000000000000000000000000000000000000000",
+     "merge_commit_sha": "5555555555555555555555555555555555555555",
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/5",
+     "references": {
+      "short": "!5",
+      "relative": "!5",
+      "full": "acme/platform/widgets!5"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/2/related_merge_requests",
+   "response": []
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/3/related_merge_requests",
+   "response": [
+    {
+     "id": 700006,
+     "iid": 6,
+     "project_id": 4242,
+     "title": "fix: honour api_base under a subpath",
+     "description": "",
+     "state": "merged",
+     "created_at": "2026-10-16T10:00:00.000Z",
+     "updated_at": "2026-10-19T08:00:00.000Z",
+     "merged_at": "2026-10-19T08:00:00.000Z",
+     "merged_by": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "merge_user": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "closed_at": null,
+     "target_branch": "main",
+     "source_branch": "5-subpath",
+     "author": {
+      "id": 1,
+      "username": "me",
+      "name": "Me",
+      "state": "active",
+      "locked": false,
+      "avatar_url": null,
+      "web_url": "https://gitlab.example.org/code/me"
+     },
+     "assignees": [],
+     "assignee": null,
+     "reviewers": [],
+     "source_project_id": 4242,
+     "target_project_id": 4242,
+     "labels": [],
+     "draft": false,
+     "work_in_progress": false,
+     "milestone": null,
+     "merge_when_pipeline_succeeds": false,
+     "merge_status": "can_be_merged",
+     "detailed_merge_status": "mergeable",
+     "has_conflicts": false,
+     "sha": "0000000000000000000000000000000000000000",
+     "merge_commit_sha": "6666666666666666666666666666666666666666",
+     "squash_commit_sha": null,
+     "squash": false,
+     "web_url": "https://gitlab.example.org/code/acme/platform/widgets/-/merge_requests/6",
+     "references": {
+      "short": "!6",
+      "relative": "!6",
+      "full": "acme/platform/widgets!6"
+     }
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/4/related_merge_requests",
+   "response": []
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/5/diffs",
+   "response": [
+    {
+     "old_path": "internal/ca.go",
+     "new_path": "internal/ca.go",
+     "new_file": false,
+     "renamed_file": false,
+     "deleted_file": false,
+     "diff": "@@ -10,3 +10,4 @@ func loadCA() {\n-\treturn nil\n+\treturn pin(cert)\n"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/merge_requests/6/diffs",
+   "response": [
+    {
+     "old_path": "internal/notes.go",
+     "new_path": "internal/notes.go",
+     "new_file": false,
+     "renamed_file": false,
+     "deleted_file": false,
+     "diff": "@@ -40,6 +40,9 @@ func readNotes(p *Project) []Note {\n-\tif n.System {\n+\tif n.System && !mentionsMR(n) {\n"
+    }
+   ]
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/3/notes",
+   "response": []
+  },
+  {
+   "path": "/projects/acme%2Fplatform%2Fwidgets/issues/4/notes",
+   "response": []
+  },
+  {
    "path": "/user",
    "response": {
     "id": 1,
@@ -231,7 +411,7 @@
       "iid": 4,
       "project_id": 4242,
       "title": "Ship the GitLab adapter",
-      "description": "",
+      "description": "The notes read in `internal/notes.go` drops system notes; `readNotes` should keep the ones that mention a merge request.",
       "state": "opened",
       "created_at": "2026-10-10T10:00:00.000Z",
       "updated_at": "2026-10-19T15:00:00.000Z",
@@ -460,7 +640,7 @@
      "iid": 4,
      "project_id": 4242,
      "title": "Ship the GitLab adapter",
-     "description": "",
+     "description": "The notes read in `internal/notes.go` drops system notes; `readNotes` should keep the ones that mention a merge request.",
      "state": "opened",
      "created_at": "2026-10-10T10:00:00.000Z",
      "updated_at": "2026-10-19T15:00:00.000Z",
@@ -521,7 +701,7 @@
      "iid": 4,
      "project_id": 4242,
      "title": "Ship the GitLab adapter",
-     "description": "",
+     "description": "The notes read in `internal/notes.go` drops system notes; `readNotes` should keep the ones that mention a merge request.",
      "state": "opened",
      "created_at": "2026-10-10T10:00:00.000Z",
      "updated_at": "2026-10-19T15:00:00.000Z",

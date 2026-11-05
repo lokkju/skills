@@ -638,3 +638,45 @@ def test_blocking_links_and_closing_refs_carry_what_groom_shows(transport_for):
     assert link.blocker_closed == datetime(2026, 10, 9, tzinfo=timezone.utc)
     (ref,) = a.closing_refs()
     assert (ref.title, ref.merge_sha) == ("fix: it", "abc1234")
+
+
+def test_cross_refs_say_which_mention_closes_and_fail_rather_than_truncate(transport_for):
+    pr = {
+        "__typename": "PullRequest",
+        "number": 31,
+        "title": "fix: it",
+        "state": "MERGED",
+        "mergedAt": "2026-10-10T00:00:00Z",
+        "baseRefName": "main",
+        "repository": {"nameWithOwner": "acme/other"},
+    }
+    items = {"totalCount": 1, "nodes": [{"willCloseTarget": True, "source": pr}]}
+    world = World().op(
+        "CrossRefs", connection([{"number": 14, "timelineItems": items}], key="issues")
+    )
+    (ref,) = adapter(world, transport_for).cross_refs()
+    assert (ref.closes, ref.base, ref.change_project) == (True, "main", "acme/other")
+
+    # More cross-references than one page holds is a failed read, never a short list.
+    items = {"totalCount": 101, "nodes": [{"willCloseTarget": False, "source": pr}]}
+    world = World().op(
+        "CrossRefs", connection([{"number": 14, "timelineItems": items}], key="issues")
+    )
+    read = attempt(adapter(world, transport_for).cross_refs)
+    assert not read.ok and "more than 1 cross-references" in read.error
+
+
+def test_change_files_read_every_page(transport_for):
+    def pages(url):
+        if "page=2" in url:
+            return response([{"filename": "b.py"}])
+        return response(
+            [{"filename": "a.py", "patch": "@@ -1 +1 @@\n-x\n+y"}],
+            headers={
+                "Link": '<https://api.github.com/repos/acme/widgets/pulls/9/files?page=2>; rel="next"'
+            },
+        )
+
+    world = World().route("/repos/acme/widgets/pulls/9/files", pages)
+    files = adapter(world, transport_for).change_files(9)
+    assert [(f.path, f.patch is not None) for f in files] == [("a.py", True), ("b.py", False)]

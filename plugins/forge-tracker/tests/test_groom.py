@@ -124,6 +124,24 @@ def closing(number, change, base, sha, title):
     }
 
 
+def cross_refs(number, sources):
+    """An open issue's timeline cross-references: (typename, number, state, closes) each."""
+    nodes = []
+    for typename, source, state, closes in sources:
+        node = {"__typename": typename}
+        if typename == "PullRequest":
+            node.update(
+                number=source,
+                title=f"change {source}",
+                state=state,
+                mergedAt="2026-10-10T00:00:00Z" if state == "MERGED" else None,
+                baseRefName="main",
+                repository={"nameWithOwner": "acme/widgets"},
+            )
+        nodes.append({"willCloseTarget": closes, "source": node})
+    return {"number": number, "timelineItems": {"totalCount": len(nodes), "nodes": nodes}}
+
+
 def event(kind, label, when):
     return {"event": kind, "label": {"name": label}, "created_at": when}
 
@@ -156,6 +174,15 @@ class Repo:
             issue(28, "ruling before the label", ["decision"]),
             issue(40, "deferred TaskUpdate loading fails"),
             issue(41, "TaskUpdate deferred loading fails"),
+            # Possibly done: #35 renamed the file #42 names and changed the symbol; #36 mentions
+            # #43; #35 also changed the file #44 names, but #44 has a comment since.
+            issue(
+                42,
+                "parser drops header rows",
+                body="The table parser in `src/parse.py` drops the rows `parse_rows` sees first.",
+            ),
+            issue(43, "uploads give up after one retry"),
+            issue(44, "upload progress bar stalls", body="See src/upload.py for the loop."),
             issue(45, "someday one", milestone=SOMEDAY),
             issue(46, "later one", milestone=LATER),
         ]
@@ -232,10 +259,58 @@ class Repo:
                     [
                         merged_pr(31, "fix/14", "fix: the thing", closes=[14]),
                         merged_pr(29, "18-footer", "fix: footer width"),
+                        merged_pr(35, "refactor/parser", "refactor: split the parser"),
+                        merged_pr(36, "fix/upload-retry", "fix: retry uploads"),
                     ],
                     "pullRequests",
                 ),
             ),
+        )
+        w.op(
+            "CrossRefs",
+            lambda v: self._maybe(
+                "cross_refs",
+                conn(
+                    [
+                        cross_refs(14, [("PullRequest", 31, "MERGED", True)]),
+                        cross_refs(
+                            43,
+                            [
+                                ("PullRequest", 36, "MERGED", False),
+                                ("Issue", 50, "CLOSED", False),
+                                ("PullRequest", 60, "OPEN", False),
+                            ],
+                        ),
+                    ],
+                    "issues",
+                ),
+            ),
+        )
+        for number, files in {
+            31: [{"filename": "src/thing.py", "patch": "@@ -1 +1 @@\n-a\n+b"}],
+            29: [{"filename": "css/footer.css"}],
+            35: [
+                {
+                    "filename": "src/parser/rows.py",
+                    "previous_filename": "src/parse.py",
+                    "patch": "@@ -3,4 +3,6 @@ class Table:\n-def parse_rows(text):\n"
+                    "+def parse_rows(text, header=True):",
+                },
+                {"filename": "src/upload.py", "patch": "@@ -1 +1 @@\n-x\n+y"},
+            ],
+            36: [{"filename": "src/retry.py", "patch": "@@ -1 +1 @@\n-1\n+3"}],
+        }.items():
+            w.route(
+                f"/repos/acme/widgets/pulls/{number}/files",
+                lambda url, files=files: self._rest("files", files),
+            )
+        w.route("/repos/acme/widgets/issues/42/comments", [])
+        w.route(
+            "/repos/acme/widgets/issues/43/comments",
+            [comment("still flaky", "2026-10-12T00:00:00Z")],
+        )
+        w.route(
+            "/repos/acme/widgets/issues/44/comments", [comment("on it", "2026-10-11T00:00:00Z")]
         )
         w.op(
             "ClosingRefs",
@@ -388,8 +463,9 @@ def run_cli(env, *args, http=None, run=None, stdin=None):
 
 
 EXPECTED = """\
-acme/widgets on github.com: 8 proposals, 7 unclear, 3 listed for you
+acme/widgets on github.com: 8 proposals, 7 unclear, 3 listed for you, 2 possibly done
 (merged PRs since 2026-07-17; duplicates among open issues and those closed since 2026-09-15; stale after 10 days)
+Checks run (12 of 12): merged but still open, merged PRs that only name an open issue, possibly done without a closing reference, tier labels and milestones, blocked label with nothing linked, links to closed blockers, blocking written only as prose, decided but still waiting, stale branches, conflicted or stale PRs, likely duplicates, placeholder due dates
 
 Proposals
   1. close #14: merged #31 "fix: the thing" closes it, aaa1111 is on main
@@ -412,6 +488,9 @@ Listed for you
   #61 conflicts: yes: change 61
   #62 no activity for 44 days: change 62
   2 issues share due date 2026-12-31 across 2 milestones ('Later', 'Someday')
+Possibly done (listed, not proposed)
+  #42 'parser drops header rows': merged #35 (2026-10-10) changed src/parse.py and parse_rows, which its body names; no comments
+  #43 'uploads give up after one retry': merged #36 (2026-10-10) cross-references it; last comment 2026-10-12
 """
 
 
@@ -518,6 +597,11 @@ def test_a_title_or_branch_mention_is_never_a_close_proposal(env):
         ("branches", "stale branches: FAILED (branches: HTTP 502"),
         ("changes", "conflicted or stale PRs: FAILED (open changes: GraphQL error"),
         ("issues", "likely duplicates: FAILED (open issues: HTTP 502"),
+        (
+            "cross_refs",
+            "possibly done without a closing reference: FAILED (cross-references: GraphQL error",
+        ),
+        ("files", "possibly done without a closing reference: FAILED (files of #35: HTTP 502"),
     ],
 )
 def test_each_check_fails_on_its_own_and_says_failed(env, broken, part):
@@ -531,6 +615,53 @@ def test_each_check_fails_on_its_own_and_says_failed(env, broken, part):
     # The checks that don't need the broken read still report.
     if broken != "branches" and broken != "changes":
         assert "delete-branch old-1" in text
+
+
+def test_possibly_done_is_listed_never_proposed(env):
+    _, text = run_cli(env, "groom", "--json")
+    report = json.loads(text)
+    by_issue = {item["issue"]: item for item in report["possibly_done"]}
+    assert set(by_issue) == {42, 43}
+    assert by_issue[42]["names_changed_by"] == [
+        {"change": 35, "paths": ["src/parse.py"], "symbols": ["parse_rows"]}
+    ]
+    assert by_issue[43]["cross_referenced_by"] == [36]
+    assert by_issue[43]["last_comment"] == "2026-10-12T00:00:00Z"
+    # #14's cross-reference is its closing reference (a close proposal, not "possibly done"); a
+    # mention from issue #50 and one from open #60 aren't merged changes; #44 has a comment
+    # after #35 merged.
+    assert not {14, 44} & set(by_issue)
+    assert not any(p["payload"].get("issue") in (42, 43) for p in report["proposals"])
+    code, _, forge = apply(env, ["close #42"])
+    assert code == 2 and forge.writes == []
+
+
+def test_possibly_done_signals_fail_on_their_own(env):
+    """With the cross-references broken, the path signal still lists #42, and the check still
+    counts as run; with the merged list broken too, it didn't run at all."""
+    repo = Repo()
+    repo.broken = {"cross_refs"}
+    code, text = run_cli(env, "groom", http=repo.world())
+    assert code == 1
+    assert "#42 'parser drops header rows': merged #35" in text
+    assert "#43" not in text.split("Possibly done")[1].split("FAILED")[0]
+    assert "possibly done without a closing reference, " in text.split("\n")[2]
+
+    repo.broken = {"cross_refs", "merged"}
+    code, text = run_cli(env, "groom", http=repo.world())
+    assert code == 1
+    checks = text.split("\n")[2]
+    assert checks.startswith("Checks run (10 of 12): ")
+    assert "possibly done" not in checks
+
+
+def test_a_failed_comment_read_still_lists_and_says_so(env):
+    world = Repo().world()
+    world.route("/repos/acme/widgets/issues/43/comments", {"message": "boom"}, status=502)
+    code, text = run_cli(env, "groom", http=world)
+    assert code == 1
+    assert "cross-references it; whether it has comments since FAILED" in text
+    assert "possibly done without a closing reference: FAILED (comments on #43: HTTP 502" in text
 
 
 def test_a_failed_reachability_check_is_unclear_and_failed(env):
@@ -797,6 +928,12 @@ def test_only_the_cli_reaches_the_write_layer():
 
 
 def test_replay_of_a_recorded_github_groom(tmp_path, repo_dir):
+    """Recorded with `forge-tracker --record`, then pruned to what the possibly-done lines use:
+    three open issues (#22 by cross-reference, #126 by cross-reference and a path, #145 a path
+    that matches a PR doing something else), the four merged PRs that touched those paths, and
+    only the files and fields the report reads. Whole items were dropped; none was edited, and
+    pagination is as recorded. Symbol matching is covered by `test_report`, and an unsupported
+    read by the Forgejo golden and the contract suite."""
     http = ReplayHttp(FIXTURES / "github" / "groom-lokkju-skills.json")
     out = io.StringIO()
     code = cli.main(

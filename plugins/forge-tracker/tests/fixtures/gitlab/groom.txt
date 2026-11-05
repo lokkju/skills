@@ -1,5 +1,6 @@
-acme/platform/widgets on gitlab.example.org: 3 proposals, 4 unclear, 2 listed for you
+acme/platform/widgets on gitlab.example.org: 3 proposals, 4 unclear, 2 listed for you, 2 possibly done
 (merged MRs since 2026-07-22; duplicates among open issues and those closed since 2026-09-20; stale after 14 days, the default while stale_days isn't set)
+Checks run (12 of 12): merged but still open, merged PRs that only name an open issue, possibly done without a closing reference, tier labels and milestones, blocked label with nothing linked, links to closed blockers, blocking written only as prose, decided but still waiting, stale branches, conflicted or stale PRs, likely duplicates, placeholder due dates
 
 Proposals
   1. close #1: merged !5 "feat: pin the CA in glab's config" closes it, 5555555 is on main
@@ -13,5 +14,8 @@ Unclear (not acted on)
 Listed for you
   !9 conflicts: yes: chore(deps): update glab
   !9 no activity for 17 days: chore(deps): update glab
+Possibly done (listed, not proposed)
+  #3 'Read subgroup projects': merged !6 (2026-10-19) cross-references it; no comments
+  #4 'Ship the GitLab adapter': merged !6 (2026-10-19) changed internal/notes.go and readNotes, which its body names; no comments
 (setup: labels.agent set to ~ in .claude/forge-tracker.local.md, so no label marks those roles yet. `forge-tracker labels suggest` lists the labels it can create for them)
 (writes: unsupported on GitLab (forge-tracker writes only to GitHub so far), so `groom apply` refuses each proposal; a write_wrapper: in the config can make the approved changes instead)

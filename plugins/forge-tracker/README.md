@@ -220,6 +220,26 @@ applies only the ones you name.
 | Conflicted or stale PR | nothing; listed for you | `conflicts: unknown` |
 | Likely duplicates (token-set similarity of titles and labels, open issues and those closed in 30 days) | nothing | every pair |
 | Placeholder due dates (one due date on more than one open milestone) | nothing; listed for you | |
+| Possibly done without a closing reference: a merged PR the forge records as mentioning an open issue in any form, or a PR merged since the issue was opened that changed a path or symbol its body names, with no comment on the issue since | nothing; listed under "Possibly done" | every one of them |
+
+The possibly-done check never closes anything, and never reads titles, labels or milestones as
+evidence: near-duplicate titles and stale milestones are how confident wrong closes happen. A
+path counts when the body names it in a code span or as a word with a file extension
+(`src/parse.py`); a generic name alone (`README.md`, `plugin.json`) needs a directory in front of
+it. A symbol counts only in a code span and only when it's clearly code (`check_merged`,
+`ClosingRef`), and it matches an added or removed line or a hunk header, never an unchanged line.
+Each line names the issue, the PR and the signal, and ends with the issue's last comment date.
+Reading the files costs one request per PR merged since the oldest open issue that names a path
+or symbol; a repo whose issues name none skips that read.
+
+| Forge | Cross-references | Changed files |
+| --- | --- | --- |
+| GitHub | the issue timeline's `CrossReferencedEvent`s (GraphQL), which also say which mention is a closing reference | `GET /pulls/{n}/files`, with diffs |
+| GitLab | `GET /issues/:iid/related_merge_requests`, one per open issue | `GET /merge_requests/:iid/diffs` (GitLab 15.7 and later; unsupported before), with diffs |
+| Forgejo | the issue timeline's `pull_ref`, `issue_ref` and `comment_ref` entries whose `ref_issue` is a PR, one per open issue | `GET /pulls/{n}/files`, names only, so symbols aren't matched (the report says so) |
+
+The report's third line, `Checks run (N of 12): ...`, names the checks that ran, so a sparse
+report says whether it ran everything and found little or ran a few checks.
 
 Merged PRs are read back 90 days. `stale_days` defaults to 14. The stale-branch check never
 looks at the default branch, protected branches, or the branches release and dependency bots
@@ -296,8 +316,8 @@ GitLab works the same as GitHub for all three reports, with these differences:
   `(convention)`. Without the key only native links count.
 - **What it costs.** GitLab's lists leave out what a per-item read has, so an open MR is read once
   more for its head pipeline, merge status and approvals, a merged MR once for the issues it
-  closes, and each open issue once for its links and once for the MRs that close it. Four run at
-  a time.
+  closes, and each open issue once for its links, once for the MRs that close it and once for
+  the MRs that mention it. Four run at a time.
 - **Mentions** are your pending GitLab to-do items in the project that mention you, and
   **comments** come from the project's note events. Mergeability is read from
   `detailed_merge_status`, and `unchecked` or `checking` is `conflicts: unknown` even when

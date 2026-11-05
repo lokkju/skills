@@ -86,3 +86,52 @@ def test_title_numbers(title, numbers):
 def test_title_numbers_without_a_project():
     # Without the project, no `owner/repo#N` can be said to be this one's.
     assert refs.title_numbers("fix: lokkju/skills#9 and #5") == {5}
+
+
+# --- paths and symbols an issue body names (/groom's possibly-done check) -----------------------
+
+
+def test_body_names_reads_paths_and_symbols_and_skips_code_blocks_quotes_and_urls():
+    body = (
+        "The parser in `src/parse.py` drops rows; see plugins/forge-tracker/commands/groom.md.\n"
+        "`check_merged` and `adapter.closing_refs()` and `ClosingRef` need it; `labels` doesn't.\n"
+        "Not a file: e.g. github.com, nor https://example.org/a/b.py, nor `plugins/forge/`.\n"
+        "> quoted `old_symbol` in quoted/path.py\n"
+        "```\n"
+        "fenced/path.py `fenced_symbol`\n"
+        "```\n"
+        "~~struck/path.py~~ and `config.toml` is generic but still named.\n"
+    )
+    paths, symbols = refs.body_names(body)
+    assert paths == ["src/parse.py", "plugins/forge-tracker/commands/groom.md", "config.toml"]
+    assert symbols == ["check_merged", "closing_refs", "ClosingRef"]
+
+
+@pytest.mark.parametrize(
+    "named, changed, matches",
+    [
+        ("src/parse.py", "src/parse.py", True),
+        ("forge_tracker/groom.py", "plugins/x/scripts/forge_tracker/groom.py", True),
+        ("groom.py", "plugins/x/forge_tracker/groom.py", True),
+        ("groom.py", "plugins/x/forge_tracker/mygroom.py", False),
+        ("README.md", "plugins/x/README.md", False),  # generic alone says nothing
+        ("README.md", "README.md", True),
+        ("x/README.md", "plugins/x/README.md", True),
+    ],
+)
+def test_path_matches(named, changed, matches):
+    assert refs.path_matches(named, changed) is matches
+
+
+def test_patch_names_reads_changed_lines_and_hunk_headers_not_context():
+    patch = (
+        "@@ -10,6 +10,7 @@ def check_merged(f, reads):\n"
+        "     unchanged_symbol()\n"
+        "-    old_call()\n"
+        "+    new_call(closing_refs)\n"
+    )
+    assert refs.patch_names(patch, "check_merged")  # the hunk is inside it
+    assert refs.patch_names(patch, "closing_refs")
+    assert refs.patch_names(patch, "old_call")
+    assert not refs.patch_names(patch, "unchanged_symbol")
+    assert not refs.patch_names(patch, "closing")  # whole words only
