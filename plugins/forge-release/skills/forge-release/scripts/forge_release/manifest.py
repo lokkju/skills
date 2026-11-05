@@ -10,9 +10,9 @@ import queue
 import secrets
 import threading
 import urllib.parse
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Optional
+from typing import Any, Optional
 
 CALLBACK_PATH = "/callback"
 
@@ -29,25 +29,31 @@ class PortInUseError(FlowError):
         self.port = port
 
 
-def build_manifest(
-    name: str,
-    homepage: str,
-    permissions: Mapping[str, str],
-    redirect_url: str,
-    public: bool = False,
-    callback_urls: Optional[Sequence[str]] = None,
+def flag_manifest(
+    name: str, homepage: str, permissions: Mapping[str, str], public: bool = False
 ) -> dict:
-    """No hook_attributes: GitHub rejects the block without a url, and leaving it out creates the
-    App with no webhook. callback_urls are where the user authorization (OAuth) flow may return."""
-    app_manifest = {
+    """The manifest the flags describe. No hook_attributes: GitHub rejects the block without a
+    url, and leaving it out creates the App with no webhook."""
+    return {
         "name": name,
         "url": homepage,
-        "redirect_url": redirect_url,
         "public": public,
         "default_permissions": dict(permissions),
     }
-    if callback_urls:
-        app_manifest["callback_urls"] = list(callback_urls)
+
+
+def build_manifest(
+    base: Mapping[str, Any], redirect_url: str, callback_url: Optional[str] = None
+) -> dict:
+    """`base` as given (from the flags or a --spec), plus redirect_url and, when the user
+    authorization (OAuth) flow needs it, `callback_url` appended to callback_urls."""
+    app_manifest = dict(base)
+    app_manifest["redirect_url"] = redirect_url
+    if callback_url:
+        urls = list(app_manifest.get("callback_urls") or [])
+        if callback_url not in urls:
+            urls.append(callback_url)
+        app_manifest["callback_urls"] = urls
     return app_manifest
 
 

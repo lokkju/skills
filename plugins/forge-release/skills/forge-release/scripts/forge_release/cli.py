@@ -16,9 +16,31 @@ from dataclasses import dataclass, field
 from typing import IO, Any, Callable, Optional
 
 from . import api, manifest, store
+from . import spec as app_spec
 from .manifest import FlowError
 
 DEFAULT_PERMISSIONS = {"contents": "write", "pull_requests": "write"}
+DEFAULT_NAMES = {
+    "client_id_var": "YEET_APP_ID",
+    "key_secret": "YEET_APP_PRIVATE_KEY",
+    "installation_id_var": "YEET_APP_INSTALLATION_ID",
+    "to": "github",
+}
+# Flags a --spec replaces (owner, owner_type and manifest) or makes moot (outputs).
+SPEC_REPLACES = (
+    ("org", "--org"),
+    ("user", "--user"),
+    ("name", "--name"),
+    ("permission", "--permission"),
+    ("public", "--public"),
+    ("homepage", "--homepage"),
+    ("to", "--to"),
+    ("repo", "--repo"),
+    ("client_id_var", "--client-id-var"),
+    ("key_secret", "--key-secret"),
+    ("installation_id_var", "--installation-id-var"),
+    ("key_file", "--key-file"),
+)
 ACCESS = ("read", "write", "admin")
 POLL_INTERVAL = 5.0
 # Secret keys for what an expiring user token needs to be refreshed.
@@ -58,17 +80,29 @@ def _parser() -> argparse.ArgumentParser:
         prog="github-app-create",
         description="Create a GitHub App (private unless --public) through GitHub's App manifest "
         "flow (two clicks in the browser: create, then install) and store its client ID, private "
-        "key and installation ID, or with --user-token a user access token. The App has no "
-        "webhook. Keys and tokens are never printed.",
+        "key and installation ID, or with --user-token a user access token. Built from flags, the "
+        "App has no webhook; --spec builds it from a spec file instead. Keys and tokens are never "
+        "printed.",
     )
-    owner = p.add_mutually_exclusive_group(required=True)
+    p.add_argument(
+        "--spec",
+        metavar="FILE",
+        help="JSON spec (- for stdin), as infra's `mise run github-app-manifest <name>` prints: "
+        "its owner, owner_type and manifest replace --org/--user, --name, --permission, --public "
+        "and --homepage, and its outputs say where each output is stored (pulumi: stack config "
+        "keys; sops: keys in a SOPS file under --repo-root)",
+    )
+    p.add_argument(
+        "--repo-root",
+        metavar="DIR",
+        help="with --spec, what outputs.sops.file is relative to (default: the git toplevel)",
+    )
+    owner = p.add_mutually_exclusive_group()
     owner.add_argument("--org", help="organization that will own the App")
     owner.add_argument(
         "--user", action="store_true", help="create the App on your personal account"
     )
-    p.add_argument(
-        "--name", required=True, help="App name (unique across GitHub, at most 34 characters)"
-    )
+    p.add_argument("--name", help="App name (unique across GitHub, at most 34 characters)")
     p.add_argument(
         "--permission",
         action="append",
@@ -109,28 +143,27 @@ def _parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--client-id-var",
-        default="YEET_APP_ID",
-        help="name for the stored client ID (default: %(default)s)",
+        help="name for the stored client ID (default: YEET_APP_ID)",
     )
     p.add_argument(
         "--key-secret",
-        default="YEET_APP_PRIVATE_KEY",
-        help="name for the stored private key (default: %(default)s)",
+        help="name for the stored private key (default: YEET_APP_PRIVATE_KEY)",
     )
     p.add_argument(
         "--installation-id-var",
-        default="YEET_APP_INSTALLATION_ID",
-        help="name for the stored installation ID, pulumi mode only (default: %(default)s)",
+        help="name for the stored installation ID, pulumi mode only "
+        "(default: YEET_APP_INSTALLATION_ID)",
     )
     p.add_argument(
         "--to",
         choices=("github", "pulumi", "stdout", "sops"),
-        default="github",
         help="github: Actions variable and secret on each --repo via gh; pulumi: secret "
         "config via pulumi; stdout: JSON on stdout, key in --key-file; sops: key into a "
         "SOPS-encrypted Kubernetes Secret file, never written in plaintext (default: github)",
     )
-    p.add_argument("--stack", help="Pulumi stack (required with --to pulumi)")
+    p.add_argument(
+        "--stack", help="Pulumi stack (required with --to pulumi, or a --spec storing to pulumi)"
+    )
     p.add_argument(
         "--cwd", default=".", help="Pulumi project directory (default: current directory)"
     )
@@ -143,8 +176,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--sops-file",
         metavar="PATH",
-        help="SOPS-encrypted Secret file for --to sops (required); edited in place if it "
-        "exists, created if not",
+        help="SOPS-encrypted Secret file for --to sops (required), or for the user token with "
+        "--spec --user-token; edited in place if it exists, created if not",
     )
     p.add_argument(
         "--sops-key",
@@ -153,15 +186,15 @@ def _parser() -> argparse.ArgumentParser:
         "token with --user-token)",
     )
     p.add_argument(
-        "--secret-name", help="metadata.name of a new Secret file (needed if --sops-file is new)"
+        "--secret-name", help="metadata.name of a new Secret file (needed if the file is new)"
     )
     p.add_argument(
-        "--namespace", help="metadata.namespace of a new Secret file (needed if --sops-file is new)"
+        "--namespace", help="metadata.namespace of a new Secret file (needed if the file is new)"
     )
     p.add_argument(
         "--replace",
         action="store_true",
-        help="with --to sops, overwrite existing entries under the same keys",
+        help="overwrite existing entries under the same keys in a SOPS file",
     )
     p.add_argument(
         "--timeout",
@@ -199,9 +232,62 @@ def _permissions(parser: argparse.ArgumentParser, raw: Sequence[str]) -> dict[st
     return perms
 
 
+def _load_spec(parser: argparse.ArgumentParser, source: str) -> app_spec.Spec:
+    try:
+        if source == "-":
+            text = sys.stdin.read()
+        else:
+            with open(source) as handle:
+                text = handle.read()
+    except OSError as error:
+        parser.error(f"--spec {source}: {error.strerror or error}")
+    try:
+        doc = json.loads(text)
+    except ValueError as error:
+        parser.error(f"--spec {source}: not JSON ({error})")
+    try:
+        return app_spec.parse(doc)
+    except app_spec.SpecError as error:
+        parser.error(f"--spec {source}: {error}")
+
+
+def _spec_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    given = [flag for attr, flag in SPEC_REPLACES if getattr(args, attr) not in (None, False, [])]
+    if given:
+        parser.error(f"--spec replaces {', '.join(given)}; pass one or the other")
+    spec = args.spec = _load_spec(parser, args.spec)
+    args.org, args.user = spec.org, spec.owner_type == "user"
+    args.name, args.public, args.repo = spec.manifest["name"], spec.public, []
+    args.to = "spec"
+    if spec.pulumi and not args.stack:
+        parser.error("--spec stores outputs in Pulumi stack config, which needs --stack")
+    if (args.sops_file or args.sops_key) and not args.user_token:
+        parser.error(
+            "with --spec, outputs.sops says where outputs go; --sops-file and --sops-key "
+            "are only for the --user-token token"
+        )
+    if args.user_token and not args.sops_file:
+        parser.error("--spec --user-token needs --sops-file for the token (it's never printed)")
+    if args.opt_out_expiry and args.spec_source == "-":
+        parser.error("--opt-out-expiry reads Enter from stdin, which --spec - takes; pass a file")
+
+
 def _args(argv: Sequence[str]) -> argparse.Namespace:
     parser = _parser()
     args = parser.parse_args(argv)
+    args.spec_source = args.spec
+    if args.spec is not None:
+        _spec_args(parser, args)
+    else:
+        if not args.name:
+            parser.error("--name is required (or --spec)")
+        if not args.org and not args.user:
+            parser.error("one of --org, --user or --spec is required")
+        if args.repo_root:
+            parser.error("--repo-root only applies with --spec")
+        for attr, default in DEFAULT_NAMES.items():
+            if getattr(args, attr) is None:
+                setattr(args, attr, default)
     args.permissions = _permissions(parser, args.permission)
     for repo in args.repo:
         if not re.fullmatch(r"[^/\s]+/[^/\s]+", repo):
@@ -210,7 +296,7 @@ def _args(argv: Sequence[str]) -> argparse.Namespace:
         parser.error("--to github needs at least one --repo")
     if args.to == "pulumi" and not args.stack:
         parser.error("--to pulumi needs --stack")
-    if args.to == "sops":
+    if args.to == "sops" or (args.spec and args.user_token):
         if not args.sops_file:
             parser.error("--to sops needs --sops-file")
         if not os.path.exists(args.sops_file) and not (args.secret_name and args.namespace):
@@ -219,7 +305,7 @@ def _args(argv: Sequence[str]) -> argparse.Namespace:
                 "--secret-name and --namespace"
             )
     if args.user_token:
-        if args.to != "sops":
+        if args.to not in ("sops", "spec"):
             parser.error("--user-token needs --to sops (the token is never printed)")
         if args.sops_key in REFRESH_KEYS:
             parser.error(
@@ -230,7 +316,7 @@ def _args(argv: Sequence[str]) -> argparse.Namespace:
         parser.error("--opt-out-expiry only applies with --user-token")
     if args.to == "stdout" and args.key_file and os.path.exists(args.key_file):
         parser.error(f"--key-file {args.key_file} already exists; not overwriting it")
-    if not args.homepage:
+    if not args.homepage and not args.spec:
         args.homepage = (
             "https://github.com/" + args.org
             if args.org
@@ -251,14 +337,16 @@ def _port_of(server: Any) -> int:
 
 def _create(args: argparse.Namespace, deps: Deps, server: Any) -> api.AppCredentials:
     state = deps.new_state()
+    base = (
+        args.spec.manifest
+        if args.spec
+        else manifest.flag_manifest(args.name, args.homepage, args.permissions, args.public)
+    )
     app_manifest = manifest.build_manifest(
-        args.name,
-        args.homepage,
-        args.permissions,
+        base,
         server.redirect_url,
-        public=args.public,
         # The user authorization comes back to this same listener, so the App must list it.
-        callback_urls=[server.redirect_url] if args.user_token else None,
+        callback_url=server.redirect_url if args.user_token else None,
     )
     server.set_page(manifest.form_page(manifest.form_action(args.org, state), app_manifest))
     if args.no_browser:
@@ -279,6 +367,10 @@ def _create(args: argparse.Namespace, deps: Deps, server: Any) -> api.AppCredent
     code = manifest.check_callback(server.wait(args.timeout), state)
     app = api.convert_manifest(code, deps.http)
     _say(deps, f"Created {app.html_url} (App ID {app.app_id}, client ID {app.client_id}).")
+    if args.spec and args.spec.manual_steps:
+        _say(deps, "Still to do by hand (the manifest can't set these):")
+        for n, step in enumerate(args.spec.manual_steps, 1):
+            _say(deps, f"  {n}. {step}")
     if args.public:
         _say(
             deps,
@@ -404,6 +496,64 @@ def _store_credentials(args: argparse.Namespace, deps: Deps, app: api.AppCredent
         _say(deps, f"Wrote the private key to {args.key_file} (mode 0600).")
 
 
+def _conversion_values(app: api.AppCredentials) -> dict[str, Optional[str]]:
+    """What the manifest conversion returned, by the output names a spec uses."""
+    return {
+        "app_id": str(app.app_id),
+        "client_id": app.client_id,
+        "client_secret": app.client_secret,
+        "private_key": app.pem,
+        "webhook_secret": app.webhook_secret,
+    }
+
+
+def _store_outputs(
+    args: argparse.Namespace, deps: Deps, values: dict[str, Optional[str]]
+) -> list[str]:
+    """Store each of `values` the spec names, under exactly the name it gives. Outputs the spec
+    doesn't name are dropped. Returns where each went, for the summary."""
+    spec: app_spec.Spec = args.spec
+    stored: list[str] = []
+    for output, value in values.items():
+        if spec.stores(output) and not value:
+            _say(deps, f"GitHub returned no {output}, so it isn't stored.")
+    pulumi = {key: values[out] or "" for out, key in spec.pulumi.items() if values.get(out)}
+    if pulumi:
+        store.run_commands(
+            store.pulumi_commands(list(pulumi.items()), args.stack, args.cwd), deps.run
+        )
+        _say(deps, f"Set Pulumi secrets {', '.join(pulumi)} on stack {args.stack}.")
+        stored += [f"pulumi:{key}" for key in pulumi]
+    sops = {key: values[out] or "" for out, key in spec.sops_keys.items() if values.get(out)}
+    if sops:
+        store.sops_store_values(
+            args.spec_sops_path,
+            sops,
+            replace=args.replace,
+            secret_name=args.secret_name,
+            namespace=args.namespace,
+            run=deps.run,
+        )
+        _say(deps, f"Encrypted {', '.join(sops)} into {args.spec_sops_path}.")
+        stored += [f"sops:{key}" for key in sops]
+    return stored
+
+
+def _store_spec_credentials(
+    args: argparse.Namespace, deps: Deps, app: api.AppCredentials
+) -> list[str]:
+    stored = _store_outputs(args, deps, _conversion_values(app))
+    if not args.spec.stores("private_key") and not args.user_token:
+        # Nothing else keeps the key, and GitHub never shows it again.
+        args.key_file = _write_fresh_key_file(app)
+        _say(
+            deps,
+            f"The spec doesn't store private_key, so it's in {args.key_file} (mode 0600); "
+            "store it, then delete the file.",
+        )
+    return stored
+
+
 def _write_fresh_key_file(app: api.AppCredentials) -> str:
     """Write the key to ./<slug>.private-key.pem, or the first free ./<slug>.private-key.<n>.pem.
 
@@ -453,9 +603,41 @@ def _install(args: argparse.Namespace, deps: Deps, app: api.AppCredentials) -> i
     )
 
 
+def _git_toplevel(deps: Deps) -> Optional[str]:
+    try:
+        result = deps.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, cwd=None
+        )
+    except FileNotFoundError:
+        return None
+    top = (result.stdout or "").strip()
+    return top if result.returncode == 0 and top else None
+
+
+def _resolve_spec_sops(args: argparse.Namespace, deps: Deps) -> None:
+    """outputs.sops.file is relative to the repo root; check it before anything is created."""
+    args.spec_sops_path = None
+    if not args.spec or not args.spec.sops_file:
+        return
+    root = args.repo_root or _git_toplevel(deps)
+    if not root:
+        _parser().error(
+            "--spec stores outputs in a SOPS file relative to the repo root, and this isn't a "
+            "git checkout; pass --repo-root"
+        )
+    path = os.path.join(root, args.spec.sops_file)
+    if not os.path.exists(path) and not (args.secret_name and args.namespace):
+        _parser().error(
+            f"{path} (outputs.sops.file) doesn't exist; creating it needs --secret-name and "
+            "--namespace"
+        )
+    args.spec_sops_path = path
+
+
 def main(argv: Sequence[str], deps: Optional[Deps] = None) -> int:
     deps = deps or Deps()
     args = _args(argv)
+    _resolve_spec_sops(args, deps)
     try:
         server = deps.server_factory(args.port)
     except manifest.PortInUseError as error:
@@ -474,7 +656,21 @@ def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
         return 1
     if args.to == "sops" and not args.sops_key:
         args.sops_key = f"{app.slug}.pem"
-    if args.user_token:
+    stored: list[str] = []
+    if args.spec:
+        try:
+            stored = _store_spec_credentials(args, deps, app)
+        except (FlowError, OSError) as error:
+            _say(deps, f"error: storing the outputs failed: {error}")
+            _rescue_key(deps, app)
+            return 1
+        if args.user_token and not args.spec.stores("private_key"):
+            _say(
+                deps,
+                "The spec doesn't store private_key; generate one in the App's settings if you "
+                "ever need installation tokens.",
+            )
+    elif args.user_token:
         _say(
             deps,
             "The private key isn't stored with --user-token; generate one in the App's settings "
@@ -495,8 +691,8 @@ def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
         installation_id = _install(args, deps, app)
         _say(deps, f"Installed: installation ID {installation_id}.")
     except FlowError as error:
-        stored = "" if args.user_token else " The credentials are stored;"
-        _say(deps, f"error: {error}.{stored} install the App at {install_url}.")
+        kept = "" if args.user_token and not args.spec else " The credentials are stored;"
+        _say(deps, f"error: {error}.{kept} install the App at {install_url}.")
         status = 1
     if args.public:
         _say(
@@ -519,6 +715,15 @@ def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
         except FlowError as error:
             _say(deps, f"error: storing installation ID {installation_id} failed: {error}")
             status = 1
+    if args.spec and args.spec.stores("installation_id"):
+        if installation_id is None:
+            _say(deps, "installation_id isn't stored: the App isn't installed yet.")
+        else:
+            try:
+                stored += _store_outputs(args, deps, {"installation_id": str(installation_id)})
+            except (FlowError, OSError) as error:
+                _say(deps, f"error: storing installation ID {installation_id} failed: {error}")
+                status = 1
 
     stored_keys: list[str] = []
     token: Optional[api.UserToken] = None
@@ -530,7 +735,12 @@ def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
             _say(
                 deps,
                 f"error: getting or storing the user token failed: {error}. The App exists at "
-                f"{_settings_url(args, app)}; nothing secret was kept.",
+                f"{_settings_url(args, app)}; "
+                + (
+                    "only the spec's outputs were kept."
+                    if args.spec
+                    else "nothing secret was kept."
+                ),
             )
             status = 1
 
@@ -549,6 +759,25 @@ def _run(args: argparse.Namespace, deps: Deps, server: Any) -> int:
             ),
             file=deps.stdout,
         )
+    elif args.spec:
+        summary: dict[str, Any] = {
+            "app_id": app.app_id,
+            "slug": app.slug,
+            "client_id": app.client_id,
+            "installation_id": installation_id,
+            "html_url": app.html_url,
+            "stored": stored,
+        }
+        if args.key_file:
+            summary["private_key_file"] = args.key_file
+        if args.user_token:
+            summary.update(
+                sops_file=args.sops_file,
+                sops_keys=stored_keys,
+                token_expires_in=token.expires_in if token else None,
+                refresh_token_expires_in=token.refresh_token_expires_in if token else None,
+            )
+        print(json.dumps(summary, indent=2), file=deps.stdout)
     elif args.to == "sops":
         result: dict[str, Any] = {
             "app_id": app.app_id,

@@ -67,6 +67,7 @@ class AppCredentials:
     html_url: str
     pem: str = field(repr=False)
     client_secret: Optional[str] = field(default=None, repr=False)
+    webhook_secret: Optional[str] = field(default=None, repr=False)
 
     @property
     def jwt_issuer(self) -> str:
@@ -86,6 +87,7 @@ def convert_manifest(code: str, http: Http) -> AppCredentials:
         html_url=str(body.get("html_url") or f"https://github.com/apps/{body['slug']}"),
         pem=str(body["pem"]),
         client_secret=body.get("client_secret"),
+        webhook_secret=body.get("webhook_secret"),
     )
 
 
