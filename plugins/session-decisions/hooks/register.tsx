@@ -1384,18 +1384,23 @@ async function drawDetails($: $, site: Parameters<$['ui']['resolve']>[0], item: 
   return (
     <Box key={`details-${item.source}-${item.id}`} flexDirection="column">
       <Box key="details-top" flexDirection="row" gap={1}>
-        {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
-        <Text bold>{item.label}</Text>
-        {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
+        {/* The hint gives way first; the chips and label keep their width. */}
+        <Box key="details-tags" flexDirection="row" gap={1} flexShrink={0}>
+          {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
+          <Text bold>{item.label}</Text>
+          {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
+        </Box>
         <Box flexGrow={1} flexShrink={1} justifyContent="flex-end">
           <Text key="details-hint" dimColor wrap="truncate-end">
             {hint}
           </Text>
         </Box>
         {item.created !== undefined && (
-          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
-            {age(item.created, now).replace('waiting ', '')}
-          </Text>
+          <Box key="details-age" flexShrink={0}>
+            <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+              {age(item.created, now).replace('waiting ', '')}
+            </Text>
+          </Box>
         )}
       </Box>
       <Box key="details-actions" flexDirection="row" flexWrap="wrap" columnGap={1}>
