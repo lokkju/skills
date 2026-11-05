@@ -1,5 +1,18 @@
 # Changelog
 
+## [session-decisions--v2026.11.05.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.26.2...session-decisions--v2026.11.05.1) (2026-11-05)
+
+### Features
+
+- **session-decisions:** Accept for ACTION items that carry a recommendation ([3fbe838](https://github.com/lokkju/skills/commit/3fbe83849701cdf8f23b251c549a5f2af11b51ed))
+
+### Fixes
+
+- **session-decisions:** keep the details view's label, chips and age whole on a narrow pane ([fe3cdac](https://github.com/lokkju/skills/commit/fe3cdacb601d0bf41aa4c1f12e05403c29dce37d))
+- **session-decisions:** warn about command lines too wide to copy from tmux ([a4d0ef7](https://github.com/lokkju/skills/commit/a4d0ef7c28857de442683d3230595d10a2c17bd5))
+- **session-decisions:** hand over commands as a script or short lines ([8e2df33](https://github.com/lokkju/skills/commit/8e2df331aff2ebe2cdb2c3687fb8a3a1260bdceb))
+- **session-decisions:** don't flag labels quoted from another issue or session ([bfdfbea](https://github.com/lokkju/skills/commit/bfdfbeab4474a24ca8990d1953fa84e56d26c5e4))
+
 ## [session-decisions--v2026.10.26.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.26.1...session-decisions--v2026.10.26.2) (2026-10-26)
 
 ### Features
