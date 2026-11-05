@@ -22,29 +22,17 @@ before the choice is settled.
 - **Only the working directory** (or the session hasn't touched a repo yet): run as below.
 - **One repo, and it isn't the working directory:** say which repo you're about to read and
   why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
-  has been working in.`), then run the commands below for it:
-
-  ```bash
-  git -C <dir> fetch --quiet origin
-  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> catchup $ARGUMENTS
-  ```
-
-  Every later command for that repo (`labels suggest`, `labels create`, `labels decline`)
-  takes the same `--repo <dir>`, and its config file is `<dir>/.claude/forge-tracker.local.md`.
+  has been working in.`), then run it as below with `repo` set to it. Every later call for
+  that repo (`labels_suggest`, `labels_create`, `labels_decline`) takes the same `repo`, and
+  its config file is `<dir>/.claude/forge-tracker.local.md`.
 - **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
-  directory) and "all of them". For one, run it as above. For more than one, fetch each and
-  read them in one report, with a `--repo` for each, and present it as set out under **In a
-  workspace folder** below:
-
-  ```bash
-  git -C <a> fetch --quiet origin
-  git -C <b> fetch --quiet origin
-  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <a> --repo <b> catchup $ARGUMENTS
-  ```
+  directory) and "all of them". For one, run it as above. For more than one, read them in
+  one report, with `repos` listing each directory in place of `repo`, and present it as set out
+  under **In a workspace folder** below.
 
 - **Running it for your own purposes** (to orient yourself, not because the user typed
   `/catchup`): the same choice applies, but settle it yourself without asking; take the repos
-  the work at hand is in, and always add `--no-mark`, so the user's next catchup still starts
+  the work at hand is in, and always set `no_mark: true`, so the user's next catchup still starts
   where their last one ended.
 
 When the user passed `--workspace`, or said which repo in their message, they've chosen; skip
@@ -52,13 +40,18 @@ this.
 
 ## Running it
 
-Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
-`--repo <dir>` for the repo you settled on above), and wait for both:
+Call the forge-tracker MCP server's `catchup` tool (in Claude Code
+`mcp__plugin_forge-tracker_forge-tracker__catchup`) with the repo you settled on above as
+`repo` (leave it out for the working directory), and pass `$ARGUMENTS` as its options:
+`--since 3d` is `since: "3d"`, `--no-mark` is `no_mark: true`, `--all` is `all: true`,
+`--json` is `json: true` and `--workspace DIR` is `workspace: "DIR"`. The tool runs `git fetch
+--quiet origin` in the repo before it reads (`fetch: false` skips that), so there's no git
+command to run first. Each later step names its tool too.
 
-```bash
-git fetch --quiet origin
-"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" catchup $ARGUMENTS
-```
+Below, exit status 1 means a result whose `ok` is false (its text has the `FAILED` lines), and
+exit status 2 means a result marked as an error, with the message as its text. When the
+forge-tracker tools aren't in your tool list, use the CLI instead, as set out under **Without
+the MCP server** at the end; it takes the same options as flags and exits with those statuses.
 
 The report is read-only, and so is this command: don't comment, label, close, merge, assign or
 branch because of anything in it unless the user asks. The writes it may lead to are the local
@@ -90,7 +83,7 @@ mark. Present the report first, then handle setup:
 - If the line says `Setup was declined`, or you are running this for your own purposes, don't
   offer anything; pass the line on once, as it is.
 - Otherwise offer to set it up, once. Run
-  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
+  the `labels_suggest` tool. It only reads the repo's labels
   and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
   has no such label, plus the labels it would create for each role no label matched or the
   config sets to `~`. Show the user the proposal and ask whether to write it, as is or with
@@ -105,7 +98,7 @@ mark. Present the report first, then handle setup:
   create them on the forge, naming each label, its color and description,
   and saying that it goes through the repo's write-wrapper when one is set. The yes to the config
   isn't a yes to this. Only on an explicit yes, run
-  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels create <names>` with exactly the names
+  the `labels_create` tool with `names` set to exactly the names
   the user approved (a default name such as `needs-human`, or `role=name`, such as
   `agent=ready-for-agent`, for a name of their own). It refuses, creating nothing, a name the
   repo already has in any case or a role the config already maps. Then put each created name in
@@ -113,14 +106,14 @@ mark. Present the report first, then handle setup:
   as it is and leave that role at `~`. On a no, or for labels the user didn't approve, give
   them the `gh label create` commands from the suggestion and leave the `~` in place. Never
   create labels yourself any other way, even through `gh`; those commands are the user's.
-- **No:** run `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels decline`. It writes one file
+- **No:** call the `labels_decline` tool. It writes one file
   in the local cache (never the repo or the forge), so this command won't offer setup again
   here; the report's line keeps saying what's unset, and a line about roles at `~` goes quiet.
   Tell the user they can ask for it any time. Use this for a no to the labels question too, when
   the user wants those roles left at `~`.
 
-After writing the file, the next `/catchup` uses it. To see this window with the labels now, run
-the report command again with `--since` and the window's start; that leaves the marker alone.
+After writing the file, the next `/catchup` uses it. To see this window with the labels now, call
+the `catchup` tool again with `since` and the window's start; that leaves the marker alone.
 
 Exit status 1 means at least one read failed; the report still printed, and the catchup marker
 did not move, so the next catchup covers this window again. Exit status 2 is a setup problem
@@ -132,13 +125,12 @@ The first line of the report says which window it covers and whether the marker 
 ## In a workspace folder
 
 When the start directory isn't a git repo but holds several (a folder of checkouts), the same
-report command reads them all and prints one report: its first line starts `Workspace <dir>: N
-repos`. `git fetch` fails in such a folder; that's expected, so don't stop at it. The repos are
+`catchup` call reads them all and prints one report: its first line starts `Workspace <dir>: N
+repos`. The tool fetches each repo in it. The repos are
 the folder's child repos with an `origin` remote (or a `tracker.web` key), or the `repos:` list
-in the folder's own `.claude/forge-tracker.local.md`; `--workspace DIR` names a folder from
-anywhere. `--repo` given more than once reads just those repos, wherever they are, as the same
-kind of report; its first line names the folder they share. Changelog entries come from each repo's last fetch, so when a repo's config sets
-`changelog:`, run `git -C <dir> fetch --quiet origin` for it first.
+in the folder's own `.claude/forge-tracker.local.md`; `workspace` names a folder from
+anywhere. `repos` reads just those repos, wherever they are, as the same
+kind of report; its first line names the folder they share. Changelog entries come from each repo's last fetch.
 
 Present it in the same order. **Waiting on you** covers every repo, each item as
 `owner/repo#N`; keep the repo in every reference. Then each repo's own sections. A repo where
@@ -151,10 +143,24 @@ one line. A `setup:` line is said once, with the repos it applies to after it.
   and the first line names the repos whose marker stayed.
 - A `Not read:` line lists child repos left out for having no `origin` remote. Pass it on.
 - Setup is per repo. Don't run the setup flow from the workspace: pass the `setup:` line on
-  once, and if the user wants a repo set up, run `labels suggest`, `labels create` (after the
-  second yes) and `labels decline` for it with
-  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> labels ...` and write that repo's
+  once, and if the user wants a repo set up, call `labels_suggest`, `labels_create` (after
+  the second yes) and `labels_decline` for it with `repo` set to it, and write that repo's
   own `.claude/forge-tracker.local.md`.
 
 Exit status 2 in a workspace is a problem with the folder itself (no repo found, or a bad config
 file at its root): show the message and stop.
+
+## Without the MCP server
+
+Where the forge-tracker tools aren't available (the server didn't start, or the agent has no
+MCP), run the CLI with the Bash tool instead, fetching first:
+
+```bash
+git -C <dir> fetch --quiet origin
+"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> catchup $ARGUMENTS
+```
+
+Each tool is a CLI command, and its options are the command's flags: `repo` is `--repo <dir>`
+(before the command), `repos` is one `--repo` per directory, `no_mark` is `--no-mark` and
+so on, `labels_suggest` is `labels suggest`, `labels_create` is `labels create <names>`, and
+`labels_decline` is `labels decline`.

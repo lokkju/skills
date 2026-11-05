@@ -21,20 +21,13 @@ choice is settled.
 - **Only the working directory** (or the session hasn't touched a repo yet): run as below.
 - **One repo, and it isn't the working directory:** say which repo you're about to read and
   why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
-  has been working in.`), then run the commands below for it:
-
-  ```bash
-  git -C <dir> fetch --quiet origin
-  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> next $ARGUMENTS
-  ```
-
-  Every later command for that repo (`next facts`, `next save-slate`, `labels suggest`,
-  `labels create`, `labels decline`) takes the same `--repo <dir>`, and its config file is
-  `<dir>/.claude/forge-tracker.local.md`.
+  has been working in.`), then run it as below with `repo` set to it. Every later call for
+  that repo (`next_facts`, `save_slate`, `labels_suggest`, `labels_create`, `labels_decline`)
+  takes the same `repo`, and its config file is `<dir>/.claude/forge-tracker.local.md`.
 - **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
   directory) and "all of them". `/next` ranks one repo at a time, because each slate belongs to
   one repo's facts, so "all of them" means this whole command once per repo, in turn, each
-  with its own `--repo`.
+  with its own `repo`.
 - **Running it for your own purposes** (to orient yourself, not because the user typed
   `/next`): the same choice applies, but settle it yourself without asking; take the repo the
   work at hand is in.
@@ -43,13 +36,17 @@ When the user said which repo in their message, they've chosen; skip this.
 
 ## Running it
 
-Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
-`--repo <dir>` for the repo you settled on above), and wait for both:
+Call the forge-tracker MCP server's `next_report` tool (in Claude Code
+`mcp__plugin_forge-tracker_forge-tracker__next_report`) with the repo you settled on above as
+`repo` (leave it out for the working directory), and pass `$ARGUMENTS` as its options:
+`--rerank` is `rerank: true`, `--refresh` is `refresh: true` and `--json` is
+`json: true`. The tool runs `git fetch --quiet origin` in the repo before it reads (`fetch: false`
+skips that), so there's no git command to run first. Each later step names its tool too.
 
-```bash
-git fetch --quiet origin
-"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" next $ARGUMENTS
-```
+Below, exit status 1 means a result whose `ok` is false (its text has the `FAILED` lines), and
+exit status 2 means a result marked as an error, with the message as its text. When the
+forge-tracker tools aren't in your tool list, use the CLI instead, as set out under **Without
+the MCP server** at the end; it takes the same options as flags and exits with those statuses.
 
 `/next` recommends; it never acts. Don't claim, assign, label, comment on or branch for any item
 because of this report unless the user asks. The writes it may lead to are the local config file
@@ -67,7 +64,7 @@ before ranking a slate:
 - If the line says `Setup was declined`, or you are running this for your own purposes, don't
   offer anything; pass the line on once, as it is.
 - Otherwise offer to set it up, once. Run
-  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels suggest`. It only reads the repo's labels
+  the `labels_suggest` tool. It only reads the repo's labels
   and prints a proposed config (labels, tiers, `ruling_pattern`), where `~` records that the repo
   has no such label, plus the labels it would create for each role no label matched or the
   config sets to `~`. Show the user the proposal and ask whether to write it, as is or with
@@ -82,7 +79,7 @@ before ranking a slate:
   create them on the forge, naming each label, its color and description,
   and saying that it goes through the repo's write-wrapper when one is set. The yes to the config
   isn't a yes to this. Only on an explicit yes, run
-  `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels create <names>` with exactly the names
+  the `labels_create` tool with `names` set to exactly the names
   the user approved (a default name such as `needs-human`, or `role=name`, such as
   `agent=ready-for-agent`, for a name of their own). It refuses, creating nothing, a name the
   repo already has in any case or a role the config already maps. Then put each created name in
@@ -90,7 +87,7 @@ before ranking a slate:
   as it is and leave that role at `~`. On a no, or for labels the user didn't approve, give
   them the `gh label create` commands from the suggestion and leave the `~` in place. Never
   create labels yourself any other way, even through `gh`; those commands are the user's.
-- **No:** run `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels decline`. It writes one file
+- **No:** call the `labels_decline` tool. It writes one file
   in the local cache (never the repo or the forge), so this command won't offer setup again
   here; the report's line keeps saying what's unset, and a line about roles at `~` goes quiet.
   Tell the user they can ask for it any time. Use this for a no to the labels question too, when
@@ -104,7 +101,7 @@ facts' fingerprint, so the classification and any slate start over.
 The facts changed since the last ranking (or there is none, or the user passed `--rerank`), so
 rank them before presenting anything:
 
-1. Run `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" next facts --json`. Each item has its class
+1. Call the `next_facts` tool. It returns JSON; each item has its class
    (`person-only`, `agent-ready`, `blocked`, `unknown`, `unclassified`), tier, due date, labels,
    owners, blockers, what it unblocks, what has it in flight, and its body. `unclassified` means
    the repo configures no needs-human or decision label (`labelled: false`), so no label could
@@ -175,10 +172,10 @@ rank them before presenting anything:
      - `not_yet`: what you wouldn't do yet, with the reason: umbrella issues, items waiting on a
        decision, drift `/groom` should fix first, PRs not ready. An item here can't also be
        picked, started or merged.
-3. Save it: pipe the JSON to `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" next save-slate`. A
-   refusal (exit 2) names every problem; fix them and save again. It writes only to the local
+3. Save it: call the `save_slate` tool with the JSON as `slate`. A refusal (an error
+   result) names every problem; fix them and save again. It writes only to the local
    cache, never to the forge.
-4. Run `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" next` again and present that report.
+4. Call the `next_report` tool again (`fetch: false`) and present that report.
 
 A later `/next` shows the saved slate, with its age, until the facts move.
 
@@ -224,12 +221,12 @@ problem (no origin remote, a forge it can't read yet, a bad `.claude/forge-track
 `/next` sees blocking only as the forge's native links. Whenever you file an issue that waits on
 another, or find that one does, record it as a link, not as a sentence in the body:
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" link add 18 --blocked-by 17   # #18 waits on #17
-"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" link remove 18 --blocked-by 17
-```
+- the `link` tool with `action: "add"`, `issue: 18`, `blocked_by: 17` records that #18
+  waits on #17; `action: "remove"` takes it away. It's a write, so it may prompt.
+- without the tool, the CLI's `link add 18 --blocked-by 17` (or `link remove`), as under
+  **Without the MCP server** below.
 
-(`--blocked-by owner/repo#17` for a blocker in another project; `gh api -X POST
+(`owner/repo#17` for a blocker in another project; `gh api -X POST
 repos/{owner}/{repo}/issues/18/dependencies/blocked_by -F issue_id=<#17's id>` is the same write
 without forge-tracker.) It goes through the repo's write-wrapper when one is set, and refuses a
 link that already exists. A line such as `Blocked by: #17` may stay in the body as a gloss for
@@ -240,12 +237,27 @@ when the user asks.
 
 ## In a workspace folder
 
-When the start directory isn't a git repo but holds several, `git fetch` fails there and the
-report command exits 2 with `... isn't a git repo; it's a workspace of N (a, b, c)`. That isn't a
+When the start directory isn't a git repo but holds several, the `next_report` call comes
+back as an error, `... isn't a git repo; it's a workspace of N (a, b, c)`. That isn't a
 setup problem to stop at: `/next` ranks one repo at a time, because each slate belongs to one
 repo's facts. Settle which one as under **First, which repo**: the repo the session worked in,
-or, when that doesn't settle it, ask the user which of the listed repos to look at. Then run
-both commands for it with `git -C <dir> fetch --quiet origin` and
-`"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> next $ARGUMENTS`. Every later command
-for that repo (`next facts`, `next save-slate`, `labels suggest`) takes the same `--repo <dir>`.
+or, when that doesn't settle it, ask the user which of the listed repos to look at. Then call
+`next_report` for it with `repo` set to it. Every later call for that repo (`next_facts`,
+`save_slate`, `labels_suggest`) takes the same `repo`.
 For what changed across all of them, `/catchup` reads the whole workspace in one report.
+
+## Without the MCP server
+
+Where the forge-tracker tools aren't available (the server didn't start, or the agent has no
+MCP), run the CLI with the Bash tool instead, fetching first:
+
+```bash
+git -C <dir> fetch --quiet origin
+"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> next $ARGUMENTS
+```
+
+Each tool is a CLI command, and its options are the command's flags: `repo` is `--repo <dir>`
+(before the command), `next_report` is `next`, `next_facts` is
+`next facts --json`, `save_slate` is `next save-slate` with the slate piped to it, `link` is
+`link add|remove <issue> --blocked-by <blocker>`, `labels_suggest` is `labels suggest`,
+`labels_create` is `labels create <names>`, and `labels_decline` is `labels decline`.

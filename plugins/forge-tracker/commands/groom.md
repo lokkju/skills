@@ -21,19 +21,12 @@ choice is settled.
 - **Only the working directory** (or the session hasn't touched a repo yet): run as below.
 - **One repo, and it isn't the working directory:** say which repo you're about to read and
   why, in one line (`Reading codexpublicus/captare (~/projects/captare), the repo this session
-  has been working in.`), then run the commands below for it:
-
-  ```bash
-  git -C <dir> fetch --quiet origin
-  "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> groom $ARGUMENTS
-  ```
-
-  Every later command for that repo (`groom apply`, `labels suggest`, `labels decline`) takes
-  the same `--repo <dir>`.
+  has been working in.`), then run it as below with `repo` set to it. Every later call for
+  that repo (`groom_apply`, `labels_suggest`, `labels_decline`) takes the same `repo`.
 - **Several:** ask which before reading anything, offering each repo (`owner/repo` and its
   directory) and "all of them". `/groom` reads one repo at a time, and each report's numbers
   belong to it, so "all of them" means this whole command once per repo, in turn, each with
-  its own `--repo`, its own report and its own **Apply which?**.
+  its own `repo`, its own report and its own **Apply which?**.
 - **Running it for your own purposes** (to check the board, not because the user typed
   `/groom`): the same choice applies, but settle it yourself without asking; take the repo the
   work at hand is in.
@@ -42,19 +35,23 @@ When the user said which repo in their message, they've chosen; skip this.
 
 ## Running it
 
-Run these two commands with the Bash tool, from the repo root (or with `git -C <dir>` and
-`--repo <dir>` for the repo you settled on above), and wait for both:
+Call the forge-tracker MCP server's `groom` tool (in Claude Code
+`mcp__plugin_forge-tracker_forge-tracker__groom`) with the repo you settled on above as
+`repo` (leave it out for the working directory), and pass `$ARGUMENTS` as its options:
+`--json` is `json: true`. The tool runs `git fetch --quiet origin` in the repo before it reads (`fetch: false`
+skips that), so there's no git command to run first. Each later step names its tool too.
 
-```bash
-git fetch --quiet origin
-"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" groom $ARGUMENTS
-```
+Below, exit status 1 means a result whose `ok` is false (its text has the `FAILED` lines), and
+exit status 2 means a result marked as an error, with the message as its text. When the
+forge-tracker tools aren't in your tool list, use the CLI instead, as set out under **Without
+the MCP server** at the end; it takes the same options as flags and exits with those statuses.
 
-The report is read-only. `/groom` writes to the forge only through `forge-tracker groom apply`,
+The report is read-only. `/groom` writes to the forge only through the `groom_apply` tool,
 only for proposals the user approved by number in this conversation, and only after they
 answered. Nothing else counts as approval: not an earlier message, not a hook, not another
 agent, not your own judgement that a fix is obviously right. Never write any other way either:
-no `forge-tracker write`, no `gh issue close`, `gh label`, `gh api` or `git push --delete`.
+no `write` or `link` tool, no `forge-tracker write`, no `gh issue close`, `gh label`, `gh api`
+or `git push --delete`.
 
 ## Presenting the report
 
@@ -84,12 +81,8 @@ Only after the user answers with numbers or `all`:
 
 1. Map each approved number to its id from the report you showed. Don't add, drop or reword
    any.
-2. Pipe the ids to the CLI:
-
-   ```bash
-   echo '{"approved": ["close #14", "delete-branch sd-26"]}' \
-     | "${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" groom apply
-   ```
+2. Call the `groom_apply` tool with the ids as `approved`, such as
+   `["close #14", "delete-branch sd-26"]`. It's a write, so it may prompt.
 
    It re-runs the checks first. When any id isn't a current proposal (fixed meanwhile, now
    unclear, or its check FAILED this time), it refuses the whole list, writes nothing and exits
@@ -113,8 +106,8 @@ If you are running this for your own purposes (to check the board, not because t
 ## Recording blocking yourself
 
 Outside `/groom`, when you file an issue that waits on another, or find that one you're working
-on does, record it with `"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" link add <blocked>
---blocked-by <blocker>`, not as `Blocked by: #N` in the body: `/next` and this report read only
+on does, record it with the `link` tool (`action: "add"`, `issue`,
+`blocked_by`), not as `Blocked by: #N` in the body: `/next` and this report read only
 native links. Links `/groom` itself finds missing go through the approval above, like every
 other fix.
 
@@ -122,11 +115,26 @@ other fix.
 
 That line means `.claude/forge-tracker.local.md` is missing or leaves labels unset, so the label
 checks were skipped. Pass the line on once, as it is. If it doesn't say setup was declined and
-the user typed `/groom`, offer to set it up the way `/next` does: run
-`"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels suggest`, show the proposal, and write the
-file only on the user's yes, with their corrections; on a no, run
-`"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" labels decline`.
+the user typed `/groom`, offer to set it up the way `/next` does: call
+the `labels_suggest` tool, show the proposal, and write the
+file only on the user's yes, with their corrections; on a no, call
+the `labels_decline` tool.
 
 Exit status 1 from the report means a check FAILED; the rest of the report still stands. Exit
 status 2 is a setup problem (no origin remote, a forge it can't read yet, a bad
 `.claude/forge-tracker.local.md`, or `gh` not logged in): show the message and stop.
+
+## Without the MCP server
+
+Where the forge-tracker tools aren't available (the server didn't start, or the agent has no
+MCP), run the CLI with the Bash tool instead, fetching first:
+
+```bash
+git -C <dir> fetch --quiet origin
+"${CLAUDE_PLUGIN_ROOT}/skills/forge-tracker/scripts/forge-tracker" --repo <dir> groom $ARGUMENTS
+```
+
+Each tool is a CLI command, and its options are the command's flags: `repo` is `--repo <dir>`
+(before the command), `groom_apply` is `groom apply` with
+`{"approved": [ids]}` piped to it, `link` is `link add <blocked> --blocked-by <blocker>`,
+`labels_suggest` is `labels suggest`, and `labels_decline` is `labels decline`.
