@@ -1,9 +1,8 @@
 """forge-tracker as an MCP server over stdio: the CLI's reports and writes as tools.
 
 The tools call the same functions the CLI does (cli.py); nothing here runs the CLI. The
-transport is the subset of MCP a tools-only server needs: newline-delimited JSON-RPC 2.0 on
-stdin and stdout, `initialize`, `ping`, `tools/list` and `tools/call`, with notifications
-read and ignored. Logs and stray prints go to stderr, so stdout carries only protocol.
+protocol is mcp_stdio.py's, shared with term-recorder. Logs and stray prints go to stderr, so
+stdout carries only protocol.
 """
 
 from __future__ import annotations
@@ -18,11 +17,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, tzinfo
 from typing import Any, Callable, Optional, TextIO
 
-from . import catchup, config, detect, groom, labelsetup, workspace
+from . import catchup, config, detect, groom, labelsetup, mcp_stdio, workspace
 from . import next as next_
 from .cli import (
     WRITE_OPS,
-    CatchupRun,
     Context,
     apply_write,
     catchup_one,
@@ -42,24 +40,11 @@ from .cli import (
     smoke_checks,
     workspace_at,
 )
+from .mcp_stdio import Outcome, Spec, ToolError, boolean, schema
 from .model import ConfigError, ForgeError, attempt
 
 NAME = "forge-tracker"
 VERSION = "1"
-# Newest first. A client asking for one of these gets it back; any other request gets the
-# newest, and the client decides whether it can go on.
-PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
-# The stateless revision: no initialize, the version and client capabilities in each request's
-# `_meta`, and `server/discover` in place of the handshake.
-STATELESS_VERSION = "2026-07-28"
-META_VERSION = "io.modelcontextprotocol/protocolVersion"
-META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities"
-# The tool list never changes while the server runs.
-CACHE_TTL_MS = 3_600_000
-SERVER_INFO = {"name": NAME, "title": "forge-tracker", "version": VERSION}
-
-PARSE_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, INVALID_PARAMS = -32700, -32600, -32601, -32602
-UNSUPPORTED_VERSION = -32022
 
 INSTRUCTIONS = (
     "forge-tracker reads a repo's forge (GitHub, GitLab, Forgejo or Gitea) and reports on it. "
@@ -69,25 +54,6 @@ INSTRUCTIONS = (
     "link, write, labels_create) change the forge; call them only for what the user approved. "
     "Every tool takes `repo`, a local checkout (default: the project directory)."
 )
-
-
-class ToolError(Exception):
-    """A call that couldn't run: a bad argument or a setup problem (the CLI's exit 2)."""
-
-
-@dataclass
-class Outcome:
-    """A tool's answer: its text, its structured result (None for none), and the catchup runs
-    whose markers move only once the answer has been written.
-
-    Claude Code shows the model a result's structuredContent in place of its text when it has
-    one, so a report comes back as structured JSON only when `json` asks for it; otherwise the
-    model reads the rendered report, the same text the CLI prints and the commands describe."""
-
-    text: str
-    data: Any = None
-    error: bool = False
-    runs: list[CatchupRun] = field(default_factory=list)
 
 
 # --- tool definitions ---------------------------------------------------------------------------
@@ -111,11 +77,7 @@ READ = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True}
 WRITE = {"readOnlyHint": False, "openWorldHint": True}
 
 
-def _schema(props: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
-    schema: dict[str, Any] = {"type": "object", "properties": props, "additionalProperties": False}
-    if required:
-        schema["required"] = list(required)
-    return schema
+_schema = schema
 
 
 TOOLS: list[dict[str, Any]] = [
@@ -371,11 +333,7 @@ class Env:
         return os.path.abspath(os.path.join(self.default_repo(), os.path.expanduser(value)))
 
 
-def _bool(args: Mapping[str, Any], key: str, default: bool = False) -> bool:
-    value = args.get(key, default)
-    if not isinstance(value, bool):
-        raise ToolError(f"{key} must be true or false")
-    return value
+_bool = boolean
 
 
 def _json(value: Any) -> str:
@@ -480,7 +438,7 @@ def tool_catchup(env: Env, args: Mapping[str, Any]) -> Outcome:
         else:
             result = catchup_one(ns, ctx, now, env.environ, env.run)
             outcome = _report(result.report, catchup.render(result.report, env.tz), as_json, notes)
-            outcome.runs = [result]
+            outcome.pending = [result]
             return outcome
     if not ws.repos:
         raise ToolError(
@@ -494,7 +452,7 @@ def tool_catchup(env: Env, args: Mapping[str, Any]) -> Outcome:
                 notes.append(f"{path}: {note}")
     report, runs = catchup_workspace(ns, ws, env.http, now, env.environ, env.run)
     outcome = _report(report, workspace.render(report, env.tz), as_json, notes)
-    outcome.runs = runs
+    outcome.pending = list(runs)
     return outcome
 
 
@@ -690,161 +648,15 @@ HANDLERS: dict[str, Callable[[Env, Mapping[str, Any]], Outcome]] = {
 assert set(HANDLERS) == {t["name"] for t in TOOLS}
 
 
-# --- the protocol ---------------------------------------------------------------------------------
+# --- the server ----------------------------------------------------------------------------------
 
-
-class Server:
-    def __init__(self, env: Optional[Env] = None):
-        self.env = env or Env()
-        self.protocol: Optional[str] = None
-
-    def handle(self, message: Any) -> tuple[Optional[dict[str, Any]], list[CatchupRun]]:
-        """One incoming message: the response to send (None for a notification) and the catchup
-        runs whose markers move once it is sent."""
-        if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
-            return _error(None, INVALID_REQUEST, "not a JSON-RPC 2.0 message"), []
-        method = message.get("method")
-        if "id" not in message:
-            return None, []  # notifications/initialized, notifications/cancelled, ...
-        mid = message["id"]
-        if not isinstance(method, str):
-            if "result" in message or "error" in message:
-                return None, []  # a response to nothing we sent
-            return _error(mid, INVALID_REQUEST, "no method"), []
-        params = message.get("params") or {}
-        if not isinstance(params, dict):
-            return _error(mid, INVALID_PARAMS, "params must be an object"), []
-        meta = params.get("_meta")
-        if method == "server/discover" or (isinstance(meta, dict) and META_VERSION in meta):
-            return self.stateless(mid, method, params)
-        if method == "initialize":
-            return _ok(mid, self.initialize(params)), []
-        if method == "ping":
-            return _ok(mid, {}), []
-        if method == "tools/list":
-            return _ok(mid, {"tools": TOOLS}), []
-        if method == "tools/call":
-            return self.call(mid, params)
-        return _error(mid, METHOD_NOT_FOUND, f"method not found: {method}"), []
-
-    def stateless(
-        self, mid: Any, method: str, params: Mapping[str, Any]
-    ) -> tuple[Optional[dict[str, Any]], list[CatchupRun]]:
-        """A 2026-07-28 request: no handshake; each request names its protocol version in
-        `_meta`, and each result says it's complete and who answered."""
-        meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
-        info = {"io.modelcontextprotocol/serverInfo": SERVER_INFO}
-        if method == "server/discover":
-            return _ok(
-                mid,
-                {
-                    "resultType": "complete",
-                    "supportedVersions": [STATELESS_VERSION, *PROTOCOL_VERSIONS],
-                    "capabilities": {"tools": {}},
-                    "instructions": INSTRUCTIONS,
-                    "ttlMs": CACHE_TTL_MS,
-                    "cacheScope": "public",
-                    "_meta": info,
-                },
-            ), []
-        version = meta.get(META_VERSION)
-        if version != STATELESS_VERSION:
-            return _error(
-                mid,
-                UNSUPPORTED_VERSION,
-                f"unsupported protocol version: {version}",
-                {"supported": [STATELESS_VERSION], "requested": version},
-            ), []
-        if META_CAPABILITIES not in meta:
-            return _error(mid, INVALID_PARAMS, f"_meta lacks {META_CAPABILITIES}"), []
-        if method == "tools/list":
-            result: dict[str, Any] = {"tools": TOOLS, "ttlMs": CACHE_TTL_MS, "cacheScope": "public"}
-            response, runs = _ok(mid, result), []
-        elif method == "tools/call":
-            response, runs = self.call(mid, params)
-        else:
-            return _error(mid, METHOD_NOT_FOUND, f"method not found: {method}"), []
-        if "result" in response:
-            response["result"]["resultType"] = "complete"
-            response["result"]["_meta"] = info
-        return response, runs
-
-    def initialize(self, params: Mapping[str, Any]) -> dict[str, Any]:
-        asked = params.get("protocolVersion")
-        self.protocol = asked if asked in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
-        return {
-            "protocolVersion": self.protocol,
-            "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": SERVER_INFO,
-            "instructions": INSTRUCTIONS,
-        }
-
-    def call(self, mid: Any, params: Mapping[str, Any]) -> tuple[dict[str, Any], list[CatchupRun]]:
-        name = params.get("name")
-        args = params.get("arguments") or {}
-        handler = HANDLERS.get(name) if isinstance(name, str) else None
-        if handler is None:
-            return _error(mid, INVALID_PARAMS, f"unknown tool: {name}"), []
-        if not isinstance(args, dict):
-            return _error(mid, INVALID_PARAMS, "arguments must be an object"), []
-        props = next(t for t in TOOLS if t["name"] == name)["inputSchema"]
-        unknown = sorted(set(args) - set(props["properties"]))
-        missing = [k for k in props.get("required", []) if k not in args]
-        if unknown or missing:
-            problems = [f"unknown argument {k}" for k in unknown]
-            problems += [f"missing argument {k}" for k in missing]
-            return _ok(mid, _tool_result(Outcome("; ".join(problems), error=True))), []
-        try:
-            outcome = handler(self.env, args)
-        except ToolError as error:
-            outcome = Outcome(f"forge-tracker: {error}\n", error=True)
-        except Exception as error:  # noqa: BLE001 - a tool's bug is the call's error, not ours
-            outcome = Outcome(f"forge-tracker: {type(error).__name__}: {error}\n", error=True)
-        return _ok(mid, _tool_result(outcome)), outcome.runs
-
-
-def _tool_result(outcome: Outcome) -> dict[str, Any]:
-    result: dict[str, Any] = {"content": [{"type": "text", "text": outcome.text}]}
-    if isinstance(outcome.data, dict):
-        result["structuredContent"] = outcome.data
-    if outcome.error:
-        result["isError"] = True
-    return result
-
-
-def _ok(mid: Any, result: Any) -> dict[str, Any]:
-    return {"jsonrpc": "2.0", "id": mid, "result": result}
-
-
-def _error(mid: Any, code: int, message: str, data: Any = None) -> dict[str, Any]:
-    error: dict[str, Any] = {"code": code, "message": message}
-    if data is not None:
-        error["data"] = data
-    return {"jsonrpc": "2.0", "id": mid, "error": error}
+SPEC = Spec(NAME, VERSION, "forge-tracker", INSTRUCTIONS, TOOLS, HANDLERS)
 
 
 def serve(stdin: TextIO, stdout: TextIO, env: Optional[Env] = None) -> int:
-    """Read messages until stdin closes. Each response is one line on stdout."""
-    server = Server(env)
-    for line in stdin:
-        if not line.strip():
-            continue
-        try:
-            message = json.loads(line)
-        except ValueError as error:
-            response: Optional[dict[str, Any]] = _error(None, PARSE_ERROR, f"parse error: {error}")
-            runs: list[CatchupRun] = []
-        else:
-            if isinstance(message, list):
-                response, runs = _error(None, INVALID_REQUEST, "batches aren't supported"), []
-            else:
-                response, runs = server.handle(message)
-        if response is None:
-            continue
-        text = json.dumps(response, default=json_default, ensure_ascii=False) + "\n"
-        # The markers move only once the report has gone out, as the CLI does after printing.
-        print_then_mark(text, runs, stdout)
-    return 0
+    """Read messages until stdin closes. Each response is one line on stdout; a catchup's
+    markers move only once its report has gone out, as the CLI does after printing."""
+    return mcp_stdio.serve(SPEC, stdin, stdout, env or Env(), print_then_mark, json_default)
 
 
 def main() -> int:
