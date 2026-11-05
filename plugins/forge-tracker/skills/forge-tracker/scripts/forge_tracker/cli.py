@@ -239,7 +239,7 @@ def catchup_one(
     return CatchupRun(report, marker_file, payload)
 
 
-def _print_then_mark(text: str, runs: list[CatchupRun], out: TextIO) -> None:
+def print_then_mark(text: str, runs: list[CatchupRun], out: TextIO) -> None:
     """The new markers are written beside the old ones first and renamed into place only after
     the report has printed; a failed print discards them and the old markers stay."""
     pending: list[state.PendingWrite] = []
@@ -285,7 +285,7 @@ def cmd_catchup(
         if args.json
         else catchup.render(report, tz)
     )
-    _print_then_mark(text, [result], out)
+    print_then_mark(text, [result], out)
     return EXIT_OK if report["ok"] else EXIT_FAILED
 
 
@@ -304,6 +304,26 @@ def cmd_catchup_workspace(
     the other repos' markers still move."""
     if not _since_ok(args, now):
         return EXIT_USAGE
+    report, runs = catchup_workspace(args, ws, http, now, environ, run)
+    text = (
+        json.dumps(report, indent=1, default=_json_default) + "\n"
+        if args.json
+        else workspace.render(report, tz)
+    )
+    print_then_mark(text, runs, out)
+    return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def catchup_workspace(
+    args: argparse.Namespace,
+    ws: workspace.Workspace,
+    http: Optional[Http],
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+) -> tuple[dict[str, Any], list[CatchupRun]]:
+    """Every repo's report as one workspace report, and the runs whose markers move once it has
+    been shown. `args.since` is already known to parse."""
 
     def one(path: str) -> tuple[workspace.Entry, Optional[CatchupRun]]:
         try:
@@ -317,13 +337,7 @@ def cmd_catchup_workspace(
         done = list(pool.map(one, ws.repos))
     marker = "since" if args.since else "keep" if args.no_mark else "move"
     report = workspace.build(ws, [entry for entry, _ in done], marker)
-    text = (
-        json.dumps(report, indent=1, default=_json_default) + "\n"
-        if args.json
-        else workspace.render(report, tz)
-    )
-    _print_then_mark(text, [r for _, r in done if r is not None], out)
-    return EXIT_OK if report["ok"] else EXIT_FAILED
+    return report, [r for _, r in done if r is not None]
 
 
 def _workspace_at(
@@ -417,21 +431,8 @@ def cmd_next(
 ) -> int:
     """`next` (the report) and `next facts` (the facts and classification, with issue bodies in
     --json, for ranking). Both read the fingerprint and reuse cached facts while it holds."""
-    directory = next_.cache_dir(ctx.remote, environ)
-    facts, origin = next_.load_facts(
-        ctx.adapter, ctx.remote, ctx.forge, ctx.repo_dir, directory, now, refresh=args.refresh
-    )
-    facts_only = args.action == "facts"
-    slate = None if facts_only else state.read_json(os.path.join(directory, "slate.json"))
-    report = next_.build(
-        facts,
-        origin,
-        ctx.config,
-        slate,
-        rerank=args.rerank,
-        pickups=next_.recorded_pickups(ctx.remote, environ),
-        bodies=facts_only and args.json,
-        facts_only=facts_only,
+    report = next_report(
+        ctx, now, environ, args.action == "facts", args.rerank, args.refresh, args.json
     )
     if args.json:
         out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
@@ -439,6 +440,34 @@ def cmd_next(
         out.write(next_.render(report, now, tz))
     out.flush()
     return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def next_report(
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    facts_only: bool,
+    rerank: bool = False,
+    refresh: bool = False,
+    bodies: bool = False,
+) -> dict[str, Any]:
+    """The `next` report, or with `facts_only` the facts and classification (with issue bodies
+    when `bodies`, for ranking)."""
+    directory = next_.cache_dir(ctx.remote, environ)
+    facts, origin = next_.load_facts(
+        ctx.adapter, ctx.remote, ctx.forge, ctx.repo_dir, directory, now, refresh=refresh
+    )
+    slate = None if facts_only else state.read_json(os.path.join(directory, "slate.json"))
+    return next_.build(
+        facts,
+        origin,
+        ctx.config,
+        slate,
+        rerank=rerank,
+        pickups=next_.recorded_pickups(ctx.remote, environ),
+        bodies=facts_only and bodies,
+        facts_only=facts_only,
+    )
 
 
 def cmd_save_slate(
@@ -451,8 +480,7 @@ def cmd_save_slate(
 ) -> int:
     """Store Claude's slate beside the cached facts. Reads no forge, so it needs no token."""
     try:
-        cfg = config.load(repo_dir)
-        remote, _, _ = detect.locate(repo_dir, cfg.forge, run)
+        detect.locate(repo_dir, config.load(repo_dir).forge, run)
     except ConfigError as error:
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE
@@ -462,29 +490,51 @@ def cmd_save_slate(
         print(f"forge-tracker: the slate on stdin isn't JSON: {error}", file=sys.stderr)
         return EXIT_USAGE
     try:
-        slate = next_.save_slate(payload, next_.cache_dir(remote, environ), cfg, repo_dir, now)
+        slate = save_slate(repo_dir, payload, run, now, environ)
     except next_.SlateError as error:
         print(f"forge-tracker: slate refused: {error}", file=sys.stderr)
         return EXIT_USAGE
+    out.write(slate_line(slate))
+    return EXIT_OK
+
+
+def save_slate(
+    repo_dir: str,
+    payload: Any,
+    run: Callable[..., Any],
+    now: datetime,
+    environ: Mapping[str, str],
+) -> dict[str, Any]:
+    """Validate and store a slate beside the cached facts. Raises ConfigError for the repo and
+    next_.SlateError for the slate."""
+    cfg = config.load(repo_dir)
+    remote, _, _ = detect.locate(repo_dir, cfg.forge, run)
+    return next_.save_slate(payload, next_.cache_dir(remote, environ), cfg, repo_dir, now)
+
+
+def slate_line(slate: Mapping[str, Any]) -> str:
     lanes = len(slate["lanes"])
     recommended = ", a recommendation" if slate.get("recommend") else ""
-    out.write(
+    return (
         f"slate saved: {len(slate['queue'])} in your queue, {lanes} lane{'s' if lanes != 1 else ''}"
         f"{recommended} (facts {slate['fingerprint'][:12]})\n"
     )
-    return EXIT_OK
 
 
 def cmd_groom(args: argparse.Namespace, ctx: Context, now: datetime, out: TextIO) -> int:
     """Find tracker drift and print the proposed fixes with their evidence. Writes nothing."""
-    reads = groom.gather(ctx.adapter, ctx.config, now)
-    report = groom.build(reads, ctx.config, ctx.remote, ctx.forge, now)
+    report = groom_report(ctx, now)
     if args.json:
         out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
     else:
         out.write(groom.render(report))
     out.flush()
     return EXIT_OK if report["ok"] else EXIT_FAILED
+
+
+def groom_report(ctx: Context, now: datetime) -> dict[str, Any]:
+    reads = groom.gather(ctx.adapter, ctx.config, now)
+    return groom.build(reads, ctx.config, ctx.remote, ctx.forge, now)
 
 
 def make_writer(
@@ -544,10 +594,8 @@ def cmd_groom_apply(
     if problem:
         print(problem, file=sys.stderr)
         return EXIT_USAGE
-    reads = groom.gather(ctx.adapter, ctx.config, now)
-    report = groom.build(reads, ctx.config, ctx.remote, ctx.forge, now)
     try:
-        chosen = groom.approved(payload, report)
+        chosen = groom_approved(ctx, payload, now)
     except groom.ApplyError as error:
         print(f"forge-tracker: nothing written: {error}", file=sys.stderr)
         return EXIT_USAGE
@@ -559,6 +607,26 @@ def cmd_groom_apply(
         out.write(writes.render(result, proposal["id"]) + "\n")
         out.flush()
     return EXIT_OK if ok else EXIT_FAILED
+
+
+def groom_approved(ctx: Context, payload: Any, now: datetime) -> list[dict[str, Any]]:
+    """Re-run the checks and return the approved proposals ({"approved": [ids]}), each still
+    current. Raises groom.ApplyError, having written nothing, when any id isn't."""
+    return groom.approved(payload, groom_report(ctx, now))
+
+
+def apply_write(
+    ctx: Context,
+    now: datetime,
+    environ: Mapping[str, str],
+    run: Callable[..., Any],
+    op: str,
+    payload: Any,
+    label: Optional[str] = None,
+) -> tuple[writes.Result, str]:
+    """One named write operation, and its result line."""
+    result = make_writer(ctx, now, environ, run).apply(op, payload)
+    return result, writes.render(result, label)
 
 
 def cmd_write(
@@ -685,6 +753,13 @@ def cmd_labels_decline(
 
 def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
     """Every read once against the live forge, printing counts and any FAILED part."""
+    checks = smoke_checks(ctx, now)
+    out.write(render_smoke(ctx, checks))
+    return EXIT_OK if all(read.ok or read.unsupported for _, read in checks) else EXIT_FAILED
+
+
+def smoke_checks(ctx: Context, now: datetime) -> list[tuple[str, Any]]:
+    """Every read once, each as (name, Attempt) with a one-line summary as its data."""
     a = ctx.adapter
     since = now - catchup.FIRST_WINDOW
     ident = attempt(a.identity)
@@ -741,17 +816,19 @@ def cmd_smoke(ctx: Context, now: datetime, out: TextIO) -> int:
                 else changes,
             ),
         ]
-    ok = True
-    out.write(f"{ctx.remote.project} on {ctx.remote.host} ({ctx.forge})\n")
+    return checks
+
+
+def render_smoke(ctx: Context, checks: list[tuple[str, Any]]) -> str:
+    lines = [f"{ctx.remote.project} on {ctx.remote.host} ({ctx.forge})"]
     for name, read in checks:
         if read.ok:
-            out.write(f"  {name}: {read.data}\n")
+            lines.append(f"  {name}: {read.data}")
         elif read.unsupported:
-            out.write(f"  {name}: unsupported on {ctx.forge} ({read.error})\n")
+            lines.append(f"  {name}: unsupported on {ctx.forge} ({read.error})")
         else:
-            ok = False
-            out.write(f"  {name}: FAILED ({read.error})\n")
-    return EXIT_OK if ok else EXIT_FAILED
+            lines.append(f"  {name}: FAILED ({read.error})")
+    return "\n".join(lines) + "\n"
 
 
 def _run_summary(run: Any) -> str:
