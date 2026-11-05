@@ -52,6 +52,7 @@ KEEP_BRANCHES = (
 CHECKS = {
     "merged": "merged but still open",
     "named": "merged PRs that only name an open issue",
+    "possibly_done": "possibly done without a closing reference",
     "tiers": "tier labels and milestones",
     "blocked_label": "blocked label with nothing linked",
     "closed_blockers": "links to closed blockers",
@@ -87,11 +88,14 @@ def gather(adapter: Any, config: Config, now: datetime, workers: int = 6) -> dic
         "merged": lambda: adapter.merged_since(now - timedelta(days=MERGED_DAYS)),
         "recent": lambda: adapter.issues_since(now - timedelta(days=RECENT_CLOSED_DAYS)),
         "milestones": adapter.milestones,
+        "cross_refs": adapter.cross_refs,
     }
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {name: pool.submit(attempt, fn) for name, fn in jobs.items()}
         for name, future in futures.items():
             reads[name] = future.result()
+
+    _gather_possibly_done(adapter, reads, workers)
 
     changes = reads["changes"]
     if not changes.ok:
@@ -157,6 +161,47 @@ def gather(adapter: Any, config: Config, now: datetime, workers: int = 6) -> dic
     return reads
 
 
+def _gather_possibly_done(adapter: Any, reads: dict[str, Any], workers: int) -> None:
+    """The reads the possibly-done check needs beyond the lists: the files each merged change
+    touched (only the changes merged since the oldest open issue whose body names a path or a
+    symbol was opened, and none when no body names one), then the comments on each issue the
+    check will list, to say whether anything happened after the merge."""
+    reads["patches"] = bool(getattr(adapter, "file_patches", True))
+    files: dict[int, Read] = {}
+    if reads["issues"].ok and reads["merged"].ok:
+        named = [i for i in reads["issues"].data if any(refs.body_names(i.body))]
+        if named:
+            since = min(i.created for i in named)
+            numbers = sorted(
+                c.number for c in reads["merged"].data if c.merged_at and c.merged_at >= since
+            )
+            if numbers:
+                first = attempt(lambda: adapter.change_files(numbers[0]))
+                files[numbers[0]] = first
+                if first.unsupported:
+                    # The forge has no such read; asking once per change would say so again.
+                    files.update({n: first for n in numbers[1:]})
+                else:
+                    with ThreadPoolExecutor(max_workers=workers) as pool:
+                        futures = {
+                            n: pool.submit(attempt, lambda n=n: adapter.change_files(n))
+                            for n in numbers[1:]
+                        }
+                        for n, future in futures.items():
+                            files[n] = future.result()
+    reads["files"] = files
+
+    comments: dict[int, Read] = {}
+    candidates = sorted(_done_matches(reads))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures4 = {
+            n: pool.submit(attempt, lambda n=n: adapter.issue_comments(n)) for n in candidates
+        }
+        for n, future in futures4.items():
+            comments[n] = future.result()
+    reads["done_comments"] = comments
+
+
 # --- the checks ---------------------------------------------------------------------------------
 
 
@@ -167,8 +212,13 @@ class Findings:
         self.proposals: list[dict[str, Any]] = []
         self.unclear: list[dict[str, Any]] = []
         self.listed: list[dict[str, Any]] = []
+        self.done: list[dict[str, Any]] = []
         self.failed: list[dict[str, str]] = []
         self.skipped: list[dict[str, str]] = []
+        self.unsupported: list[dict[str, str]] = []
+        # The checks that ran: every read they need succeeded, whatever they found. A check
+        # whose items partly failed still ran; its failures are in `failed` as well.
+        self.ran: set[str] = set()
 
     def propose(self, check: str, id_: str, op: str, payload: dict[str, Any], evidence: str):
         if any(p["id"] == id_ for p in self.proposals):
@@ -189,6 +239,12 @@ class Findings:
     def skip(self, check: str, reason: str) -> None:
         self.skipped.append({"part": CHECKS[check], "reason": reason})
 
+    def cannot(self, check: str, reason: str) -> None:
+        """Part of a check the forge has no read for: shown as unsupported, not FAILED."""
+        item = {"part": CHECKS[check], "reason": reason}
+        if item not in self.unsupported:
+            self.unsupported.append(item)
+
 
 _READ_NAMES = {
     "repo": "repo",
@@ -200,6 +256,7 @@ _READ_NAMES = {
     "recent": "recent issues",
     "milestones": "milestones",
     "branches": "branches",
+    "cross_refs": "cross-references",
 }
 
 
@@ -214,6 +271,7 @@ def _needs(f: Findings, check: str, reads: Mapping[str, Any], *names: str) -> bo
         if not read.ok:
             f.fail(check, f"{_READ_NAMES[name]}: {read.error}")
             return False
+    f.ran.add(check)
     return True
 
 
@@ -326,6 +384,177 @@ def check_named(
                 f"#{number} named in the {where} of merged "
                 f"{refs.change_ref(forge, change.number)}, no closing reference",
             )
+
+
+def _done_matches(reads: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]]:
+    """Open issue -> merged change -> what ties them, before activity is weighed:
+    `cross` (the forge records the change mentioning the issue) and the `paths` and `symbols`
+    the issue's body names that the change touched (a change merged after the issue was opened).
+    A change with a closing reference to the issue is left out: the merged-but-open and
+    named-only checks own that pair. So is a cross-reference from another project or from a
+    change merged into a branch other than the default."""
+    if not reads["issues"].ok:
+        return {}
+    issues = {i.number: i for i in reads["issues"].data}
+    default = reads["repo"].data.default_branch if reads["repo"].ok else None
+    closing: set[tuple[int, int]] = set()
+    if reads["closing"].ok:
+        closing = {(r.issue, r.change) for r in reads["closing"].data if r.change_project is None}
+    out: dict[int, dict[int, dict[str, Any]]] = {}
+
+    def entry(issue: int, change: int, merged_at: Any, title: str) -> dict[str, Any]:
+        return out.setdefault(issue, {}).setdefault(
+            change,
+            {"cross": False, "paths": [], "symbols": [], "merged_at": merged_at, "title": title},
+        )
+
+    cross = reads.get("cross_refs")
+    if cross is not None and cross.ok:
+        for ref in cross.data:
+            if ref.issue not in issues or ref.state != "merged" or ref.change_project:
+                continue
+            if ref.closes or (ref.issue, ref.change) in closing:
+                continue
+            if ref.base and default and ref.base != default:
+                continue
+            entry(ref.issue, ref.change, ref.merged_at, ref.title)["cross"] = True
+    if reads["merged"].ok:
+        for issue in issues.values():
+            paths, symbols = refs.body_names(issue.body)
+            if not paths and not symbols:
+                continue
+            for change in reads["merged"].data:
+                if change.merged_at is None or change.merged_at < issue.created:
+                    continue
+                if (
+                    issue.number in change.closing_issues
+                    or (issue.number, change.number) in closing
+                ):
+                    continue
+                read = reads["files"].get(change.number)
+                if read is None or not read.ok:
+                    continue
+                touched = [f.path for f in read.data] + [
+                    f.previous_path for f in read.data if f.previous_path
+                ]
+                hit_paths = [p for p in paths if any(refs.path_matches(p, t) for t in touched)]
+                hit_symbols = [
+                    s
+                    for s in symbols
+                    if any(f.patch and refs.patch_names(f.patch, s) for f in read.data)
+                ]
+                if hit_paths or hit_symbols:
+                    e = entry(issue.number, change.number, change.merged_at, change.title)
+                    e["paths"], e["symbols"] = hit_paths, hit_symbols
+    return out
+
+
+def _listing(items: list[str], most: int = 4) -> str:
+    """`a`, `a and b`, `a, b and c`, or the first `most` and how many more."""
+    if len(items) > most:
+        return f"{', '.join(items[:most])} and {len(items) - most} more"
+    if len(items) > 1:
+        return f"{', '.join(items[:-1])} and {items[-1]}"
+    return items[0] if items else ""
+
+
+def check_possibly_done(f: Findings, reads: Mapping[str, Any], forge: str = "github") -> None:
+    """Open issues a merged change looks to have finished without a closing reference, listed
+    for the user and never proposed. Two signals: (a) the forge's own record that a merged
+    change mentions the issue in any form, and (b) the issue's body naming a path or a symbol
+    that a change merged since the issue was opened touched, with no comment on the issue since
+    that merge. Titles, labels and milestones are never evidence: near-duplicate titles and
+    stale milestones make confident wrong closes."""
+    check = "possibly_done"
+    if not _needs(f, check, reads, "issues"):
+        return
+    cross, merged = reads["cross_refs"], reads["merged"]
+    if not cross.ok:
+        if cross.unsupported:
+            f.cannot(check, f"cross-references: {cross.error}")
+        else:
+            f.fail(check, f"cross-references: {cross.error}")
+    if not merged.ok:
+        f.fail(check, f"merged {refs.change_word(forge)}s: {merged.error}")
+    if not cross.ok and not merged.ok:
+        f.ran.discard(check)
+        return
+    for number, read in sorted(reads["files"].items()):
+        if read.ok:
+            continue
+        if read.unsupported:
+            f.cannot(check, f"changed files: {read.error}")
+        else:
+            f.fail(check, f"files of {refs.change_ref(forge, number)}: {read.error}")
+    if not reads["patches"] and any(
+        refs.body_names(i.body)[1] for i in reads["issues"].data if i.body
+    ):
+        f.cannot(
+            check,
+            f"symbols: {FORGE_NAMES.get(forge, forge)}'s changed-file list has no diffs, so only "
+            "the paths a body names are matched",
+        )
+    titles = {i.number: i.title for i in reads["issues"].data}
+    for number, changes in sorted(_done_matches(reads).items()):
+        comments = reads["done_comments"].get(number)
+        times = None
+        if comments is None or not comments.ok:
+            reason = comments.error if comments is not None else "not read"
+            f.fail(check, f"comments on #{number}: {reason}")
+        else:
+            times = sorted(c.created for c in comments.data)
+        crossed = sorted(c for c, e in changes.items() if e["cross"])
+        named = []
+        for change, e in sorted(changes.items()):
+            if not (e["paths"] or e["symbols"]):
+                continue
+            if times is not None and any(t > e["merged_at"] for t in times):
+                continue  # a comment since that merge: someone is still working on it
+            named.append(change)
+        if not crossed and not named:
+            continue
+
+        dated = {
+            c: f"{refs.change_ref(forge, c)} ({_day(e['merged_at'])})" for c, e in changes.items()
+        }
+        parts = []
+        if crossed:
+            verb = "cross-references" if len(crossed) == 1 else "cross-reference"
+            parts.append(f"merged {_listing([dated[c] for c in crossed])} {verb} it")
+        if named:
+            names: list[str] = []
+            for change in named:
+                for name in changes[change]["paths"] + changes[change]["symbols"]:
+                    if name not in names:
+                        names.append(name)
+            # Every change here merged after the issue's last comment, so the closing
+            # "last comment" (or "no comments") says there was no activity since.
+            parts.append(
+                f"merged {_listing([dated[c] for c in named])} changed {_listing(names)}, "
+                "which its body names"
+            )
+        if times is None:
+            parts.append("whether it has comments since FAILED")
+        else:
+            parts.append(f"last comment {_day(times[-1])}" if times else "no comments")
+        f.done.append(
+            {
+                "check": check,
+                "ref": f"#{number}",
+                "issue": number,
+                "cross_referenced_by": crossed,
+                "names_changed_by": [
+                    {
+                        "change": c,
+                        "paths": changes[c]["paths"],
+                        "symbols": changes[c]["symbols"],
+                    }
+                    for c in named
+                ],
+                "last_comment": iso(times[-1]) if times else None,
+                "evidence": f"#{number} {titles.get(number, '')!r}: " + "; ".join(parts),
+            }
+        )
 
 
 def _tier_of(title: Optional[str], prefixes: tuple[str, ...]) -> Optional[int]:
@@ -755,6 +984,7 @@ def build(
     stale = timedelta(days=config.stale_days or DEFAULT_STALE_DAYS)
     check_merged(f, reads, forge)
     check_named(f, reads, remote.project, forge)
+    check_possibly_done(f, reads, forge)
     check_tiers(f, reads, config)
     check_blocked_label(f, reads, config)
     check_closed_blockers(f, reads)
@@ -795,8 +1025,12 @@ def build(
         "proposals": f.proposals,
         "unclear": f.unclear,
         "listed": f.listed,
+        "possibly_done": f.done,
+        "checks_run": [CHECKS[c] for c in CHECKS if c in f.ran],
+        "checks_total": len(CHECKS),
         "failed": _dedupe(f.failed),
         "skipped": f.skipped,
+        "unsupported": f.unsupported,
         "notes": notes,
         "ok": not f.failed,
     }
@@ -819,7 +1053,7 @@ def render(report: Mapping[str, Any], tz: Optional[tzinfo] = None) -> str:
     window = report["window"]
     counts = (
         f"{_plural(len(report['proposals']), 'proposal')}, {len(report['unclear'])} unclear, "
-        f"{len(report['listed'])} listed for you"
+        f"{len(report['listed'])} listed for you, {len(report['possibly_done'])} possibly done"
     )
     stale = f"stale after {window['stale_days']} days" + (
         "" if window["stale_days_set"] else ", the default while stale_days isn't set"
@@ -829,7 +1063,11 @@ def render(report: Mapping[str, Any], tz: Optional[tzinfo] = None) -> str:
         "duplicates among open issues and "
         f"those closed since {window['closed_since'][:10]}; {stale})"
     )
-    lines = [f"{report['project']} on {report['host']}: {counts}", scope, "", "Proposals"]
+    ran = report["checks_run"]
+    checks = f"Checks run ({len(ran)} of {report['checks_total']}): " + (
+        ", ".join(ran) if ran else "none"
+    )
+    lines = [f"{report['project']} on {report['host']}: {counts}", scope, checks, "", "Proposals"]
     for p in report["proposals"]:
         lines.append(f"  {p['n']}. {p['id']}: {p['evidence']}")
     if not report["proposals"]:
@@ -844,6 +1082,11 @@ def render(report: Mapping[str, Any], tz: Optional[tzinfo] = None) -> str:
         lines.append(f"  {item['evidence']}")
     if not report["listed"]:
         lines.append("  none")
+    lines.append("Possibly done (listed, not proposed)")
+    for item in report["possibly_done"]:
+        lines.append(f"  {item['evidence']}")
+    if not report["possibly_done"]:
+        lines.append("  none")
     if report["failed"]:
         lines.append("FAILED (nothing above speaks for these)")
         for failed in report["failed"]:
@@ -852,6 +1095,10 @@ def render(report: Mapping[str, Any], tz: Optional[tzinfo] = None) -> str:
         lines.append("Skipped (not configured)")
         for skipped in report["skipped"]:
             lines.append(f"  {skipped['part']}: {skipped['reason']}")
+    if report["unsupported"]:
+        lines.append(f"Unsupported on {FORGE_NAMES.get(report['forge'], report['forge'])}")
+        for item in report["unsupported"]:
+            lines.append(f"  {item['part']}: {item['reason']}")
     for note in report["notes"]:
         lines.append(f"({note})")
     return "\n".join(lines) + "\n"

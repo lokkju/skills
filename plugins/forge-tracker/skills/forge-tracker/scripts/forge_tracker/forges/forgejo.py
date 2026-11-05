@@ -25,8 +25,10 @@ from .. import refs
 from ..model import (
     Branch,
     Change,
+    ChangedFile,
     ClosingRef,
     Comment,
+    CrossRef,
     ForgeError,
     HTTPStatusError,
     Issue,
@@ -637,6 +639,79 @@ class Forgejo:
                 for pr, s in zip(prs, statuses)
             },
         }
+
+    # --- /groom: possibly done -----------------------------------------------------------------
+
+    # The changed-file list has names, not diffs, so a symbol an issue names can't be matched.
+    file_patches = False
+
+    def _missing_api(self, error: HTTPStatusError) -> bool:
+        """A 404 is a missing endpoint only when the repo itself reads; otherwise it's the repo
+        that's missing (or hidden from this token), which is a plain failure."""
+        return error.status == 404 and isinstance(self.t.get(self.repo_path), dict)
+
+    def cross_refs(self) -> list[CrossRef]:
+        """Every PR that mentions an open issue in any form, from each open issue's timeline:
+        the `pull_ref`, `issue_ref` and `comment_ref` entries (a PR body, an issue or PR body,
+        or a comment naming the issue) whose `ref_issue` is a pull request. The timeline doesn't
+        say whether a mention closes the issue or which branch the PR targets."""
+        issues = self.open_issues()
+
+        def timeline(number: int) -> list[dict]:
+            try:
+                return self.t.get_all(f"{self.repo_path}/issues/{number}/timeline")
+            except HTTPStatusError as error:
+                if self._missing_api(error):
+                    raise Unsupported("this instance has no issue timeline API") from None
+                raise
+
+        per_issue = self._each(lambda i: timeline(i.number), issues)
+        out: list[CrossRef] = []
+        seen: set[tuple[int, Optional[str], int]] = set()
+        for issue, events in zip(issues, per_issue):
+            for event in events:
+                if event.get("type") not in ("pull_ref", "issue_ref", "comment_ref"):
+                    continue
+                ref = event.get("ref_issue") or {}
+                pull = ref.get("pull_request")
+                if not pull or ref.get("number") is None:
+                    continue
+                project = self._project_of(ref)
+                key = (issue.number, project, int(ref["number"]))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged = bool(pull.get("merged"))
+                out.append(
+                    CrossRef(
+                        issue=issue.number,
+                        change=int(ref["number"]),
+                        state="merged"
+                        if merged
+                        else ("open" if ref.get("state") == "open" else "closed"),
+                        merged_at=parse_time(pull.get("merged_at")) if merged else None,
+                        title=ref.get("title") or "",
+                        change_project=project,
+                    )
+                )
+        return out
+
+    def change_files(self, number: int) -> list[ChangedFile]:
+        """The files one PR changed (`GET /pulls/{n}/files`, every page), names only: Forgejo's
+        list has no diffs. Unsupported on an instance without that endpoint."""
+        try:
+            raw = self.t.get_all(f"{self.repo_path}/pulls/{number}/files")
+        except HTTPStatusError as error:
+            if self._missing_api(error):
+                raise Unsupported("this instance has no pull request files API") from None
+            raise
+        return [
+            ChangedFile(
+                path=item.get("filename") or "",
+                previous_path=item.get("previous_filename") or None,
+            )
+            for item in raw
+        ]
 
     def closing_refs(self) -> list[ClosingRef]:
         """Every PR, open, merged or closed, whose body closes an open issue with a closing

@@ -196,3 +196,144 @@ def prose_blocks(body: str) -> list[tuple[str, Optional[str], int, str]]:
                         seen.add(key)
                         out.append((direction, ref.group("project"), number, line.strip()))
     return out
+
+
+# --- paths and symbols an issue body names ------------------------------------------------------
+
+# File extensions that make a bare word a file name (`groom.py`), not a domain (`github.com`) or
+# an abbreviation (`e.g.`).
+_EXT = (
+    "bash|c|cfg|cjs|conf|cpp|cs|css|go|h|hpp|html|ini|java|js|json|jsx|kt|lock|md|mjs|py|rb|rs|"
+    "scss|sh|sql|swift|toml|ts|tsx|txt|xml|yaml|yml|zsh"
+)
+_PATH_CHARS = r"[A-Za-z0-9_.@+-]"
+# A bare path in prose: segments joined by `/`, ending in a file name with one of the extensions.
+_BARE_PATH = re.compile(
+    rf"(?<![\w/.:@-])((?:\.{{0,2}}/)?(?:{_PATH_CHARS}+/)*{_PATH_CHARS}*[A-Za-z0-9_]\.(?:{_EXT}))"
+    rf"(?![\w/-])"
+)
+# A path inside a code span: no spaces, at least one `/` or a known extension.
+_SPAN_PATH = re.compile(rf"^(?:\.{{0,2}}/)?(?:{_PATH_CHARS}+/)*{_PATH_CHARS}+/?$")
+# An identifier, dotted or `::`-joined, with an optional `()`.
+_SYMBOL = re.compile(r"^[A-Za-z_]\w*(?:(?:\.|::)[A-Za-z_]\w*)*(?:\(\))?$")
+# File names so common that naming one alone says nothing about which file; they match only as
+# a longer path (`plugins/forge-tracker/README.md`).
+GENERIC_FILES = {
+    "readme.md",
+    "changelog.md",
+    "license",
+    "license.md",
+    "agents.md",
+    "claude.md",
+    "skill.md",
+    "plugin.json",
+    "package.json",
+    "marketplace.json",
+    "pyproject.toml",
+    "cargo.toml",
+    "config.toml",
+    "__init__.py",
+    "conftest.py",
+    "setup.py",
+    "main.py",
+    "index.ts",
+    "index.js",
+}
+
+
+def _symbol_like(word: str) -> bool:
+    """An identifier that's clearly code: snake_case, camelCase, or SCREAMING_CASE with an
+    underscore, at least four characters. A plain word in backticks (`labels`, `none`) isn't."""
+    if len(word) < 4 or not re.fullmatch(r"[A-Za-z_]\w*", word):
+        return False
+    return "_" in word.strip("_") or bool(re.search(r"[a-z][A-Z]", word))
+
+
+def _body_lines(body: str) -> list[str]:
+    """The body's lines without fenced code blocks, quoted lines, HTML comments and struck-out
+    text. Code spans stay: a path or symbol in one is exactly what's wanted."""
+    lines = []
+    fence: Optional[str] = None
+    for line in _COMMENT.sub(" ", body or "").splitlines():
+        opened = _FENCE.match(line)
+        if fence is not None:
+            if opened and opened.group(1) == fence:
+                fence = None
+            continue
+        if opened:
+            fence = opened.group(1)
+            continue
+        if line.lstrip().startswith(">"):
+            continue
+        lines.append(_STRUCK.sub(" ", line))
+    return lines
+
+
+def body_names(body: str) -> tuple[list[str], list[str]]:
+    """The file paths and code symbols an issue body names, as `(paths, symbols)`, each once in
+    order. Paths come from code spans and from bare words ending in a file extension; a URL and
+    a directory (`plugins/forge-tracker/`) don't count. Symbols come from code spans only
+    (`check_merged`, `adapter.closing_refs()`, `ClosingRef`); for a dotted name, its last part
+    is the symbol. Fenced code blocks, quoted lines, HTML comments and struck-out text are left
+    out."""
+    paths: list[str] = []
+    symbols: list[str] = []
+
+    def add(into: list[str], value: str) -> None:
+        if value and value not in into:
+            into.append(value)
+
+    for line in _body_lines(body):
+        for span in _CODE_SPAN.finditer(line):
+            content = span.group(0).strip("`").strip()
+            if not content or " " in content or "://" in content:
+                continue
+            if _SPAN_PATH.match(content) and (
+                "/" in content.strip("/") or re.search(rf"\.(?:{_EXT})$", content)
+            ):
+                if not content.endswith("/"):
+                    add(paths, _clean_path(content))
+                continue
+            if _SYMBOL.match(content):
+                last = re.split(r"\.|::", content.removesuffix("()"))[-1]
+                if _symbol_like(last):
+                    add(symbols, last)
+        prose = re.sub(r"\b\w+://\S+", " ", _CODE_SPAN.sub(" ", line))
+        for match in _BARE_PATH.finditer(prose):
+            add(paths, _clean_path(match.group(1)))
+    return paths, symbols
+
+
+def _clean_path(path: str) -> str:
+    while path.startswith(("./", "../")):
+        path = path.split("/", 1)[1]
+    return path.lstrip("/")
+
+
+def path_matches(named: str, changed: str) -> bool:
+    """Whether a path an issue names is the file a change touched: the same path, or its tail
+    (`forge_tracker/groom.py` names `.../scripts/forge_tracker/groom.py`). A generic file name
+    alone (`README.md`) never matches; it needs a directory in front of it."""
+    if not named or not changed:
+        return False
+    if named == changed:
+        return True
+    if "/" not in named and named.lower() in GENERIC_FILES:
+        return False
+    return changed.endswith("/" + named)
+
+
+def patch_names(patch: str, symbol: str) -> bool:
+    """Whether a diff changes something named `symbol`: the name on an added or removed line, or
+    in a hunk header (the function or class the hunk is in). Context lines don't count; they are
+    what a change left alone."""
+    word = re.compile(rf"(?<!\w){re.escape(symbol)}(?!\w)")
+    for line in (patch or "").splitlines():
+        if line.startswith("@@"):
+            parts = line.split("@@", 2)
+            if len(parts) == 3 and word.search(parts[2]):
+                return True
+        elif line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
+            if word.search(line[1:]):
+                return True
+    return False

@@ -23,9 +23,12 @@ from typing import Any, Callable, Optional, TypeVar
 from ..model import (
     Branch,
     Change,
+    ChangedFile,
     ClosingRef,
     Comment,
+    CrossRef,
     ForgeError,
+    HTTPStatusError,
     Issue,
     IssueRef,
     Label,
@@ -37,6 +40,7 @@ from ..model import (
     Repo,
     Run,
     Tag,
+    Unsupported,
     User,
     iso,
     parse_time,
@@ -664,6 +668,59 @@ class GitLab:
                 for mr, detail in zip(open_mrs, details)
             },
         }
+
+    # --- /groom: possibly done -----------------------------------------------------------------
+
+    file_patches = True
+
+    def cross_refs(self) -> list[CrossRef]:
+        """Every MR that mentions an open issue in any form: the issue's related merge requests
+        (`GET /issues/:iid/related_merge_requests`, the list behind its "mentioned in merge
+        request" notes), one read per open issue. GitLab's list doesn't say which mentions are
+        closing references; `closed_by` does, and /groom reads that separately."""
+        issues = self.open_issues()
+        per_issue = self._each(
+            lambda i: self.t.get_all(f"{self.repo_path}/issues/{i.number}/related_merge_requests"),
+            issues,
+        )
+        out = []
+        for issue, mrs in zip(issues, per_issue):
+            for mr in mrs:
+                state = (mr.get("state") or "").lower()
+                out.append(
+                    CrossRef(
+                        issue=issue.number,
+                        change=int(mr["iid"]),
+                        state="open" if state == "opened" else state,
+                        merged_at=parse_time(mr.get("merged_at")),
+                        title=mr.get("title") or "",
+                        base=mr.get("target_branch") or None,
+                        change_project=self._other_project(mr, "!"),
+                    )
+                )
+        return out
+
+    def change_files(self, number: int) -> list[ChangedFile]:
+        """The files one MR changed, with each file's diff (`GET /merge_requests/:iid/diffs`,
+        every page; GitLab 15.7 and later). Unsupported on an instance without that endpoint."""
+        try:
+            raw = self.t.get_all(f"{self.repo_path}/merge_requests/{number}/diffs")
+        except HTTPStatusError as error:
+            if error.status == 404 and isinstance(self.t.get(self.repo_path), dict):
+                raise Unsupported(
+                    "this instance has no merge request diffs API (GitLab 15.7 and later)"
+                ) from None
+            raise
+        return [
+            ChangedFile(
+                path=item.get("new_path") or item.get("old_path") or "",
+                patch=item.get("diff") or None,
+                previous_path=item.get("old_path")
+                if item.get("old_path") != item.get("new_path")
+                else None,
+            )
+            for item in raw
+        ]
 
     def closing_refs(self) -> list[ClosingRef]:
         """Every MR, open, merged or closed, that closes an open issue when merged

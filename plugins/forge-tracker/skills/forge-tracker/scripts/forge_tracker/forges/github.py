@@ -12,8 +12,10 @@ from typing import Any, Optional
 from ..model import (
     Branch,
     Change,
+    ChangedFile,
     ClosingRef,
     Comment,
+    CrossRef,
     ForgeError,
     Issue,
     IssueRef,
@@ -600,6 +602,84 @@ class GitHub:
                 )
         return out
 
+    # --- /groom: possibly done -----------------------------------------------------------------
+
+    file_patches = True
+
+    def cross_refs(self) -> list[CrossRef]:
+        """Every pull request that mentions an open issue in any form: the issue timeline's
+        `CrossReferencedEvent`s whose source is a pull request. `willCloseTarget` says whether
+        the mention is a closing reference. Mentions from other issues aren't changes and are
+        left out."""
+        nodes = self.t.graphql_all(
+            CROSS_REFS, {"owner": self.owner, "name": self.name}, ("repository", "issues")
+        )
+        out = []
+        for node in nodes:
+            items = node.get("timelineItems") or {}
+            listed = items.get("nodes") or []
+            if int(items.get("totalCount") or 0) > len(listed):
+                raise ForgeError(f"#{node['number']} has more than {len(listed)} cross-references")
+            for item in listed:
+                source = item.get("source") or {}
+                if source.get("__typename") != "PullRequest":
+                    continue
+                project = (source.get("repository") or {}).get("nameWithOwner")
+                out.append(
+                    CrossRef(
+                        issue=int(node["number"]),
+                        change=int(source["number"]),
+                        state=(source.get("state") or "").lower(),
+                        merged_at=parse_time(source.get("mergedAt")),
+                        title=source.get("title") or "",
+                        base=source.get("baseRefName") or None,
+                        change_project=None if project in (None, self.project) else project,
+                        closes=bool(item.get("willCloseTarget")),
+                    )
+                )
+        return out
+
+    def change_files(self, number: int) -> list[ChangedFile]:
+        """The files one pull request changed, with each file's patch when GitHub includes it
+        (`GET /pulls/{n}/files`, every page)."""
+        raw = self.t.get_all(f"{self.repo_path}/pulls/{number}/files")
+        return [
+            ChangedFile(
+                path=item.get("filename") or "",
+                patch=item.get("patch"),
+                previous_path=item.get("previous_filename") or None,
+            )
+            for item in raw
+        ]
+
+
+CROSS_REFS = """
+query CrossRefs($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    issues(states: OPEN, first: 25, after: $cursor) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], first: 100) {
+          totalCount
+          nodes {
+            ... on CrossReferencedEvent {
+              willCloseTarget
+              source {
+                __typename
+                ... on PullRequest {
+                  number title state mergedAt baseRefName
+                  repository { nameWithOwner }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
 
 NEXT_FINGERPRINT = """
 query NextFingerprint($owner: String!, $name: String!) {

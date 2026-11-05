@@ -124,6 +124,24 @@ def closing(number, change, base, sha, title):
     }
 
 
+def cross_refs(number, sources):
+    """An open issue's timeline cross-references: (typename, number, state, closes) each."""
+    nodes = []
+    for typename, source, state, closes in sources:
+        node = {"__typename": typename}
+        if typename == "PullRequest":
+            node.update(
+                number=source,
+                title=f"change {source}",
+                state=state,
+                mergedAt="2026-10-10T00:00:00Z" if state == "MERGED" else None,
+                baseRefName="main",
+                repository={"nameWithOwner": "acme/widgets"},
+            )
+        nodes.append({"willCloseTarget": closes, "source": node})
+    return {"number": number, "timelineItems": {"totalCount": len(nodes), "nodes": nodes}}
+
+
 def event(kind, label, when):
     return {"event": kind, "label": {"name": label}, "created_at": when}
 
@@ -156,6 +174,15 @@ class Repo:
             issue(28, "ruling before the label", ["decision"]),
             issue(40, "deferred TaskUpdate loading fails"),
             issue(41, "TaskUpdate deferred loading fails"),
+            # Possibly done: #35 renamed the file #42 names and changed the symbol; #36 mentions
+            # #43; #35 also changed the file #44 names, but #44 has a comment since.
+            issue(
+                42,
+                "parser drops header rows",
+                body="The table parser in `src/parse.py` drops the rows `parse_rows` sees first.",
+            ),
+            issue(43, "uploads give up after one retry"),
+            issue(44, "upload progress bar stalls", body="See src/upload.py for the loop."),
             issue(45, "someday one", milestone=SOMEDAY),
             issue(46, "later one", milestone=LATER),
         ]
@@ -232,10 +259,58 @@ class Repo:
                     [
                         merged_pr(31, "fix/14", "fix: the thing", closes=[14]),
                         merged_pr(29, "18-footer", "fix: footer width"),
+                        merged_pr(35, "refactor/parser", "refactor: split the parser"),
+                        merged_pr(36, "fix/upload-retry", "fix: retry uploads"),
                     ],
                     "pullRequests",
                 ),
             ),
+        )
+        w.op(
+            "CrossRefs",
+            lambda v: self._maybe(
+                "cross_refs",
+                conn(
+                    [
+                        cross_refs(14, [("PullRequest", 31, "MERGED", True)]),
+                        cross_refs(
+                            43,
+                            [
+                                ("PullRequest", 36, "MERGED", False),
+                                ("Issue", 50, "CLOSED", False),
+                                ("PullRequest", 60, "OPEN", False),
+                            ],
+                        ),
+                    ],
+                    "issues",
+                ),
+            ),
+        )
+        for number, files in {
+            31: [{"filename": "src/thing.py", "patch": "@@ -1 +1 @@\n-a\n+b"}],
+            29: [{"filename": "css/footer.css"}],
+            35: [
+                {
+                    "filename": "src/parser/rows.py",
+                    "previous_filename": "src/parse.py",
+                    "patch": "@@ -3,4 +3,6 @@ class Table:\n-def parse_rows(text):\n"
+                    "+def parse_rows(text, header=True):",
+                },
+                {"filename": "src/upload.py", "patch": "@@ -1 +1 @@\n-x\n+y"},
+            ],
+            36: [{"filename": "src/retry.py", "patch": "@@ -1 +1 @@\n-1\n+3"}],
+        }.items():
+            w.route(
+                f"/repos/acme/widgets/pulls/{number}/files",
+                lambda url, files=files: self._rest("files", files),
+            )
+        w.route("/repos/acme/widgets/issues/42/comments", [])
+        w.route(
+            "/repos/acme/widgets/issues/43/comments",
+            [comment("still flaky", "2026-10-12T00:00:00Z")],
+        )
+        w.route(
+            "/repos/acme/widgets/issues/44/comments", [comment("on it", "2026-10-11T00:00:00Z")]
         )
         w.op(
             "ClosingRefs",
@@ -388,8 +463,9 @@ def run_cli(env, *args, http=None, run=None, stdin=None):
 
 
 EXPECTED = """\
-acme/widgets on github.com: 8 proposals, 7 unclear, 3 listed for you
+acme/widgets on github.com: 8 proposals, 7 unclear, 3 listed for you, 2 possibly done
 (merged PRs since 2026-07-17; duplicates among open issues and those closed since 2026-09-15; stale after 10 days)
+Checks run (12 of 12): merged but still open, merged PRs that only name an open issue, possibly done without a closing reference, tier labels and milestones, blocked label with nothing linked, links to closed blockers, blocking written only as prose, decided but still waiting, stale branches, conflicted or stale PRs, likely duplicates, placeholder due dates
 
 Proposals
   1. close #14: merged #31 "fix: the thing" closes it, aaa1111 is on main
@@ -412,6 +488,9 @@ Listed for you
   #61 conflicts: yes: change 61
   #62 no activity for 44 days: change 62
   2 issues share due date 2026-12-31 across 2 milestones ('Later', 'Someday')
+Possibly done (listed, not proposed)
+  #42 'parser drops header rows': merged #35 (2026-10-10) changed src/parse.py and parse_rows, which its body names; no comments
+  #43 'uploads give up after one retry': merged #36 (2026-10-10) cross-references it; last comment 2026-10-12
 """
 
 
@@ -797,6 +876,9 @@ def test_only_the_cli_reaches_the_write_layer():
 
 
 def test_replay_of_a_recorded_github_groom(tmp_path, repo_dir):
+    """Recorded with `forge-tracker --record`, then each changed-file list's `patch` dropped to
+    keep the file near 1 MB instead of 3. No symbol an issue names matched in that run, so the
+    report is the one the live run printed; symbol matching is covered by `test_report`."""
     http = ReplayHttp(FIXTURES / "github" / "groom-lokkju-skills.json")
     out = io.StringIO()
     code = cli.main(

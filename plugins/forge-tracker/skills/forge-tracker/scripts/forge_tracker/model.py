@@ -235,6 +235,34 @@ class ClosingRef:
 
 
 @dataclass(frozen=True)
+class CrossRef:
+    """A change that mentions an open issue in any form (`#N`, `see #N`, `part of #N`), from the
+    forge's own record of the mention, not from parsing text here. `state` is open, merged or
+    closed; `closes` is True when the forge says the mention is a closing reference, and None when
+    its record doesn't say; `base` is None when the record doesn't name the target branch."""
+
+    issue: int
+    change: int
+    state: str
+    merged_at: Optional[datetime] = None
+    title: str = ""
+    base: Optional[str] = None
+    change_project: Optional[str] = None  # None when the change is in the issue's project
+    closes: Optional[bool] = None
+
+
+@dataclass(frozen=True)
+class ChangedFile:
+    """One file a change touched. `patch` is the diff's hunks when the forge's file list carries
+    them (GitHub, GitLab), and None when it doesn't (Forgejo) or left them out (a binary file, or
+    one too large to show)."""
+
+    path: str
+    patch: Optional[str] = None
+    previous_path: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class LabelEvent:
     """A label added to (`labeled`) or removed from (`unlabeled`) one issue."""
 
