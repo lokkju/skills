@@ -52,6 +52,7 @@ plugins/forge-tracker/
     state.py                      XDG cache files: 0700 dirs, 0600 files, atomic replace
     writes.py                     the named write operations and the write-wrapper
     server.py                     the MCP server: the reports and writes as tools over stdio
+    mcp_stdio.py                  its protocol layer, copied byte for byte to term-recorder
   skills/forge-tracker/scripts/forge-tracker-mcp   its entry point, started by .mcp.json
   .mcp.json                       the plugin's MCP server for Claude Code
   commands/catchup.md next.md groom.md
