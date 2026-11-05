@@ -26,7 +26,7 @@ label person-only work when filing it. The rest of the working rules come in lat
 session is about. Before the first read, Claude looks at what the session did (the repos it
 committed to, pushed, or opened PRs and issues on, and the ones you named) and treats the working
 directory as one candidate among those. With one candidate other than the working directory, it
-says which repo it's reading and runs the CLI with `--repo <dir>`. With several, it asks which,
+says which repo it's reading and passes it to the tools as `repo` (to the CLI as `--repo <dir>`). With several, it asks which,
 offering each and "all of them": `/catchup` reads the chosen ones in one workspace report, while
 `/next` and `/groom` run once per repo. With only the working directory, it runs as before. When
 Claude runs a command for its own orientation (`--no-mark`), it settles the choice itself
@@ -426,6 +426,82 @@ plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels suggest 
 plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels create needs-human blocked   # approved only
 plugins/forge-tracker/skills/forge-tracker/scripts/forge-tracker labels decline          # stop offering setup here
 ```
+
+## The MCP server
+
+The commands and the skill reach forge-tracker through an MCP server,
+`skills/forge-tracker/scripts/forge-tracker-mcp`, which the plugin's `.mcp.json` starts over
+stdio. Its tools call the same functions as the CLI, so they print the same reports, and they
+take JSON arguments, so there are no script paths, shell quoting or chained commands for the
+model to get wrong. The CLI stays: it's what you run by hand and what CI runs, and the commands
+fall back to it when the tools aren't there.
+
+| Tool | Does | CLI equivalent |
+| --- | --- | --- |
+| `catchup` | the /catchup report (`repo` or `repos` or `workspace`, `since`, `no_mark`, `all`) | `catchup` |
+| `next_report` | the /next report (`rerank`, `refresh`) | `next` |
+| `next_facts` | the facts /next ranks from, as JSON (`bodies`, `refresh`) | `next facts --json` |
+| `save_slate` | store a slate (`slate`, an object); local cache only | `next save-slate` |
+| `groom` | the /groom proposals | `groom` |
+| `labels_suggest` | a proposed config from the repo's labels | `labels suggest` |
+| `smoke` | every read once, with counts | `smoke` |
+| `labels_decline` | stop offering setup here; local cache only | `labels decline` |
+| `groom_apply` | **writes** the approved proposals (`approved`, a list of ids) | `groom apply` |
+| `link` | **writes** a blocking link (`action`, `issue`, `blocked_by`) | `link add\|remove` |
+| `write` | **writes** one named operation (`op`, `payload`) | `write <op>` |
+| `labels_create` | **writes** the approved labels (`names`) | `labels create` |
+
+Every tool takes `repo`, a local checkout, which defaults to the project directory
+(`CLAUDE_PROJECT_DIR`, else the server's working directory). The report tools run `git fetch
+--quiet origin` first unless `fetch` is false, and return the rendered report as text, or the
+report as structured JSON with `json: true`. They return text by default because Claude Code
+shows the model a result's structured content in place of its text whenever it has some.
+`catchup` moves its marker only after the report has gone out, as the CLI does after printing.
+A setup problem (the CLI's exit status 2) comes back as an error result with the message.
+
+### Permissions
+
+In Claude Code the tools are named `mcp__plugin_forge-tracker_forge-tracker__<tool>`. While
+`/catchup`, `/next` or `/groom` runs, its frontmatter `allowed-tools` pre-approves the read tools
+it uses, so those calls don't prompt; the write tools always prompt. To allow the reads in the
+rest of a session too (when Claude runs a report for its own purposes, say), add them to
+`permissions.allow` in `~/.claude/settings.json` or the project's `.claude/settings.json`, and
+leave the write tools out so they keep asking:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_forge-tracker_forge-tracker__catchup",
+      "mcp__plugin_forge-tracker_forge-tracker__next_report",
+      "mcp__plugin_forge-tracker_forge-tracker__next_facts",
+      "mcp__plugin_forge-tracker_forge-tracker__save_slate",
+      "mcp__plugin_forge-tracker_forge-tracker__groom",
+      "mcp__plugin_forge-tracker_forge-tracker__labels_suggest",
+      "mcp__plugin_forge-tracker_forge-tracker__smoke"
+    ]
+  }
+}
+```
+
+Don't use `mcp__plugin_forge-tracker_forge-tracker__*`: it allows the writes as well. A plugin
+can't ship permission rules itself, so this is yours to add.
+
+In OpenCode the OpenCode entry (`harness/opencode/`) adds the same server to `mcp` as
+`forge-tracker`, whose tools are `forge-tracker_<tool>`, and since OpenCode allows every tool
+unless a rule says otherwise, it adds `"ask"` rules for `forge-tracker_groom_apply`,
+`forge-tracker_link`, `forge-tracker_write` and `forge-tracker_labels_create`. Your own
+`permission` rules for those names win. The `mcp: false` option leaves the server out.
+
+### No dependencies
+
+The server speaks the part of MCP a tools-only server needs (`initialize`, `ping`, `tools/list`,
+`tools/call`, notifications ignored) as newline-delimited JSON-RPC in about 160 lines of standard
+library, beside the CLI it wraps. It negotiates the handshake revisions 2025-11-25 back to
+2024-11-05, which OpenCode's SDK and Claude Code's v1 client use, and also answers the stateless
+2026-07-28 revision (`server/discover`, the version in each request's `_meta`). Using the `mcp`
+package through `uv run --with mcp` would add uv and a package download to every session start
+in both agents, for a protocol surface this small.
 
 ## Reads can't write
 
