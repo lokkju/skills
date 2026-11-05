@@ -83,13 +83,23 @@ export function applyUpdate(items: readonly Item[], change: TaskChange): Item[] 
     return added ? [...items, added] : (items as Item[])
   }
   let next: Item | null = { ...current }
+  // A ruling written into the new subject rather than the description, kept when the item is.
+  let ruling: string | null = null
   if (change.subject !== undefined) {
     const parsed = itemFromTask({ id, subject: change.subject })
     next = parsed && { ...parsed, created: current.created }
+    // Settling an item often rewrites its subject without the kind ("A240 close #41. Ruling
+    // (2026-11-05): go"). Still headed by its label, it's the same item, settled: it keeps its
+    // kind and question, so it stays in the queue, among the labels the session has used.
+    if (!next && labelNumber(current.label) > 0 && new RegExp(`^\\s*${current.label}\\b`).test(change.subject)) {
+      next = { ...current }
+      ruling = /Ruling \([^)]*\):[\s\S]*$/.exec(change.subject)?.[0].trim() ?? null
+    }
   }
   if (!next) return items.filter(one => one !== current)
   if (change.description !== undefined) next.description = change.description
   else next.description = current.description
+  if (ruling && !rulingIn(next.description)) next.description = [next.description, ruling].filter(Boolean).join('\n')
   next.status = change.status ? asStatus(change.status) : current.status
   return items.map(one => (one === current ? (next as Item) : one))
 }
