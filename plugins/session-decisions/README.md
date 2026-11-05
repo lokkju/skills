@@ -170,7 +170,8 @@ It looks for three things:
   Vault`, `the push needs your approval`;
 - a label the reply names that isn't in the session's queue (`A24 is in the queue for that`, with
   no A24), which means the item was never created. The toast says so (`A24 named but not in the
-  queue`), and the reminder tells the assistant to create it.
+  queue`), and the reminder tells the assistant to create it if it is one of the session's, and
+  to ignore it if it was quoted from elsewhere.
 
 To keep false alarms rare, it skips:
 
@@ -183,6 +184,11 @@ To keep false alarms rare, it skips:
 - a sentence about what another agent, a document or a tool will produce (`It'll lay out the
   options and the questions only you can answer`, `The report lists the steps you'll need to
   run`), and `only you can answer` or `decide` with nothing after it;
+- a label quoted while describing somewhere else: one in the same bullet, or the same sentence,
+  as an issue or PR reference or a link (`[skills#129](...): D123 sent a nested note`), one in a
+  sentence that says where it comes from (`tests for the exact D123 shape from the issue`), and
+  one more than 50 above the session's highest label of its letter. A label leading its line
+  (`D7: merge it`) still counts as the session's own;
 - a line about the check itself, such as a note that it raised a false alarm;
 - a heading that's really a sentence (`For you to compare, the two plans are:`), and a bare `Next
   steps:`, which is usually the assistant's own plan.
