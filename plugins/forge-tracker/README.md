@@ -262,8 +262,10 @@ echo '{"approved": ["close #14"]}' | plugins/forge-tracker/skills/forge-tracker/
 ### Writes
 
 Every write goes through `skills/forge-tracker/scripts/forge_tracker/writes.py`, the only module with a write
-transport (POST, PATCH and DELETE under the repo's own REST path; nothing else). The operations
-are named, and each takes a JSON payload:
+transport. Each forge has an explicit list of the write calls its operations make (a method and
+a path under the repo's own REST path), and the transport sends nothing else: never a GET, never
+GraphQL. The operations are named, and each takes a JSON payload (GitLab's calls are under
+[GitLab](#gitlab)):
 
 | Operation | Payload | On GitHub |
 | --- | --- | --- |
@@ -294,8 +296,9 @@ stay as a gloss for people, but it can't be the only record.
 When the config sets
 `write_wrapper:`, forge-tracker sends no write of its own: it runs `<wrapper> <op>` in the repo
 root with the same JSON on stdin (plus `repo`), and the wrapper does the write and exits 0, or
-exits non-zero to refuse; its stderr is shown. Every operation, written, refused or failed, is
-appended to `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/writes/<host>_<project>.jsonl` (0600).
+exits non-zero to refuse; its stderr is shown. A write the forge can't make at all comes back
+`UNSUPPORTED (...)` for that write alone. Every operation, written, refused, unsupported or
+failed, is appended to `${XDG_CACHE_HOME:-~/.cache}/forge-tracker/writes/<host>_<project>.jsonl` (0600).
 
 ## GitLab
 
@@ -322,9 +325,18 @@ GitLab works the same as GitHub for all three reports, with these differences:
   **comments** come from the project's note events. Mergeability is read from
   `detailed_merge_status`, and `unchecked` or `checking` is `conflicts: unknown` even when
   `has_conflicts` says false.
-- **Writes aren't built for GitLab yet.** `groom apply`, `write` and `link` refuse each operation
-  with that reason, unless the config sets a `write_wrapper:`, which then does the write. `/groom`
-  says so on its report.
+- **Writes** go through `glab api` with an explicit `--method` and the JSON body on stdin, so
+  glab's login applies here too. `close` is a note, then `PUT /issues/:iid` with
+  `state_event: close`; `labels` is one `PUT` with `add_labels` and `remove_labels` (a label
+  already off is noted, and a name with a comma is refused, since GitLab takes a comma-separated
+  list); `milestone` is `PUT` with `milestone_id` (0 clears it); `delete-branch` is
+  `DELETE /repository/branches/:branch`; `label-create` is `POST /labels`. Blocking is an issue
+  link: `link-add` posts an `is_blocked_by` link on the blocked issue, and `link-remove` and
+  `unlink` delete it by its `issue_link_id`. A GitLab without `blocks` links (a paid-tier
+  feature) answers `link-add` with `UNSUPPORTED (...)`; when it quietly made a `relates_to` link
+  instead, the write takes that link back. Under `blocking: relates_to+blocked`, `link-add`
+  writes a `relates_to` link and the blocked label, and `link-remove` deletes the link and takes
+  the label off with the issue's last one.
 
 ## Forgejo and Gitea
 
@@ -353,8 +365,8 @@ as on GitHub, pull requests stay `#N`, and these differ:
 - **What it costs.** Each open PR is read once more for its head commit's status and once for its
   reviews, and each open issue once for its dependencies.
 - **Bots** are told by name only (`[bot]`, `-bot`), since Forgejo's API doesn't flag them.
-- **Writes aren't built for Forgejo yet**, the same as on GitLab: each operation is refused unless
-  a `write_wrapper:` is set.
+- **Writes aren't built for Forgejo yet**: each operation is refused unless a `write_wrapper:` is
+  set, and `/groom` says so on its report.
 
 ## Configuration
 

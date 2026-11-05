@@ -545,7 +545,8 @@ def make_writer(
     ctx: Context, now: datetime, environ: Mapping[str, str], run: Callable[..., Any]
 ) -> writes.Writer:
     """The write layer for this repo: the write-wrapper when the config sets one, and otherwise
-    GitHub's REST API through the write transport, which nothing but writes.py builds on."""
+    the forge's REST API through the write transport, which nothing but writes.py builds on:
+    GitHub's with the token the reads use, GitLab's through `glab api`."""
     forge = None
     if not ctx.config.write_wrapper and ctx.forge == "github":
         api_base, _ = github.endpoints(ctx.remote.host, ctx.config.api_base)
@@ -555,8 +556,26 @@ def make_writer(
             http=ctx.http,  # type: ignore[arg-type]
             token=ctx.token,
             extra_headers=github.headers(),
+            routes=writes.GITHUB_ROUTES,
         )
         forge = writes.GitHubWrites(ctx.adapter.t, transport, ctx.remote.project)
+    elif not ctx.config.write_wrapper and ctx.forge == "gitlab":
+        transport = writes.WriteTransport(
+            api_base=ctx.adapter.t.api_base,
+            repo_path=ctx.adapter.repo_path,
+            http=writes.glab_write_http(
+                ctx.remote.host, gitlab.default_api_base(ctx.remote.host), run
+            ),
+            methods=writes.GITLAB_METHODS,
+            routes=writes.GITLAB_ROUTES,
+        )
+        forge = writes.GitLabWrites(
+            ctx.adapter.t,
+            transport,
+            ctx.remote.project,
+            convention=ctx.adapter.convention,
+            blocked_label=ctx.adapter.blocked_label,
+        )
     return writes.Writer(
         project=ctx.remote.project,
         repo_dir=ctx.repo_dir,
@@ -569,11 +588,12 @@ def make_writer(
         issue_ref=lambda number, project: ctx.adapter.issue_ref(number, project),
         blocked_by=ctx.adapter.blocked_by,
         unsupported=None
-        if ctx.forge == "github"
+        if ctx.forge in ("github", "gitlab")
         else (
-            f"forge-tracker writes only to GitHub so far, not {ctx.forge}; a write_wrapper: in "
-            f"{config.PATH} can do the write instead"
+            f"forge-tracker writes only to GitHub and GitLab so far, not {ctx.forge}; a "
+            f"write_wrapper: in {config.PATH} can do the write instead"
         ),
+        nested_projects=ctx.forge == "gitlab",
     )
 
 
@@ -655,7 +675,8 @@ def cmd_write(
 
 
 _ISSUE_ARG = re.compile(r"#?(\d+)")
-_BLOCKER_ARG = re.compile(r"(?:([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#?(\d+)")
+# owner/repo#17, or on GitLab group/sub/project#17; the write layer checks the shape per forge.
+_BLOCKER_ARG = re.compile(r"(?:([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+))?#?(\d+)")
 
 
 def link_payload(blocked: str, blocker: str) -> Optional[dict[str, Any]]:
