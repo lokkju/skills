@@ -47,7 +47,15 @@ The repo is also an [OpenCode](https://opencode.ai) plugin (OpenCode 1.19.4 or a
 }
 ```
 
-OpenCode installs it on its next start. Append `#<tag or commit>` to the URL to pin a version. Once the package is on npm, `"@lokkju/skills"` on its own will do.
+OpenCode installs it on its next start. The package isn't versioned, so this tracks `main`; to stay on one commit, append its SHA:
+
+```json
+{
+  "plugin": ["@lokkju/skills@git+https://github.com/lokkju/skills.git#<commit sha>"]
+}
+```
+
+It may go to npm later, once others use it.
 
 It registers every plugin's skills and the commands that come with them (`/catchup`, `/next` and `/groom` from forge-tracker), and fills in the script paths those skills and commands use. Two options, given as a second element:
 

@@ -65,8 +65,15 @@ run with `npm test` (Node's own runner). A plugin that needs OpenCode code of it
 The package's `files` list decides what OpenCode installs: the entry plus each plugin's
 `skills/` and `commands/`. `.claude-plugin/`, `hooks/`, tests and docs stay out, so a plugin's
 hooks and `allowed-tools` are Claude Code only. A new plugin's skills and commands are picked up
-without changes here. No yeet target covers `package.json` or `harness/` yet, so their changes
-don't release anything and the package version is set by hand until it's published.
+without changes here.
+
+The OpenCode package isn't released: no yeet target, tags or changelog cover `package.json` or
+`harness/`, so their changes release nothing. Its `version` stays at the placeholder `0.0.0`,
+which npm needs to be valid SemVer even for a git install. Installs track `main` or pin a commit
+(`git+https://github.com/lokkju/skills.git#<sha>`). `engines.opencode` is the package's minimum
+OpenCode, raised when we start using a newer OpenCode feature, the same rule as
+[Minimum Claude Code](#minimum-claude-code). Versioning comes back only if the package goes to
+npm.
 
 ## Adding a plugin
 

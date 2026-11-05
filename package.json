@@ -1,6 +1,6 @@
 {
   "name": "@lokkju/skills",
-  "version": "2026.10.26",
+  "version": "0.0.0",
   "description": "lokkju's agent skills and commands as an OpenCode plugin: forge-release, forge-tracker, session-decisions, term-recorder and worktree-tidy.",
   "type": "module",
   "main": "harness/opencode/index.js",
