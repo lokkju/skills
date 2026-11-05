@@ -361,7 +361,7 @@ repo. `unlink` stays the `/groom` fix that removes a link only once its blocker 
 
 **The allowlist.** Each forge's write transport takes the list of write calls its operations
 make, as a method and a path pattern under the project's REST path (`GITHUB_ROUTES`,
-`GITLAB_ROUTES`), and refuses any other call before the network: a GET, a path outside the
+`GITLAB_ROUTES`, `FORGEJO_ROUTES`), and refuses any other call before the network: a GET, a path outside the
 project, a method the forge's list doesn't have, GraphQL.
 
 **Writes on GitLab** ([#154](https://github.com/lokkju/skills/issues/154)). The same operations,
@@ -385,6 +385,23 @@ the stray `relates_to` link is deleted first. Under `blocking: relates_to+blocke
 posts a `relates_to` link (kept when one exists) and adds the blocked label, `link-remove` deletes
 the link and removes the label when no blocking link is left, and `unlink` of a closed blocker
 deletes either kind of link. A `blocker_project` may be a subgroup path (`group/sub/project`).
+
+**Writes on Forgejo** ([#154](https://github.com/lokkju/skills/issues/154)). Through urllib with
+the read layer's token (`Authorization: token <t>`), under the same API base:
+
+| Operation | Forgejo calls |
+| --- | --- |
+| `close` | `POST /issues/{n}/comments`, then `PATCH /issues/{n}` with `state: closed` |
+| `labels` | `POST /issues/{n}/labels` with the ids from `GET /labels` (a name the repo lacks is refused, nothing sent), then `DELETE /issues/{n}/labels/{id}` for each one the issue carries; one already off is noted |
+| `milestone` | `PATCH /issues/{n}` with `milestone` (the id; 0 clears) |
+| `unlink` | the label: `DELETE /issues/{n}/labels/{id}`, refused when it's gone; a blocker: `DELETE /issues/{n}/dependencies` with `{owner, repo, index}`, refused when the blocker reopened |
+| `delete-branch` | `GET /branches/{branch}` (`commit.id`, `protected`), then `DELETE` it |
+| `label-create` | `POST /labels` with the color as `#rrggbb` |
+| `link-add` / `link-remove` | `POST` / `DELETE /issues/{n}/dependencies` with the blocker's `{owner, repo, index}` |
+
+The allowlist is `FORGEJO_ROUTES`. With all three forges writing, `/groom` has no
+`writes: unsupported` note; a forge-tracker that can't tell the forge still refuses each write
+unless a `write_wrapper:` is set.
 
 Every operation, written, refused, unsupported or failed, is appended to
 `.../forge-tracker/writes/<host>_<project>.jsonl` (0600).

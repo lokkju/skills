@@ -264,8 +264,8 @@ echo '{"approved": ["close #14"]}' | plugins/forge-tracker/skills/forge-tracker/
 Every write goes through `skills/forge-tracker/scripts/forge_tracker/writes.py`, the only module with a write
 transport. Each forge has an explicit list of the write calls its operations make (a method and
 a path under the repo's own REST path), and the transport sends nothing else: never a GET, never
-GraphQL. The operations are named, and each takes a JSON payload (GitLab's calls are under
-[GitLab](#gitlab)):
+GraphQL. The operations are named, and each takes a JSON payload (GitLab's and Forgejo's calls
+are under [GitLab](#gitlab) and [Forgejo and Gitea](#forgejo-and-gitea)):
 
 | Operation | Payload | On GitHub |
 | --- | --- | --- |
@@ -365,8 +365,12 @@ as on GitHub, pull requests stay `#N`, and these differ:
 - **What it costs.** Each open PR is read once more for its head commit's status and once for its
   reviews, and each open issue once for its dependencies.
 - **Bots** are told by name only (`[bot]`, `-bot`), since Forgejo's API doesn't flag them.
-- **Writes aren't built for Forgejo yet**: each operation is refused unless a `write_wrapper:` is
-  set, and `/groom` says so on its report.
+- **Writes** go out with the same token as the reads. They're shaped like GitHub's (a comment,
+  then `PATCH` with `state: closed`; `PATCH` with `milestone`, 0 clearing it; `POST /labels`),
+  except that labels are added and removed by id, so a label the repo doesn't have is refused
+  instead of created, and blocking is an issue dependency: `POST` or `DELETE
+  /issues/{n}/dependencies` with the blocker's `owner`, `repo` and `index`. `delete-branch` is
+  `DELETE /branches/{branch}`.
 
 ## Configuration
 
@@ -557,7 +561,10 @@ No test touches the network, and no test writes to a forge: writes go to a fake 
 a fake wrapper. `tests/test_contract.py` is #21's contract suite: each scenario (bot detection,
 issue fields, three-valued mergeability, merged changes, native links, a read failing alone, a
 page cap, a token in an error) is written once and run against every adapter, with a kit per
-forge in `tests/kits.py` that puts it in that forge's response shapes. `tests/fixtures/gitlab/`
+forge in `tests/kits.py` that puts it in that forge's response shapes. Its write half runs every
+write operation through the write layer each forge gets, over the fake forges in
+`tests/write_kits.py`, and asserts the exact method, path and body sent (GitLab's land in a fake
+`glab api` run). `tests/fixtures/gitlab/`
 and `tests/fixtures/forgejo/` are a small project each, in the shapes the forge's REST
 documentation gives and served under a subpath `api_base`, with the `/catchup`, `/next`, `/groom`
 and `smoke` output each produces; the Forgejo one has no Actions runs API, so it shows the

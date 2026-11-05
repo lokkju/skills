@@ -2,7 +2,8 @@
 up the same normalized scenario (an issue's state and labels, its blocking links, a branch) in
 that forge's own read shapes, builds the write layer the CLI would (cli.make_writer), and records
 every write call the layer sends as (method, path, body) instead of sending it. Nothing here can
-reach a forge: GitHub's writes land in the fake Http, GitLab's in a fake `glab api` run."""
+reach a forge: GitHub's and Forgejo's writes land in the fake Http, GitLab's in a fake
+`glab api` run."""
 
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ from forge_tracker.config import Config
 from forge_tracker.detect import Remote
 from forge_tracker.forges import gitlab
 from forge_tracker.transport import ReadTransport
-from kits import GitHubKit, GitLabKit
+from kits import FORGEJO_TOKEN, ForgejoKit, GitHubKit, GitLabKit
 
 NOW = datetime(2026, 10, 20, 12, 0, tzinfo=timezone.utc)
 WRITES = ("POST", "PUT", "PATCH", "DELETE")
@@ -215,4 +216,69 @@ class GitLabWriteKit(GitLabKit):
         world.answers[(method, self.W + path)] = (status, {"message": message})
 
 
-WRITE_KITS = [GitHubWriteKit(), GitLabWriteKit()]
+class ForgejoWriteKit(ForgejoKit):
+    W = "/api/v1/repos/acme/widgets"
+
+    def world(self):
+        world = WriteWorld()
+        world.label_ids = {}  # every label the scenario names, with the id Forgejo would give it
+        world.route(
+            f"{self.R}/labels",
+            lambda url: response([{"id": i, "name": n} for n, i in world.label_ids.items()]),
+        )
+        return world
+
+    def _label(self, world, name):
+        return {"id": world.label_ids.setdefault(name, 100 + len(world.label_ids)), "name": name}
+
+    def writer(self, world, tmp_path, **config):
+        adapter = self.adapter(world)
+        ctx = _context(
+            tmp_path, "forgejo", "code.example.org", adapter, world, FORGEJO_TOKEN, **config
+        )
+        return cli.make_writer(ctx, NOW, _environ(tmp_path), world.glab)
+
+    def issue(self, world, number, state="open", labels=(), project="acme/widgets"):
+        world.route(
+            f"/api/v1/repos/{project}/issues/{number}",
+            {
+                "id": (9000 if project == "acme/widgets" else 7000) + number,
+                "number": number,
+                "state": state,
+                "labels": [self._label(world, n) for n in labels],
+                "closed_at": None if state == "open" else "2026-10-15T00:00:00Z",
+                "repository": {"full_name": project},
+            },
+        )
+
+    def blocked(self, world, number, blockers):
+        world.route(
+            f"{self.R}/issues/{number}/dependencies",
+            [
+                {
+                    "number": blocker,
+                    "state": state,
+                    "closed_at": None,
+                    "repository": {"full_name": project or "acme/widgets"},
+                }
+                for blocker, state, project in blockers
+            ],
+        )
+        for blocker, state, project in blockers:
+            self.issue(world, blocker, state, project=project or "acme/widgets")
+
+    def branch(self, world, name, sha, protected=False):
+        world.route(
+            f"{self.R}/branches/{name}",
+            {"name": name, "commit": {"id": sha}, "protected": protected},
+        )
+
+    def repo_labels(self, world, names):
+        for name in names:
+            self._label(world, name)
+
+    def fail(self, world, method, path, status, message):
+        world.answers[(method, self.W + path)] = (status, {"message": message})
+
+
+WRITE_KITS = [GitHubWriteKit(), GitLabWriteKit(), ForgejoWriteKit()]

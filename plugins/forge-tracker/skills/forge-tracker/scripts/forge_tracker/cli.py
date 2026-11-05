@@ -546,7 +546,7 @@ def make_writer(
 ) -> writes.Writer:
     """The write layer for this repo: the write-wrapper when the config sets one, and otherwise
     the forge's REST API through the write transport, which nothing but writes.py builds on:
-    GitHub's with the token the reads use, GitLab's through `glab api`."""
+    GitHub's and Forgejo's with the token the reads use, GitLab's through `glab api`."""
     forge = None
     if not ctx.config.write_wrapper and ctx.forge == "github":
         api_base, _ = github.endpoints(ctx.remote.host, ctx.config.api_base)
@@ -576,6 +576,16 @@ def make_writer(
             convention=ctx.adapter.convention,
             blocked_label=ctx.adapter.blocked_label,
         )
+    elif not ctx.config.write_wrapper and ctx.forge == "forgejo":
+        transport = writes.WriteTransport(
+            api_base=ctx.adapter.t.api_base,
+            repo_path=ctx.adapter.repo_path,
+            http=ctx.http,  # type: ignore[arg-type]
+            token=ctx.token,
+            routes=writes.FORGEJO_ROUTES,
+            auth_scheme=forgejo.AUTH_SCHEME,
+        )
+        forge = writes.ForgejoWrites(ctx.adapter.t, transport, ctx.remote.project)
     return writes.Writer(
         project=ctx.remote.project,
         repo_dir=ctx.repo_dir,
@@ -587,12 +597,8 @@ def make_writer(
         existing_labels=lambda: [label.name for label in ctx.adapter.labels()],
         issue_ref=lambda number, project: ctx.adapter.issue_ref(number, project),
         blocked_by=ctx.adapter.blocked_by,
-        unsupported=None
-        if ctx.forge in ("github", "gitlab")
-        else (
-            f"forge-tracker writes only to GitHub and GitLab so far, not {ctx.forge}; a "
-            f"write_wrapper: in {config.PATH} can do the write instead"
-        ),
+        unsupported=f"forge-tracker has no writes for {ctx.forge}; a write_wrapper: in "
+        f"{config.PATH} can do the write instead",
         nested_projects=ctx.forge == "gitlab",
     )
 

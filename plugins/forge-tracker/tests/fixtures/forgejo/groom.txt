@@ -19,4 +19,3 @@ Possibly done (listed, not proposed)
 Unsupported on Forgejo
   possibly done without a closing reference: symbols: Forgejo's changed-file list has no diffs, so only the paths a body names are matched
 (setup: labels.agent set to ~ in .claude/forge-tracker.local.md, so no label marks those roles yet. `forge-tracker labels suggest` lists the labels it can create for them)
-(writes: unsupported on Forgejo (forge-tracker writes only to GitHub and GitLab so far), so `groom apply` refuses each proposal; a write_wrapper: in the config can make the approved changes instead)

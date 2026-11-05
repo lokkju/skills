@@ -7,8 +7,8 @@ exits non-zero to refuse; forge-tracker never sends a write of its own while a w
 
 The write transport lives here and nowhere else, so no adapter or report can reach it. Each forge
 has an explicit allowlist of write calls (a method and a path under the project's own REST path):
-the transport sends nothing else, never a GET and never to GraphQL. GitHub writes go out through
-urllib with the token the reads use; GitLab writes go through `glab api` with an explicit
+the transport sends nothing else, never a GET and never to GraphQL. GitHub and Forgejo writes go
+out through urllib with the token the reads use; GitLab writes go through `glab api` with an explicit
 `--method`, so glab's login applies, by an Http defined here (the read side's glab Http sends GETs
 only). Reads an operation needs first go through the read transport. Every operation, written,
 refused, unsupported or failed, is appended to a 0600 log in the local cache.
@@ -70,6 +70,16 @@ GITLAB_ROUTES = (
     ("POST", r"/issues/\d+/links"),
     ("DELETE", r"/issues/\d+/links/\d+"),
     ("DELETE", r"/repository/branches/[^/]+"),
+    ("POST", r"/labels"),
+)
+FORGEJO_ROUTES = (
+    ("POST", r"/issues/\d+/comments"),
+    ("PATCH", r"/issues/\d+"),
+    ("POST", r"/issues/\d+/labels"),
+    ("DELETE", r"/issues/\d+/labels/\d+"),
+    ("POST", r"/issues/\d+/dependencies"),
+    ("DELETE", r"/issues/\d+/dependencies"),
+    ("DELETE", r"/branches/.+"),
     ("POST", r"/labels"),
 )
 WRAPPER_TIMEOUT = 120
@@ -732,6 +742,135 @@ class GitLabWrites:
         return f"created label {p['name']} (#{color})"
 
 
+class ForgejoWrites:
+    """The operations against Forgejo's (and Gitea's) REST `/api/v1`, with the token the reads
+    use. Shaped like GitHub's, except that an issue's labels are added and removed by id and
+    blocking is an issue dependency, named by the blocker's owner, repo and number."""
+
+    def __init__(self, reader: ReadTransport, writer: WriteTransport, project: str):
+        self.r = reader
+        self.w = writer
+        self.project = project
+        self.repo_path = f"/repos/{project}"
+
+    def _issue(self, number: int, project: Optional[str] = None) -> dict[str, Any]:
+        raw = self.r.get(f"/repos/{project or self.project}/issues/{number}")
+        if not isinstance(raw, dict) or "state" not in raw:
+            raise ForgeError(f"{project or ''}#{number} returned no issue")
+        return raw
+
+    def _labels_on(self, number: int) -> dict[str, int]:
+        """The issue's labels, name to id."""
+        return {
+            label["name"]: int(label["id"])
+            for label in self._issue(number).get("labels") or []
+            if isinstance(label, dict) and label.get("name") and label.get("id") is not None
+        }
+
+    def close(self, p: Mapping[str, Any]) -> str:
+        number = p["issue"]
+        if self._issue(number).get("state") == "closed":
+            raise WriteRefused(f"#{number} is already closed; nothing written")
+        self.w.send("POST", f"{self.repo_path}/issues/{number}/comments", {"body": p["comment"]})
+        self.w.send("PATCH", f"{self.repo_path}/issues/{number}", {"state": "closed"})
+        return f"commented on and closed #{number}"
+
+    def labels(self, p: Mapping[str, Any]) -> str:
+        number = p["issue"]
+        add, remove = list(p.get("add") or []), list(p.get("remove") or [])
+        ids: dict[str, int] = {}
+        if add:
+            for label in self.r.get_all(f"{self.repo_path}/labels"):
+                if isinstance(label, dict) and label.get("name") and label.get("id") is not None:
+                    ids[label["name"]] = int(label["id"])
+            missing = [n for n in add if n not in ids]
+            if missing:
+                raise WriteRefused(
+                    f"{self.project} has no label {', '.join(missing)} (Forgejo adds labels by "
+                    "id, so a label must exist first); nothing written"
+                )
+        on = self._labels_on(number) if remove else {}
+        done = []
+        if add:
+            self.w.send(
+                "POST",
+                f"{self.repo_path}/issues/{number}/labels",
+                {"labels": [ids[n] for n in add]},
+            )
+            done.append("added " + ", ".join(add))
+        removed = [n for n in remove if n in on]
+        absent = [n for n in remove if n not in on]
+        for name in removed:
+            self.w.send("DELETE", f"{self.repo_path}/issues/{number}/labels/{on[name]}")
+        if removed:
+            done.append("removed " + ", ".join(removed))
+        if absent:
+            done.append(", ".join(absent) + " already off")
+        return _done(number, done)
+
+    def milestone(self, p: Mapping[str, Any]) -> str:
+        """The milestone's id; 0 clears it."""
+        number, milestone = p["issue"], p["milestone"]
+        self.w.send(
+            "PATCH",
+            f"{self.repo_path}/issues/{number}",
+            {"milestone": milestone["number"] if milestone else 0},
+        )
+        if milestone:
+            return f"#{number}: milestone set to {milestone.get('title') or milestone['number']}"
+        return f"#{number}: milestone cleared"
+
+    def _dependency(self, p: Mapping[str, Any]) -> dict[str, Any]:
+        owner, _, repo = (p.get("blocker_project") or self.project).partition("/")
+        return {"owner": owner, "repo": repo, "index": p["blocker"]}
+
+    def unlink(self, p: Mapping[str, Any]) -> str:
+        number = p["issue"]
+        if "label" in p:
+            label_id = self._labels_on(number).get(p["label"])
+            if label_id is None:
+                raise WriteRefused(f"#{number} no longer has {p['label']}; nothing written")
+            self.w.send("DELETE", f"{self.repo_path}/issues/{number}/labels/{label_id}")
+            return f"#{number}: removed {p['label']}"
+        blocker = self._issue(p["blocker"], p.get("blocker_project"))
+        if blocker.get("state") != "closed":
+            raise WriteRefused(f"{blocker_ref(p, self.project)} is open again; the link stays")
+        self.w.send("DELETE", f"{self.repo_path}/issues/{number}/dependencies", self._dependency(p))
+        return f"#{number}: no longer blocked by {blocker_ref(p, self.project)}"
+
+    def link_add(self, p: Mapping[str, Any]) -> str:
+        number = p["issue"]
+        self.w.send("POST", f"{self.repo_path}/issues/{number}/dependencies", self._dependency(p))
+        return f"#{number}: now blocked by {blocker_ref(p, self.project)}"
+
+    def link_remove(self, p: Mapping[str, Any]) -> str:
+        number = p["issue"]
+        self.w.send("DELETE", f"{self.repo_path}/issues/{number}/dependencies", self._dependency(p))
+        return f"#{number}: no longer blocked by {blocker_ref(p, self.project)}"
+
+    def delete_branch(self, p: Mapping[str, Any]) -> str:
+        name = p["branch"]
+        path = f"{self.repo_path}/branches/{_quote(name, '/')}"
+        branch = self.r.get(path)
+        head = ((branch or {}).get("commit") or {}).get("id") if isinstance(branch, dict) else None
+        if head != p["sha"]:
+            raise WriteRefused(
+                f"{name} moved to {(head or '?')[:7]} since {p['sha'][:7]} was checked; kept"
+            )
+        if branch.get("protected"):
+            raise WriteRefused(f"{name} is protected; kept")
+        self.w.send("DELETE", path)
+        return f"deleted branch {name} (was {p['sha'][:7]})"
+
+    def label_create(self, p: Mapping[str, Any]) -> str:
+        color = p["color"].lower()
+        body = {"name": p["name"], "color": f"#{color}"}
+        if p.get("description"):
+            body["description"] = p["description"]
+        self.w.send("POST", f"{self.repo_path}/labels", body)
+        return f"created label {p['name']} (#{color})"
+
+
 # --- running an operation -----------------------------------------------------------------------
 
 
@@ -742,7 +881,7 @@ class Writer:
     project: str
     repo_dir: str
     log_path: str
-    # GitHubWrites or GitLabWrites: one method per operation, named after it.
+    # GitHubWrites, GitLabWrites or ForgejoWrites: one method per operation, named after it.
     forge: Optional[Any]
     wrapper: Optional[str] = None
     run: Callable[..., Any] = subprocess.run

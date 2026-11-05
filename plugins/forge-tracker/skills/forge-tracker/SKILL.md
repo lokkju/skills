@@ -45,6 +45,14 @@ glab api -X POST projects/GROUP%2FPROJECT/issues/18/links \
   -f target_project_id=GROUP/PROJECT -f target_issue_iid=17 -f link_type=is_blocked_by
 ```
 
+On Forgejo or Gitea, with the token forge-tracker reads with:
+
+```bash
+curl -X POST -H "Authorization: token $FORGEJO_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"owner":"OWNER","repo":"REPO","index":17}' \
+  https://HOST/api/v1/repos/OWNER/REPO/issues/18/dependencies
+```
+
 Never record blocking only as `Blocked by: #17`, `Depends on #17` or `Blocks #18` in a body or
 comment. `/next` and `/groom` read only native links, so that sentence blocks nothing they see,
 and it goes stale silently when #17 closes. A sentence may stay beside the link as a gloss for

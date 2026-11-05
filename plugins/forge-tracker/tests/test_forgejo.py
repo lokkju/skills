@@ -4,6 +4,8 @@ timeline, the runs API or its absence), detection by tea login or probe, and the
 fixture world in the shapes Forgejo documents, on an instance with no Actions runs API."""
 
 import io
+import json
+import urllib.parse
 from datetime import datetime, timezone
 
 import pytest
@@ -13,6 +15,7 @@ from forge_tracker.forges import forgejo
 from forge_tracker.model import attempt
 from forge_tracker.transport import ReadTransport
 from kits import FORGEJO_TOKEN
+from write_kits import ForgejoWriteKit
 
 T0 = datetime(2026, 10, 10, tzinfo=timezone.utc)
 BASE = "https://code.example.org/api/v1"
@@ -543,17 +546,19 @@ def lab(repo, tmp_path):
     }
     origin = (WORLD / "origin.txt").read_text().strip()
 
-    def run_cli(*args):
+    def run_cli(*args, wrap=None, stdin=None):
+        """`wrap(http)` stands in front of the world, to serve writes it never sees."""
         http = RouteHttp(WORLD / "world.json")
         out = io.StringIO()
         code = cli.main(
             ["--repo", str(repo), *args],
-            http=http,
+            http=wrap(http) if wrap else http,
             run=FakeRun(origin=origin),
             now=NOW,
             environ=environ,
             out=out,
             tz=timezone.utc,
+            stdin=io.StringIO(stdin) if stdin is not None else None,
         )
         return code, out.getvalue(), http
 
@@ -579,9 +584,62 @@ def test_reports_over_the_fixture_world_match_their_goldens(lab, args, golden):
 
 
 def test_catchup_json_lists_unsupported_parts_apart_from_failures(lab):
-    import json
-
     code, text, _ = lab("catchup", "--since", "3d", "--json")
     report = json.loads(text)
     assert code == 0 and report["ok"] is True and report["failed"] == []
     assert [u["part"] for u in report["health"]["unsupported"]] == ["schedule_run", "flaky"]
+
+
+# --- writes Forgejo makes its own way (the shared ones are in test_contract.py) ----------------
+
+LAB_R = "/forgejo/api/v1/repos/acme/widgets"
+
+
+def test_groom_apply_on_forgejo_writes_with_the_token_under_the_api_base(lab):
+    """The approved proposals go out with `Authorization: token <t>`, labels by the ids the
+    repo's label list gives, and the reads they check first stay GETs on the world."""
+    writes_sent = []
+
+    def wrap(world):
+        def http(method, url, headers, body=None):
+            path = urllib.parse.urlsplit(url).path
+            if method != "GET":
+                writes_sent.append((method, path, json.loads(body) if body else None, headers))
+                return response({})
+            if path == f"{LAB_R}/branches/old-spike":
+                return response({"name": "old-spike", "commit": {"id": "c" * 40}})
+            return world(method, url, headers, body)
+
+        return http
+
+    approved = '{"approved": ["close #1", "labels #1 ruling", "delete-branch old-spike"]}'
+    code, text, http = lab("groom", "apply", wrap=wrap, stdin=approved)
+    assert code == 0, text
+    assert text == (
+        "close #1: commented on and closed #1\n"
+        "labels #1 ruling: #1: added decided; removed needs-human\n"
+        "delete-branch old-spike: deleted branch old-spike (was ccccccc)\n"
+    )
+    assert [(m, p.removeprefix(LAB_R), b) for m, p, b, _ in writes_sent][1:] == [
+        ("PATCH", "/issues/1", {"state": "closed"}),
+        ("POST", "/issues/1/labels", {"labels": [6]}),
+        ("DELETE", "/issues/1/labels/3", None),
+        ("DELETE", "/branches/old-spike", None),
+    ]
+    assert writes_sent[0][:2] == ("POST", f"{LAB_R}/issues/1/comments")
+    assert writes_sent[0][2]["body"].startswith("Closing: merged #5")
+    assert all(h["Authorization"] == f"token {FORGEJO_TOKEN}" for *_, h in writes_sent)
+    assert all(c[0] == "GET" for c in http.calls)
+
+
+def test_a_label_the_repo_lacks_is_refused_before_anything_is_sent(tmp_path):
+    kit = ForgejoWriteKit()
+    world = kit.world()
+    kit.issue(world, 22)
+    result = kit.writer(world, tmp_path).apply("labels", {"issue": 22, "add": ["P9"]})
+    assert result.status == "refused"
+    assert result.detail == (
+        "acme/widgets has no label P9 (Forgejo adds labels by id, so a label must exist first); "
+        "nothing written"
+    )
+    assert world.sent == []
