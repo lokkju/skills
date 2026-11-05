@@ -13,7 +13,8 @@ PERMS = {"contents": "write", "pull_requests": "write"}
 
 def test_manifest_fields():
     m = manifest.build_manifest(
-        "acme-release", "https://example.com/acme", PERMS, "http://127.0.0.1:5000/callback"
+        manifest.flag_manifest("acme-release", "https://example.com/acme", PERMS),
+        "http://127.0.0.1:5000/callback",
     )
     assert m == {
         "name": "acme-release",
@@ -28,9 +29,36 @@ def test_manifest_has_no_webhook_block():
     # GitHub rejects a manifest whose hook_attributes lack a url ('"url" wasn't supplied'),
     # even with active: false. Leaving the block out creates the App with no webhook.
     m = manifest.build_manifest(
-        "acme-release", "https://example.com/acme", PERMS, "http://127.0.0.1:5000/callback"
+        manifest.flag_manifest("acme-release", "https://example.com/acme", PERMS),
+        "http://127.0.0.1:5000/callback",
     )
     assert "hook_attributes" not in m
+
+
+def test_spec_manifest_is_kept_as_given():
+    base = {
+        "name": "acme-agent",
+        "url": "https://example.com",
+        "public": True,
+        "description": "Dispatches agents",
+        "default_permissions": PERMS,
+        "default_events": ["issues", "pull_request"],
+        "hook_attributes": {"url": "https://hooks.example.com/github", "active": True},
+        "callback_urls": ["https://example.com/oauth"],
+        "request_oauth_on_install": True,
+    }
+    m = manifest.build_manifest(base, "http://127.0.0.1:5000/callback")
+    assert m == {**base, "redirect_url": "http://127.0.0.1:5000/callback"}
+    assert "redirect_url" not in base
+
+
+def test_callback_url_is_appended_once():
+    base = {"name": "n", "callback_urls": ["https://example.com/oauth"]}
+    listener = "http://127.0.0.1:5000/callback"
+    m = manifest.build_manifest(base, listener, callback_url=listener)
+    assert m["callback_urls"] == ["https://example.com/oauth", listener]
+    assert base["callback_urls"] == ["https://example.com/oauth"]
+    assert manifest.build_manifest({"name": "n"}, listener, listener)["callback_urls"] == [listener]
 
 
 def test_form_action_org():
@@ -54,7 +82,9 @@ def test_form_action_quotes_org():
 
 
 def test_form_page_posts_manifest_and_autosubmits():
-    m = manifest.build_manifest('n"<x>', "https://e.x", PERMS, "http://127.0.0.1:1/callback")
+    m = manifest.build_manifest(
+        manifest.flag_manifest('n"<x>', "https://e.x", PERMS), "http://127.0.0.1:1/callback"
+    )
     page = manifest.form_page(manifest.form_action("acme", "st"), m)
     form = re.search(r'<form[^>]*method="post"[^>]*action="([^"]+)"', page)
     assert (
@@ -97,7 +127,9 @@ def _get(url):
 def test_local_server_serves_form_then_returns_code():
     server = manifest.CallbackServer()
     try:
-        m = manifest.build_manifest("n", "https://e.x", PERMS, server.redirect_url)
+        m = manifest.build_manifest(
+            manifest.flag_manifest("n", "https://e.x", PERMS), server.redirect_url
+        )
         server.set_page(manifest.form_page(manifest.form_action("acme", "st"), m))
         assert server.start_url.startswith("http://127.0.0.1:")
         status, body = _get(server.start_url)
@@ -149,12 +181,9 @@ def test_local_server_busy_port_raises_flow_error_naming_it():
 
 def test_manifest_public_and_callback_urls():
     m = manifest.build_manifest(
-        "n",
-        "https://e.x",
-        {"metadata": "read"},
+        manifest.flag_manifest("n", "https://e.x", {"metadata": "read"}, public=True),
         "http://127.0.0.1:5000/callback",
-        public=True,
-        callback_urls=["http://127.0.0.1:5000/callback"],
+        callback_url="http://127.0.0.1:5000/callback",
     )
     assert m["public"] is True
     assert m["callback_urls"] == ["http://127.0.0.1:5000/callback"]
@@ -162,7 +191,9 @@ def test_manifest_public_and_callback_urls():
 
 
 def test_manifest_without_callbacks_has_no_callback_urls():
-    m = manifest.build_manifest("n", "https://e.x", PERMS, "http://127.0.0.1:1/callback")
+    m = manifest.build_manifest(
+        manifest.flag_manifest("n", "https://e.x", PERMS), "http://127.0.0.1:1/callback"
+    )
     assert "callback_urls" not in m
 
 
