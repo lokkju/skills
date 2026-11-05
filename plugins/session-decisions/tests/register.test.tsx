@@ -100,8 +100,11 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}, versi
     panes.delete(e.id)
     return { value: undefined }
   })
+  // What reached the model beside each prompt, as prompt.submit's hooks left it.
+  const contexts: string[][] = []
   on('prompt.submit', (_$, e) => {
     submitted.push(e.text)
+    contexts.push([...(e.context ?? [])])
     return { text: e.text }
   })
   on('fs.list', (_$, e) => {
@@ -142,7 +145,7 @@ function engine(on: On, env: Record<string, string> = {}, seed: Seed = {}, versi
     return { isFilled: true }
   })
   on('prompt.read', () => ({ value: { text: draft, cursor: draft.length } }))
-  return { tasks, lists, store, filled, submitted, status, clock, opened, panes, offered, session, copied, toasts, logged, registered }
+  return { tasks, lists, store, filled, submitted, contexts, status, clock, opened, panes, offered, session, copied, toasts, logged, registered }
 }
 
 async function start($: any) {
@@ -1578,5 +1581,180 @@ describe('superseding', () => {
     expect(record.ledger.find((item: any) => item.label === 'D1').description).toContain('Superseded (2026-10-03) by D2: the web JSON is blocked')
     const listed = await $.tool.call({ tool: 'mcp__session-decisions__decision_list', tool_use_id: 'l1' })
     expect(listed.result).toContain('| D2 (ledger) | DECIDE | 0m | #8 | Depop now? (recommend apply for OAuth) (supersedes D1: try the web JSON for now) |')
+  })
+})
+
+// A prompt as the engine raises it: typed at the terminal, or sent over Remote Control.
+const say = ($: any, text: string, kind: 'composer' | 'bridge' = 'composer') =>
+  $.prompt.submit({ text, wait: false, origin: { kind } })
+const PHONE = { origin: { kind: 'bridge' }, presentation: { isFullscreen: true, columns: 160 } } as const
+
+describe('remote', () => {
+  test('/decisions list prints one short block per item, wrapped to the terminal', async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'DECIDE: Move the session store from SQLite to Postgres before the beta, or wait until after? (recommend Postgres now) [#3]')
+    await create($, 'ACTION: run gh auth login [no link]')
+    for (const columns of [100, 60]) {
+      const listed = await $.command.run({ command: 'decisions', args: 'list', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns } })
+      expect(listed.text).toContain('D1 · decision · 0m\n  Move the session store')
+      expect(listed.text).toContain('  Recommend: Postgres now')
+      expect(listed.text).toContain('  Link: #3')
+      expect(listed.text).toContain('A1 · action · 0m\n  run gh auth login')
+      expect(listed.text).toContain('"D1: go"')
+      for (const line of (listed.text ?? '').split('\n')) expect(line.length).toBeLessThanOrEqual(Math.min(72, columns - 2))
+    }
+    // At the terminal, plain /decisions keeps its one line per item.
+    expect((await $.command.run({ command: 'decisions', args: '', ...RUN })).text).toContain('D1 DECIDE: Move the session store')
+    // Over Remote Control it prints the blocks, unwrapped, since a phone wraps them itself.
+    const phone = await $.command.run({ command: 'decisions', args: '', ...PHONE })
+    expect(phone.text).toContain('  Move the session store from SQLite to Postgres before the beta, or wait until after?')
+    const unknown = await $.command.run({ command: 'decisions', args: 'list sideways', ...RUN })
+    expect(unknown.text).toContain('Unknown: /decisions list sideways')
+  })
+
+  test('prompts over Remote Control get the reply list note; a terminal prompt ends it', async ($, on) => {
+    const { contexts } = engine(on)
+    await start($)
+    await create($, 'DECIDE: retire kapp? (recommend yes) [no link]')
+    await say($, 'hello from the terminal')
+    expect(contexts.at(-1)).toEqual([])
+    await say($, 'hello from my phone', 'bridge')
+    const note = contexts.at(-1)?.join('\n') ?? ''
+    expect(note).toContain('Remote Control')
+    expect(note).toContain('`Open items` list')
+    expect(note).toContain('- D1: retire kapp? (recommend yes)')
+    await say($, 'back at the desk')
+    expect(contexts.at(-1)).toEqual([])
+  })
+
+  test('/decisions list on, off and auto set the reply list for the session', async ($, on) => {
+    const { contexts } = engine(on)
+    await start($)
+    const set = (args: string) => $.command.run({ command: 'decisions', args, ...RUN })
+    expect((await set('list on')).text).toContain('Reply list on')
+    await say($, 'at the terminal')
+    expect(contexts.at(-1)?.join('\n')).toContain('turned on the reply list')
+    const off = await set('list off')
+    expect(off.text).toContain('Reply list off')
+    expect(off.context?.[0]).toContain('Stop ending replies with an Open items list')
+    await say($, 'from the phone', 'bridge')
+    expect(contexts.at(-1)).toEqual([])
+    expect((await set('list auto')).text).toContain('Reply list on auto')
+    await say($, 'from the phone again', 'bridge')
+    expect(contexts.at(-1)?.join('\n')).toContain('Remote Control')
+  })
+
+  test('the reply_list option sets the mode; never keeps the note off over Remote Control', { options: { reply_list: 'never' } }, async ($, on) => {
+    const { contexts } = engine(on)
+    await start($)
+    await say($, 'from the phone', 'bridge')
+    expect(contexts.at(-1)).toEqual([])
+  })
+
+  test('reply_list always adds the note at the terminal too', { options: { reply_list: 'always' } }, async ($, on) => {
+    const { contexts } = engine(on)
+    await start($)
+    await say($, 'at the terminal')
+    expect(contexts.at(-1)?.join('\n')).toContain('turned on the reply list')
+  })
+
+  test('a cloud session (CLAUDE_CODE_REMOTE) is always remote', async ($, on) => {
+    const { contexts } = engine(on, { CLAUDE_CODE_REMOTE: 'true' })
+    await start($)
+    await say($, 'hello', 'composer')
+    expect(contexts.at(-1)?.join('\n')).toContain('Remote Control')
+    const listed = await $.command.run({ command: 'decisions', args: '', ...RUN })
+    expect(listed.text).toBe('No open decisions or actions.')
+  })
+})
+
+/** The engine with Claude Code's PushNotification offered, answering `reason` (none: pushed). */
+function pushing(on: On, reason?: 'config_off' | 'user_present' | 'no_transport') {
+  const base = engine(on)
+  base.offered.tools.push('PushNotification')
+  const pushes: string[] = []
+  on('tool.check', () => ({ decision: 'allow' as const }))
+  on('tool.call', { tool: 'PushNotification' }, (_$, e) => {
+    pushes.push(String(e.message))
+    return { result: reason ? { message: e.message, pushSent: false, disabledReason: reason } : { message: e.message, pushSent: true } }
+  })
+  return { ...base, pushes }
+}
+
+describe('push', () => {
+  test('each new item is pushed once, and again only when its recommendation changes', async ($, on) => {
+    const { pushes, clock, tasks } = pushing(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, 'Fix the flaky test')
+    await clock.advance(1)
+    expect(pushes).toEqual(['D1 decide: Postgres or SQLite? Recommend: SQLite'])
+    const retitle = (subject: string) => $.tool.call({ tool: 'TaskUpdate', tool_use_id: `u-${Math.random()}`, taskId: '1', subject })
+    await retitle('DECIDE: Postgres, SQLite or DuckDB? (recommend SQLite) [#3]')
+    await clock.advance(1)
+    expect(pushes).toHaveLength(1)
+    await retitle('DECIDE: Postgres, SQLite or DuckDB? (recommend DuckDB) [#3]')
+    await clock.advance(1)
+    expect(pushes.at(-1)).toBe('D1 decide: Postgres, SQLite or DuckDB? Recommend: DuckDB')
+    // Settling it pushes nothing.
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u-done', taskId: '1', status: 'completed', description: 'Ruling (2026-10-03): DuckDB' })
+    await clock.advance(1)
+    expect(pushes).toHaveLength(2)
+    expect(tasks.get('1')?.status).toBe('completed')
+  })
+
+  test('ledger items push on add and on a changed recommendation', async ($, on) => {
+    const { pushes, clock } = pushing(on)
+    await start($)
+    const call = (tool: string, args: Record<string, unknown>) =>
+      $.tool.call({ tool: `mcp__session-decisions__${tool}`, tool_use_id: `l-${Math.random()}`, ...args })
+    await call('decision_add', { kind: 'ACTION', text: 'log in to npm [no link]' })
+    await call('decision_update', { label: 'A1', description: 'needed for the publish step' })
+    await call('decision_add', { kind: 'DECIDE', text: 'ship it? (recommend yes) [no link]' })
+    await call('decision_update', { label: 'D1', text: 'ship it? (recommend wait) [no link]' })
+    await clock.advance(1)
+    expect(pushes).toEqual(['A1 action: log in to npm', 'D1 decide: ship it? Recommend: yes', 'D1 decide: ship it? Recommend: wait'])
+  })
+
+  test('the push_notifications option turns pushes off', { options: { push_notifications: false } }, async ($, on) => {
+    const { pushes, clock } = pushing(on)
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await clock.advance(1)
+    expect(pushes).toEqual([])
+  })
+
+  test('without PushNotification the person is told once, not per item', async ($, on) => {
+    const { clock, toasts } = engine(on)
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await clock.advance(1)
+    await create($, 'ACTION: store the token [no link]')
+    await clock.advance(1)
+    const said = toasts.filter(text => text.includes('no phone push'))
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain("doesn't offer PushNotification")
+  })
+
+  test('push turned off in /config is named once', async ($, on) => {
+    const { clock, toasts, pushes } = pushing(on, 'config_off')
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await create($, 'ACTION: store the token [no link]')
+    await clock.advance(1)
+    expect(pushes).toHaveLength(2)
+    const said = toasts.filter(text => text.includes('no phone push'))
+    expect(said).toHaveLength(1)
+    expect(said[0]).toContain('"Push when Claude decides" in /config')
+  })
+
+  test('a push skipped because the person is at the terminal is not reported', async ($, on) => {
+    const { clock, toasts, pushes } = pushing(on, 'user_present')
+    await start($)
+    await create($, 'ACTION: run gh auth login [no link]')
+    await clock.advance(1)
+    expect(pushes).toHaveLength(1)
+    expect(toasts.filter(text => text.includes('no phone push'))).toEqual([])
   })
 })
