@@ -1007,6 +1007,47 @@ describe('drawing', () => {
     expect(filled.at(-1)).toBe('D1: go with SQLite\nA1: done\nD2: go with yes')
   })
 
+  test('an action with a recommendation gets Accept beside Done; one without keeps only Done', async ($, on) => {
+    const { filled } = engine(on)
+    await start($)
+    await create($, 'ACTION: approve merging owner/repo#34 (CI green) (recommend merge) [owner/repo#34]')
+    await create($, 'ACTION: run gh auth login [no link]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ type: 'Text', text: 'recommends merge' })).toBeDefined()
+    expect((await ui.find({ key: 'question-A1' }))?.text).toBe('approve merging owner/repo#34 (CI green)')
+    expect(await ui.find({ key: 'accept-A1' })).toBeDefined()
+    expect(await ui.find({ key: 'done-A1' })).toBeDefined()
+    expect(await ui.find({ key: 'accept-A2' })).toBeUndefined()
+    expect(await ui.find({ key: 'done-A2' })).toBeDefined()
+    // Done stays primary only where there's no Accept beside it.
+    expect((await ui.find({ key: 'done-A1' }))?.props.variant).toBeUndefined()
+    expect((await ui.find({ key: 'done-A2' }))?.props.variant).toBe('primary')
+    await ui.press({ key: 'accept-A1' })
+    expect(filled.at(-1)).toBe('A1: go with merge')
+    await ui.press({ key: 'done-A1' })
+    expect(filled.at(-1)).toBe('A1: done')
+  })
+
+  test('Accept all mixes decisions and actions with recommendations, and skips actions without', async ($, on) => {
+    const { filled } = engine(on)
+    await start($)
+    await create($, 'DECIDE: Postgres or SQLite? (recommend SQLite) [#3]')
+    await create($, 'ACTION: approve merging #56 and tagging v1.2.0 (recommend merge and tag) [#56]')
+    await create($, 'ACTION: run gh auth login [no link]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    await ui.press({ key: 'accept-all' })
+    expect(filled.at(-1)).toBe('A1: go with merge and tag\nD1: go with SQLite')
+  })
+
+  test("an action's only recommendation is enough for Accept all to show", async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'ACTION: approve merging #56 (recommend merge) [#56]')
+    await create($, 'ACTION: approve applying the plan (recommend apply) [no link]')
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    expect(await ui.find({ key: 'accept-all' })).toBeDefined()
+  })
+
   test('settled cards show their ruling, and NO_COLOR draws ASCII', async ($, on) => {
     engine(on, { NO_COLOR: '1' })
     await start($)
@@ -1186,6 +1227,19 @@ describe('markdown', () => {
     expect(filled.at(-1)).toBe('A1: done\nD1: ')
     expect(await ui.find({ key: 'question-D1' })).toBeDefined()
     expect(panes.has(PLUGIN)).toBe(true)
+  })
+
+  test('the details view of an action with a recommendation has Accept and Done', async ($, on) => {
+    const { filled } = engine(on)
+    await start($)
+    await create($, 'ACTION: approve merging #34 (recommend merge) [#34]', '')
+    await $.command.run({ command: 'decisions', args: 'pane', ...RUN })
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'Pane', requestId: PLUGIN, props: {} as never })
+    await ui.press({ key: 'label-A1' })
+    expect((await ui.findAll({ type: 'Button' })).map(one => one.text)).toEqual(['Accept', 'Done', 'Answer', 'Back'])
+    await ui.press({ key: 'details-accept' })
+    expect(filled.at(-1)).toBe('A1: go with merge')
+    expect(await ui.find({ key: 'question-A1' })).toBeDefined()
   })
 
   test('a long description is drawn whole, for the pane to scroll', async ($, on) => {

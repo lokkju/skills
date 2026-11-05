@@ -83,8 +83,8 @@ write a recommendation isn't ready to ask yet, which is the point.
   text fills it. A card without `[more]` is the whole item. `[more]`, or a press on the card's
   label, shows the item in full in the queue pane, in place of the list; from the transcript line
   the pane opens for it, with the keys, at any terminal width. The view has the card's top row
-  with a `↑↓ PgUp PgDn scroll · Esc closes` hint, then its buttons: **Accept** for a decision or
-  **Done** for an action, **Answer**, **Copy link** when the link is a URL or a reference the
+  with a `↑↓ PgUp PgDn scroll · Esc closes` hint, then its buttons: **Accept** for an item with a
+  recommendation, **Done** for an action, **Answer**, **Copy link** when the link is a URL or a reference the
   plugin can resolve, **Copy <command>** for the first command in backticks, and **Back** to the
   list, scrolled where you left it with the focus on that item's label (**Close** when the pane
   opened just for this item). Under them come the question, the
@@ -100,7 +100,9 @@ write a recommendation isn't ready to ask yet, which is the point.
 ### Answering
 
 **Accept** puts `D3: go with <the recommendation>` in your prompt, **Done** puts `A2: done`, and
-**Answer** puts `D3: ` for you to finish. The details view `[more]` opens fills the same lines. Each press adds or replaces that item's line, so one
+**Answer** puts `D3: ` for you to finish. An action the assistant can carry out once you approve
+it, such as `A2 ACTION: approve merging #34 (recommend merge) [#34]`, has both: **Accept** puts
+`A2: go with merge` and the assistant does the step, while **Done** says you did it yourself. The details view `[more]` opens fills the same lines. Each press adds or replaces that item's line, so one
 message can answer several items; **Accept all** adds a line for every open recommendation. You
 edit and send it like any other message, and the assistant marks each item completed with a
 dated `Ruling (2026-10-08): ...` line. Completed items stay in the task list as the session's

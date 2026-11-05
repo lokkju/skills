@@ -998,7 +998,7 @@ export const register: Register = (on, options) => {
     const open = list.filter(isOpen)
     const settled = list.filter(item => !isOpen(item))
     const accepts = open.flatMap(item => {
-      const choice = item.kind === 'DECIDE' ? recommendation(item.body) : null
+      const choice = recommendation(item.body)
       return choice ? [`${item.label}: go with ${choice}`] : []
     })
 
@@ -1219,7 +1219,7 @@ async function drawCard(
       {old && <Markdown key={`replaces-${item.label}`} text={`replaces ${linkRefs(replacedText(old), forge)}`} dimColor />}
       {!short && parts.link !== null && linkLine(Link, Text, parts.link)}
       <Box key="actions" flexDirection="row" gap={1}>
-        {rec && item.kind === 'DECIDE' && (
+        {parts.recommendation && (
           <Button
             key={`accept-${item.label}`}
             label="Accept"
@@ -1228,7 +1228,12 @@ async function drawCard(
           />
         )}
         {item.kind === 'ACTION' && (
-          <Button key={`done-${item.label}`} label="Done" variant="primary" onPress={answer($, [`${item.label}: done`])} />
+          <Button
+            key={`done-${item.label}`}
+            label="Done"
+            variant={parts.recommendation ? undefined : 'primary'}
+            onPress={answer($, [`${item.label}: done`])}
+          />
         )}
         <Button key={`answer-${item.label}`} label="Answer" dimColor onPress={answer($, [`${item.label}: `])} />
         <Box flexGrow={1} />
@@ -1352,7 +1357,8 @@ async function leaveDetails($: $, item: Item, owns: boolean): Promise<void> {
 }
 
 /**
- * The details view: the card's top row, its actions (Accept or Done, Answer, Copy link, Copy
+ * The details view: the card's top row, its actions (Accept when the item has a recommendation,
+ * Done for an action, Answer, Copy link, Copy
  * <command>, and Back, or Close when the pane opened for this item), then the question, the link,
  * the whole recommendation and the description, drawn as markdown, and a last line that says the
  * item ends there. The actions come first so they're in reach however far down the text goes;
@@ -1378,25 +1384,37 @@ async function drawDetails($: $, site: Parameters<$['ui']['resolve']>[0], item: 
   return (
     <Box key={`details-${item.source}-${item.id}`} flexDirection="column">
       <Box key="details-top" flexDirection="row" gap={1}>
-        {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
-        <Text bold>{item.label}</Text>
-        {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
+        {/* The hint gives way first; the chips and label keep their width. */}
+        <Box key="details-tags" flexDirection="row" gap={1} flexShrink={0}>
+          {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
+          <Text bold>{item.label}</Text>
+          {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
+        </Box>
         <Box flexGrow={1} flexShrink={1} justifyContent="flex-end">
           <Text key="details-hint" dimColor wrap="truncate-end">
             {hint}
           </Text>
         </Box>
         {item.created !== undefined && (
-          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
-            {age(item.created, now).replace('waiting ', '')}
-          </Text>
+          <Box key="details-age" flexShrink={0}>
+            <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+              {age(item.created, now).replace('waiting ', '')}
+            </Text>
+          </Box>
         )}
       </Box>
       <Box key="details-actions" flexDirection="row" flexWrap="wrap" columnGap={1}>
-        {item.kind === 'DECIDE' && parts.recommendation && (
+        {parts.recommendation && (
           <Button key="details-accept" label="Accept" variant="primary" onPress={act([`${item.label}: go with ${parts.recommendation}`])} />
         )}
-        {item.kind === 'ACTION' && <Button key="details-done" label="Done" variant="primary" onPress={act([`${item.label}: done`])} />}
+        {item.kind === 'ACTION' && (
+          <Button
+            key="details-done"
+            label="Done"
+            variant={parts.recommendation ? undefined : 'primary'}
+            onPress={act([`${item.label}: done`])}
+          />
+        )}
         <Button key="details-answer" label="Answer" dimColor onPress={act([`${item.label}: `])} />
         {url && <Button key="details-copy-link" label="Copy link" dimColor onPress={press => void copy($, url, press.surface)} />}
         {code && (
