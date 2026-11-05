@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "term-recorder": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/skills/term-recorder/scripts/term-recorder-mcp"]
+    }
+  }
+}

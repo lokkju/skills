@@ -26,15 +26,22 @@
   same scenarios against every adapter through a kit per forge in `tests/kits.py`.
 - `plugins/term-recorder/`: drives a terminal program from a step file on a private tmux server
   and captures it (text snaps, asciicast, GIF via agg). A standard-library Python CLI
-  (`skills/term-recorder/scripts/term-record`), a skill whose `allowed-tools` pre-approves only that script, and
-  example step files for Claude Code. Tests run with
+  (`skills/term-recorder/scripts/term-record`), an MCP server over the same code
+  (`term_recorder/server.py`, started by the plugin's `.mcp.json`), a skill that calls its tools
+  (`allowed-tools` pre-approves them, plus the script for the CLI fallback), and example step
+  files for Claude Code. Tests run with
   `uv run --no-project --with pytest pytest plugins/term-recorder/tests` and need tmux.
+- `mcp_stdio.py`, the standard-library MCP protocol layer, exists twice: forge-tracker's
+  (`forge_tracker/mcp_stdio.py`) is the source and term-recorder's is a byte-for-byte copy,
+  since the plugins install separately. Edit forge-tracker's, then run
+  `uv run --no-project scripts/sync-mcp-stdio.py`; its `--check` runs in CI and pre-commit.
 - `plugins/worktree-tidy/`: a SessionStart hook (`hooks/hooks.json`) that reports stale git
   worktrees, and a skill for the full list with removal commands. Both run a standard-library
   Python CLI (`skills/worktree-tidy/scripts/worktree-tidy`) that only reads; it never removes anything. Tests build
   temporary repos and worktrees and fake `gh`:
   `uv run --no-project --with pytest pytest plugins/worktree-tidy/tests`.
-- `scripts/`: repo scripts that aren't part of any plugin. `check-skill-names.py` (below) and
+- `scripts/`: repo scripts that aren't part of any plugin. `check-skill-names.py` and
+  `sync-mcp-stdio.py` (below) and
   `delegation-stats.py`, a standard-library `uv run` script that reads a project's Claude Code
   transcripts under `~/.claude/projects/` and prints delegation numbers per session: prompts
   with tool calls, the share with an Agent call, read runs, main-thread context and subagent
@@ -60,7 +67,7 @@ npm; installed from `git+https://github.com/lokkju/skills.git`), with
 adds each `plugins/<p>/skills` to `skills.paths` and registers each `plugins/<p>/commands/*.md`
 as an OpenCode command with `${CLAUDE_PLUGIN_ROOT}` resolved, adds each `plugins/<p>/.mcp.json`
 stdio server to `mcp` (with `"ask"` rules for the write tools listed in `ASK_TOOLS` in
-`lib.js`), and it fills in `${CLAUDE_SKILL_DIR}` when a skill loads. Options pick the plugins
+`lib.js`, and the user's bash catch-all for the command-running tools in `SCRIPT_TOOLS`), and it fills in `${CLAUDE_SKILL_DIR}` when a skill loads. Options pick the plugins
 (`plugins`), opt in to bash allow rules for the skills' scripts (`allowScripts`) and leave the
 MCP servers out (`mcp: false`). Plain JavaScript, no dependencies; tests
 run with `npm test` (Node's own runner). A plugin that needs OpenCode code of its own gets
@@ -135,9 +142,9 @@ uvx pre-commit install
 ```
 
 They run JSON and YAML checks, end-of-file and trailing-whitespace fixes, `ruff check` and
-`ruff format` (settings in `ruff.toml`), shellcheck, and `scripts/check-skill-names.py`, which
+`ruff format` (settings in `ruff.toml`), shellcheck, `scripts/check-skill-names.py`, which
 fails when a skill's frontmatter `name` differs from its directory (`validate` doesn't check
-that). `uvx pre-commit run --all-files` runs them on everything.
+that), and `scripts/sync-mcp-stdio.py --check`. `uvx pre-commit run --all-files` runs them on everything.
 
 CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
@@ -153,6 +160,8 @@ CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `mai
   skills and commands but no tests, hooks or `.claude-plugin/`.
 - `shell`: shellcheck on every `*.sh` file and every tracked file with an `sh` or `bash` shebang.
 - `skill-names`: `scripts/check-skill-names.py`.
+- `mcp-stdio`: `scripts/sync-mcp-stdio.py --check`, that the plugins' copies of `mcp_stdio.py`
+  match.
 
 `.github/workflows/pr-title.yml` checks that the PR title is a Conventional Commit. To run the CI
 checks by hand:
@@ -172,6 +181,7 @@ uv run --no-project --with pytest pytest plugins/worktree-tidy/tests
 uvx ruff check scripts && uvx ruff format --check scripts
 uv run --no-project --with pytest pytest scripts/tests
 uv run --no-project scripts/check-skill-names.py
+uv run --no-project scripts/sync-mcp-stdio.py --check
 npm test
 ```
 

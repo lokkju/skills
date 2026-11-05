@@ -30,3 +30,9 @@ repos:
         language: system
         files: (^|/)SKILL\.md$|^scripts/check-skill-names\.py$
         pass_filenames: false
+      - id: sync-mcp-stdio
+        name: the plugins' mcp_stdio.py copies match
+        entry: uv run --no-project scripts/sync-mcp-stdio.py --check
+        language: system
+        files: (^|/)mcp_stdio\.py$|^scripts/sync-mcp-stdio\.py$
+        pass_filenames: false

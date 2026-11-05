@@ -517,7 +517,8 @@ unless a rule says otherwise, it adds `"ask"` rules for `forge-tracker_groom_app
 
 The server speaks the part of MCP a tools-only server needs (`initialize`, `ping`, `tools/list`,
 `tools/call`, notifications ignored) as newline-delimited JSON-RPC in about 160 lines of standard
-library, beside the CLI it wraps. It negotiates the handshake revisions 2025-11-25 back to
+library (`forge_tracker/mcp_stdio.py`), beside the CLI it wraps. term-recorder's server carries a
+byte-for-byte copy of that module, kept in step by `scripts/sync-mcp-stdio.py`. It negotiates the handshake revisions 2025-11-25 back to
 2024-11-05, which OpenCode's SDK and Claude Code's v1 client use, and also answers the stateless
 2026-07-28 revision (`server/discover`, the version in each request's `_meta`). Using the `mcp`
 package through `uv run --with mcp` would add uv and a package download to every session start

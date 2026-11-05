@@ -51,6 +51,7 @@ class Tmux:
         done = subprocess.run(
             ["tmux", "-L", self.socket, *args],
             check=False,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             env=env,
@@ -70,6 +71,8 @@ class Recorder:
         self.tmux = Tmux(self.socket)
         # (cast time, "o" for a screen or "r" for a resize, the screen or "COLSxROWS")
         self.frames: list[tuple[float, str, str]] = []
+        # (name, path, screen) for each snap, in order
+        self.snaps: list[tuple[str, Path, str]] = []
         self._clock = 0.0
         self.cols0, self.rows0 = options.cols, options.rows
         self.recording = True
@@ -289,6 +292,7 @@ class Recorder:
         screen = self.screen()
         path = self.o.out / f"{name}.txt"
         path.write_text(screen, encoding="utf-8")
+        self.snaps.append((name, path, screen))
         self.log.write(f"--- {name} ({path}) ---\n{screen.rstrip()}\n")
         self.log.flush()
         return path
