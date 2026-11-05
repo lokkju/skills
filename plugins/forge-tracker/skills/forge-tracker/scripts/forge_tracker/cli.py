@@ -30,6 +30,10 @@ from .transport import (
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE = 0, 1, 2
 
+# The write layer as the MCP server (server.py) sees it: only this module imports writes.py.
+WRITE_OPS = writes.OPS
+render_write = writes.render
+
 
 @dataclass
 class Context:
@@ -177,7 +181,7 @@ def forgejo_probe(
     return probe
 
 
-def _json_default(value: Any) -> Any:
+def json_default(value: Any) -> Any:
     if isinstance(value, datetime):
         return iso(value)
     raise TypeError(f"{type(value).__name__} isn't JSON")
@@ -281,7 +285,7 @@ def cmd_catchup(
     result = catchup_one(args, ctx, now, environ, run)
     report = result.report
     text = (
-        json.dumps(report, indent=1, default=_json_default) + "\n"
+        json.dumps(report, indent=1, default=json_default) + "\n"
         if args.json
         else catchup.render(report, tz)
     )
@@ -306,7 +310,7 @@ def cmd_catchup_workspace(
         return EXIT_USAGE
     report, runs = catchup_workspace(args, ws, http, now, environ, run)
     text = (
-        json.dumps(report, indent=1, default=_json_default) + "\n"
+        json.dumps(report, indent=1, default=json_default) + "\n"
         if args.json
         else workspace.render(report, tz)
     )
@@ -340,7 +344,7 @@ def catchup_workspace(
     return report, [r for _, r in done if r is not None]
 
 
-def _workspace_at(
+def workspace_at(
     path: str, run: Callable[..., Any], explicit: bool
 ) -> Optional[workspace.Workspace]:
     """The workspace at `path` when it is one: named by --workspace, or a folder that isn't a git
@@ -365,7 +369,7 @@ def _run_workspace(
     """Run catchup over the workspace at `path`, or for any other command say that it reads one
     repo. None when `path` isn't a workspace, so the caller's own error stands."""
     try:
-        ws = _workspace_at(path, run, explicit)
+        ws = workspace_at(path, run, explicit)
     except ConfigError as error:
         print(f"forge-tracker: {error}", file=sys.stderr)
         return EXIT_USAGE
@@ -435,7 +439,7 @@ def cmd_next(
         ctx, now, environ, args.action == "facts", args.rerank, args.refresh, args.json
     )
     if args.json:
-        out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
+        out.write(json.dumps(report, indent=1, default=json_default) + "\n")
     else:
         out.write(next_.render(report, now, tz))
     out.flush()
@@ -525,7 +529,7 @@ def cmd_groom(args: argparse.Namespace, ctx: Context, now: datetime, out: TextIO
     """Find tracker drift and print the proposed fixes with their evidence. Writes nothing."""
     report = groom_report(ctx, now)
     if args.json:
-        out.write(json.dumps(report, indent=1, default=_json_default) + "\n")
+        out.write(json.dumps(report, indent=1, default=json_default) + "\n")
     else:
         out.write(groom.render(report))
     out.flush()
