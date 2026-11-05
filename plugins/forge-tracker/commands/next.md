@@ -1,6 +1,7 @@
 ---
 description: What to work on next on this repo's forge - your queue, agent lanes that can start now, and what's blocked (read-only)
 argument-hint: "[--rerank] [--refresh] [--json]"
+allowed-tools: mcp__plugin_forge-tracker_forge-tracker__next_report, mcp__plugin_forge-tracker_forge-tracker__next_facts, mcp__plugin_forge-tracker_forge-tracker__save_slate, mcp__plugin_forge-tracker_forge-tracker__labels_suggest
 ---
 
 ## First, which repo

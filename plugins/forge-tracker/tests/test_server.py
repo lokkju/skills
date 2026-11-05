@@ -227,13 +227,15 @@ def test_catchup_over_the_recorded_fixture_matches_the_cli_golden(harness, tmp_p
     golden = (FIXTURES / "github" / "catchup-lokkju-skills.txt").read_text()
     assert result["content"] == [{"type": "text", "text": golden}]
     assert "isError" not in result
-    assert result["structuredContent"]["ok"] is True
-    assert result["structuredContent"]["marker"] == "keep"
+    # Claude Code shows structuredContent in place of the text, so the rendered report has none.
+    assert "structuredContent" not in result
     as_json = client.call(
         "catchup",
         {"repo": repo(tmp_path, REPLAY_CONFIG), "since": "1d", "fetch": False, "json": True},
     )
     assert json.loads(as_json["content"][0]["text"]) == as_json["structuredContent"]
+    assert as_json["structuredContent"]["ok"] is True
+    assert as_json["structuredContent"]["marker"] == "keep"
 
 
 def test_catchup_fetches_first_unless_told_not_to(harness, tmp_path):
@@ -275,7 +277,10 @@ def test_groom_over_the_recorded_fixture_matches_the_cli_golden(harness, tmp_pat
     result = client.call("groom", {"repo": repo(tmp_path, "---\n---\n"), "fetch": False})
     golden = (FIXTURES / "github" / "groom-lokkju-skills.txt").read_text()
     assert result["content"][0]["text"] == golden
-    assert result["structuredContent"]["ok"] is True
+    as_json = client.call(
+        "groom", {"repo": repo(tmp_path, "---\n---\n"), "fetch": False, "json": True}
+    )
+    assert as_json["structuredContent"]["ok"] is True
 
 
 def test_a_workspace_folder_is_named_for_tools_that_read_one_repo(harness, tmp_path):

@@ -1,6 +1,7 @@
 ---
 description: What changed on this repo's forge and what's waiting on you since your last catchup (read-only)
 argument-hint: "[--since 3d|ISO] [--no-mark] [--all] [--json] [--workspace DIR]"
+allowed-tools: mcp__plugin_forge-tracker_forge-tracker__catchup, mcp__plugin_forge-tracker_forge-tracker__labels_suggest
 ---
 
 ## First, which repo

@@ -77,8 +77,12 @@ class ToolError(Exception):
 
 @dataclass
 class Outcome:
-    """A tool's answer: the text the model reads, the structured result, and the catchup runs
-    whose markers move only once the answer has been written."""
+    """A tool's answer: its text, its structured result (None for none), and the catchup runs
+    whose markers move only once the answer has been written.
+
+    Claude Code shows the model a result's structuredContent in place of its text when it has
+    one, so a report comes back as structured JSON only when `json` asks for it; otherwise the
+    model reads the rendered report, the same text the CLI prints and the commands describe."""
 
     text: str
     data: Any = None
@@ -100,7 +104,8 @@ FETCH = {
 JSON = {
     "type": "boolean",
     "default": False,
-    "description": "return the report as JSON text instead of the rendered report",
+    "description": "return the report as structured JSON (also as the text) instead of the "
+    "rendered report",
 }
 READ = {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": True}
 WRITE = {"readOnlyHint": False, "openWorldHint": True}
@@ -244,7 +249,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "smoke",
         "title": "Smoke check",
         "description": "Every read once against the forge, with counts and any FAILED part.",
-        "inputSchema": _schema({"repo": REPO}),
+        "inputSchema": _schema({"repo": REPO, "json": JSON}),
         "annotations": {"title": "Smoke check", **READ},
     },
     {
@@ -423,7 +428,7 @@ def _report(report: dict[str, Any], text: str, as_json: bool, notes: list[str]) 
     shown = _json(report) if as_json else text
     if notes:
         shown = "".join(f"note: {n}\n" for n in notes) + shown
-    return Outcome(shown, _plain(report))
+    return Outcome(shown, _plain(report) if as_json else None)
 
 
 def tool_catchup(env: Env, args: Mapping[str, Any]) -> Outcome:
@@ -537,7 +542,7 @@ def tool_save_slate(env: Env, args: Mapping[str, Any]) -> Outcome:
         raise ToolError(str(error)) from None
     except next_.SlateError as error:
         raise ToolError(f"slate refused: {error}") from None
-    return Outcome(slate_line(saved), _plain(saved))
+    return Outcome(slate_line(saved))
 
 
 def tool_groom(env: Env, args: Mapping[str, Any]) -> Outcome:
@@ -551,9 +556,11 @@ def tool_labels_suggest(env: Env, args: Mapping[str, Any]) -> Outcome:
     ctx = _open(env, env.path(args.get("repo")))
     read = attempt(ctx.adapter.labels)
     if not read.ok:
-        return Outcome(f"labels: FAILED ({read.error})\n", {"ok": False, "error": read.error})
+        return Outcome(f"labels: FAILED ({read.error})\n")
     data = labelsetup.report(read.data, ctx.config, ctx.remote, env.time())
-    return Outcome(_json(data) if _bool(args, "json") else labelsetup.render(data), _plain(data))
+    if _bool(args, "json"):
+        return Outcome(_json(data), _plain(data))
+    return Outcome(labelsetup.render(data))
 
 
 def tool_labels_decline(env: Env, args: Mapping[str, Any]) -> Outcome:
@@ -585,11 +592,19 @@ def tool_smoke(env: Env, args: Mapping[str, Any]) -> Outcome:
     ]
     ok = all(p["ok"] or p["unsupported"] for p in parts)
     data = {"ok": ok, "project": ctx.remote.project, "forge": ctx.forge, "checks": parts}
-    return Outcome(render_smoke(ctx, checks), _plain(data))
+    if _bool(args, "json"):
+        return Outcome(_json(data), _plain(data))
+    return Outcome(render_smoke(ctx, checks))
 
 
-def _result(result: Any) -> dict[str, Any]:
-    return {"op": result.op, "status": result.status, "detail": result.detail, "via": result.via}
+def _result(result: Any, line: str) -> dict[str, Any]:
+    return {
+        "op": result.op,
+        "status": result.status,
+        "detail": result.detail,
+        "via": result.via,
+        "line": line,
+    }
 
 
 def tool_groom_apply(env: Env, args: Mapping[str, Any]) -> Outcome:
@@ -608,7 +623,7 @@ def tool_groom_apply(env: Env, args: Mapping[str, Any]) -> Outcome:
         result = writer.apply(proposal["op"], proposal["payload"])
         line = render_write(result, proposal["id"])
         lines.append(line)
-        results.append({"id": proposal["id"], **_result(result)})
+        results.append({"id": proposal["id"], **_result(result, line)})
     ok = all(r["status"] == "written" for r in results)
     return Outcome("\n".join(lines) + "\n", {"ok": ok, "results": results})
 
@@ -625,7 +640,7 @@ def tool_link(env: Env, args: Mapping[str, Any]) -> Outcome:
         )
     ctx = _open(env, env.path(args.get("repo")))
     result, line = apply_write(ctx, env.time(), env.environ, env.run, f"link-{action}", payload)
-    return Outcome(line + "\n", _result(result), error=result.status == "refused")
+    return Outcome(line + "\n", _result(result, line), error=result.status == "refused")
 
 
 def tool_write(env: Env, args: Mapping[str, Any]) -> Outcome:
@@ -634,7 +649,7 @@ def tool_write(env: Env, args: Mapping[str, Any]) -> Outcome:
         raise ToolError("op must be the name of a write operation")
     ctx = _open(env, env.path(args.get("repo")))
     result, line = apply_write(ctx, env.time(), env.environ, env.run, op, args.get("payload"))
-    return Outcome(line + "\n", _result(result), error=result.status == "refused")
+    return Outcome(line + "\n", _result(result, line), error=result.status == "refused")
 
 
 def tool_labels_create(env: Env, args: Mapping[str, Any]) -> Outcome:

@@ -1,6 +1,7 @@
 ---
 description: Find where this repo's tracker has drifted (merged but open issues, label and milestone mismatches, stale links, rulings left waiting, stale branches) and fix what you approve
 argument-hint: "[--json]"
+allowed-tools: mcp__plugin_forge-tracker_forge-tracker__groom, mcp__plugin_forge-tracker_forge-tracker__labels_suggest
 ---
 
 ## First, which repo
