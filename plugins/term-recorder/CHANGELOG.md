@@ -1,5 +1,12 @@
 # Changelog
 
+## [term-recorder--v2026.11.05.1](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.25.1...term-recorder--v2026.11.05.1) (2026-11-05)
+
+### Features
+
+- **term-recorder:** the skill records through the MCP tools ([1ceaddf](https://github.com/lokkju/skills/commit/1ceaddf6baad2905daec1a2caa2a89aaeafeb8c4))
+- **term-recorder:** an MCP server over the recorder ([e505a5e](https://github.com/lokkju/skills/commit/e505a5effeb577fcf19600ac39e8d2a3fbf900b8))
+
 ## [term-recorder--v2026.10.25.1](https://github.com/lokkju/skills/compare/term-recorder--v2026.10.16.1...term-recorder--v2026.10.25.1) (2026-10-25)
 
 ### Fixes
