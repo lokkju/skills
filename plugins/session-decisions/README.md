@@ -21,10 +21,11 @@ claude plugin install session-decisions@lokkju
 ```
 
 Restart Claude Code. There's nothing you have to configure; the skill tells the assistant when to
-queue something, and the hook keeps it honest. There are four options:
+queue something, and the hook keeps it honest. There are five options:
 [`forge_hosts`](#forge-hosts) is for repositories on a self-hosted forge,
 [`handoff_check`](#hand-off-check) turns off the check for work handed to you outside the queue,
-and [`reply_list` and `push_notifications`](#from-your-phone) set how the queue reaches you over
+[`ignore_labels`](#hand-off-check) names labels that mean something else in your work (`D1` for
+Cloudflare D1), and [`reply_list` and `push_notifications`](#from-your-phone) set how the queue reaches you over
 Remote Control.
 
 ## How it works
@@ -219,11 +220,14 @@ It looks for three things:
   an assistant tends to leave in prose because they never block its own work: `the only thing
   blocking the build restart`, `I cannot write to Vault for you`, `I don't have access to the
   registry`, `say the word and I'll push`, `approve the SSH key prompt`, `put the client secret in
-  Vault`, `the push needs your approval`;
+  Vault`, `the push needs your approval`, `a zone ID for you to fill in`, `who merges it: you, or
+  that repo's session`;
 - a label the reply names that isn't in the session's queue (`A24 is in the queue for that`, with
   no A24), which means the item was never created. The toast says so (`A24 named but not in the
   queue`), and the reminder tells the assistant to create it if it is one of the session's, and
-  to ignore it if it was quoted from elsewhere.
+  to ignore it if it was quoted from elsewhere. Every label the session has used counts as in
+  the queue: open, settled, superseded and deleted items alike, through compactions, resumes and
+  a new session id, so a reply that says `A240: closed` after A240 was settled is left alone.
 
 To keep false alarms rare, it skips:
 
@@ -231,17 +235,30 @@ To keep false alarms rare, it skips:
   an open item, or one queued this turn, that shares a reference (`#41`, `!4`, a URL) with it, or
   most of its words;
 - conditional, negated and questioning phrasing (`if you need to roll back`, `you won't need to`,
-  `will you need to review it first?`);
+  `will you need to review it first?`, `Nothing is waiting on you`);
+- a status line about the queue: one that says the items are queued (`Two decisions only you can
+  make are in the queue`), and, while the queue holds open items, one that counts them (`three
+  decisions are waiting on you`);
+- a heading, a lead-in or a list item whose list items all name labels in the queue (`Waiting on
+  you:` over `- Merges:` over `- A206: HSTS, infra#91`), the list items under a heading or item
+  that names one, and a list item under a hand-off heading that says there's nothing there;
 - code blocks, quoted lines, and a phrase inside quotes or backticks;
 - a sentence about what another agent, a document or a tool will produce (`It'll lay out the
   options and the questions only you can answer`, `The report lists the steps you'll need to
   run`), and `only you can answer` or `decide` with nothing after it;
 - a label quoted while describing somewhere else: one in the same bullet, or the same sentence,
   as an issue or PR reference or a link (`[skills#129](...): D123 sent a nested note`), one in a
-  sentence that says where it comes from (`tests for the exact D123 shape from the issue`), and
-  one more than 50 above the session's highest label of its letter. A label leading its line
+  sentence that says where it comes from (`tests for the exact D123 shape from the issue`, `the
+  lokkju/infra session's D242`, `captare's own docs list it as A7`, a cited file such as
+  `docs/plans/pets.md (D69)`), and one more than 50 above the session's highest label of its
+  letter;
+- a label in a line that names a cloud resource or its tooling (`the Worker, its D1, the host
+  timer`, `bindings (D1, KV, Durable Objects)`), one the same line also quotes (`| "D1" meaning
+  Cloudflare D1 | 25 |`), and one the `ignore_labels` option lists, comma-separated (`D1, A1`). A label leading its line
   (`D7: merge it`) still counts as the session's own;
-- a line about the check itself, such as a note that it raised a false alarm;
+- a line about the check itself, such as a note that it raised a false alarm (`The D242 the hook
+  flagged is another session's`), and a label or line the previous reply's nudge flagged, unless
+  the reply hands it over again (`D33: you'll need to merge #12`);
 - a heading that's really a sentence (`For you to compare, the two plans are:`), and a bare `Next
   steps:`, which is usually the assistant's own plan.
 
@@ -255,7 +272,9 @@ line to run it, or split into short lines with `\` continuations. The skill asks
 first place.
 
 It reads the main conversation's replies, not a subagent's, and stays quiet while a Stop hook has
-the assistant continuing. Set `handoff_check` to `false` (in `/config`, or under `options` as in
+the assistant continuing. Each time it flags a reply it writes one line to Claude Code's debug log
+(`claude --debug`): where it ran, the labels it named and the reason for each line. Set
+`handoff_check` to `false` (in `/config`, or under `options` as in
 [Forge hosts](#forge-hosts)) to turn it off.
 
 ### Forge hosts

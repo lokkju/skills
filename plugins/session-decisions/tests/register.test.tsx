@@ -580,6 +580,74 @@ describe('hand-off check', () => {
     expect(text).toContain('Your reply named D33')
   })
 
+  // lokkju/skills#163: settling with a rewritten subject dropped the item from the queue, so the
+  // check reported A240 to A242 as never created half an hour after they were.
+  test('an item settled with a rewritten subject, or deleted, stays known through a compaction', async ($, on) => {
+    const { tasks, toasts } = engine(on)
+    classic(on)
+    on('classic.SessionStart', () => ({}))
+    await start($)
+    await prompt($)
+    await create($, 'ACTION: say I may close exemplar#41 and exemplar#43 [#41]')
+    await create($, 'ACTION: approve merging infra#96 and running its pulumi up [#96]')
+    await create($, 'ACTION: set up FIDO on the laptop [no link]')
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u1', taskId: '1', status: 'completed', subject: 'A1 close exemplar#41/#43. Ruling (2026-11-05): go. Both closed' })
+    await $.tool.call({ tool: 'TaskUpdate', tool_use_id: 'u2', taskId: '3', status: 'deleted' })
+    tasks.delete('3') // Claude Code removes a deleted task's file
+    await $.classic.SessionStart({ source: 'compact', session_id: SID })
+    await prompt($)
+    await stop($, [
+      '- A1: [exemplar#41](https://github.com/codexpublicus/exemplar/issues/41) and #43 are closed.',
+      '- A2: infra#96 is merged and applied.',
+      '',
+      "A3: you don't need FIDO now. I dropped it from your queue.",
+    ].join('\n'))
+    expect(toasts.filter(toast => toast.includes('not in the queue') || toast.includes('not queued'))).toEqual([])
+    const all = await listAll($)
+    expect(all.text).toContain('A1 ACTION: say I may close exemplar#41 and exemplar#43 [#41]  (completed)')
+    expect(all.text).toContain('Ruling (2026-11-05): go. Both closed')
+  })
+
+  test('every label the stored record or the transcript has counts as known', async ($, on) => {
+    const record = { counters: { D: 0, A: 242 }, created: { A240: 1, A241: 2 }, ledger: [], closed: {}, touched: 1 }
+    const { session, toasts } = engine(on, {}, { store: { [`session:${SID}`]: record } })
+    session.messages = [{ toolUses: [{ tool: 'TaskCreate', result: { task: { id: '9', subject: 'A242 ACTION: make citare public [#97]' } } }] }]
+    classic(on)
+    await start($)
+    await prompt($)
+    await stop($, 'A240, A241 and A242 are done.')
+    expect(toasts.filter(toast => toast.includes('not in the queue'))).toEqual([])
+    await stop($, 'A243 is done too.')
+    expect(toasts.at(-1)).toBe('A243 named but not in the queue')
+  })
+
+  test('the ignore_labels option keeps a product name out of the check', { options: { ignore_labels: 'D1' } }, async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await stop($, '| 3 | The D1 tenant store; config changes apply within 30 seconds, without a redeploy |')
+    expect(toasts.filter(toast => toast.includes('not in the queue'))).toEqual([])
+  })
+
+  test('explaining a false alarm does not set it off again; handing the label over anew does', async ($, on) => {
+    const { toasts, logged } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await stop($, "I've queued it as D33 with that scope proposal.")
+    expect(toasts.filter(toast => toast.includes('D33 named'))).toHaveLength(1)
+    expect(logged.at(-1)).toBe(
+      "session-decisions: hand-off check (stop) flagged 1 line; labels: D33; names D33, not in the queue: I've queued it as D33 with that scope proposal.",
+    )
+    await prompt($)
+    await stop($, "D33: you'll need to merge #12 before I can go on.")
+    expect(toasts.filter(toast => toast.includes('D33 named'))).toHaveLength(2)
+    await prompt($)
+    await stop($, 'Sorry, D33 was my slip: there is no such item.')
+    expect(toasts.filter(toast => toast.includes('D33 named'))).toHaveLength(2)
+  })
+
   test('a Stop hook continuation is left alone', async ($, on) => {
     const { toasts } = engine(on)
     classic(on)

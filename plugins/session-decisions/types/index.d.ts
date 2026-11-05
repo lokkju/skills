@@ -66,6 +66,8 @@ declare module 'claude-code' {
       loops: Record<string, Loop>
       turnStarted: number
       handoffNudge: string
+      handoffFlagged: { labels: readonly string[]; lines: readonly string[] }
+      labelsSeen: string[]
       showSettled: boolean
       paneDismissed: boolean
       autoOpened: boolean
