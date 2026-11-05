@@ -928,9 +928,12 @@ def test_only_the_cli_reaches_the_write_layer():
 
 
 def test_replay_of_a_recorded_github_groom(tmp_path, repo_dir):
-    """Recorded with `forge-tracker --record`, then each changed-file list's `patch` dropped to
-    keep the file near 1 MB instead of 3. No symbol an issue names matched in that run, so the
-    report is the one the live run printed; symbol matching is covered by `test_report`."""
+    """Recorded with `forge-tracker --record`, then pruned to what the possibly-done lines use:
+    three open issues (#22 by cross-reference, #126 by cross-reference and a path, #145 a path
+    that matches a PR doing something else), the four merged PRs that touched those paths, and
+    only the files and fields the report reads. Whole items were dropped; none was edited, and
+    pagination is as recorded. Symbol matching is covered by `test_report`, and an unsupported
+    read by the Forgejo golden and the contract suite."""
     http = ReplayHttp(FIXTURES / "github" / "groom-lokkju-skills.json")
     out = io.StringIO()
     code = cli.main(
