@@ -1,5 +1,20 @@
 # Changelog
 
+## [forge-tracker--v2026.11.05.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.26.1...forge-tracker--v2026.11.05.1) (2026-11-05)
+
+### Features
+
+- **forge-tracker:** return rendered reports as text, structured JSON on request, and pre-approve the read tools in the commands ([89f5380](https://github.com/lokkju/skills/commit/89f53805da386cd5c0de2f180bad6264c62f217d))
+- **forge-tracker:** list issues /groom finds possibly done without a closing reference ([0b7fd84](https://github.com/lokkju/skills/commit/0b7fd849456247c9a412a685ede7d436433781c1))
+- **forge-tracker:** call the MCP tools from the commands and skill, with the CLI as fallback ([8b75d87](https://github.com/lokkju/skills/commit/8b75d87f6d3379a1563b3e512a1250b0a463dbe2))
+- **forge-tracker:** add an MCP server over the CLI's reports and writes ([bd8ee90](https://github.com/lokkju/skills/commit/bd8ee90a81540c286207cd2041a0c49a1bab4365))
+- **forge-tracker:** add the Forgejo and Gitea read adapter ([a8108d5](https://github.com/lokkju/skills/commit/a8108d5f6fa9f150b8f876fa39f546e527c3e9a2))
+- **forge-tracker:** add the GitLab read adapter through glab api ([8536099](https://github.com/lokkju/skills/commit/8536099fd50ba76a0198c469aaa566fc76c0c2b5))
+
+### Fixes
+
+- **forge-tracker:** read Forgejo's null lists, disabled releases and offset times ([f463eba](https://github.com/lokkju/skills/commit/f463eba11126534124987b7d9f67a11a9c0952ca))
+
 ## [forge-tracker--v2026.10.26.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.25.1...forge-tracker--v2026.10.26.1) (2026-10-26)
 
 ### Features
