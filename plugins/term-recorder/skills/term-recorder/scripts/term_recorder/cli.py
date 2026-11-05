@@ -4,21 +4,12 @@ from __future__ import annotations
 
 import argparse
 import io
-import os
-import shutil
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Optional
 
 from . import steps as steplib
-from .runner import Options, Recorder, StepFailed
-
-# What the command gets from this environment unless --pass adds more. TERM comes from --term.
-BASE_ENV = ("HOME", "PATH", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR")
-
-AGG_ARGS = ["--idle-time-limit", "2", "--last-frame-duration", "4", "--font-size", "14"]
+from .job import AGG_ARGS, BASE_ENV, Job, environment, execute, variables
 
 EPILOG = """\
 Steps (one per line, shell quoting, # comments):
@@ -36,7 +27,7 @@ Steps (one per line, shell quoting, # comments):
   include FILE                  FILE's steps, in place
   when REGEX STEP...            STEP only if the screen matches now
 
-The screen is always snapped as "final" at the end. Exit status: 0 when every step ran, 1 when a
+${EXAMPLES} in a step file is the bundled examples directory. The screen is always snapped as "final" at the end. Exit status: 0 when every step ran, 1 when a
 step failed (the screen goes to stderr), 2 for a usage or setup problem.
 """
 
@@ -142,20 +133,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             f"term-record: --size wants COLSxROWS, at least 10x3, got {args.size}", file=sys.stderr
         )
         return 2
-    if shutil.which("tmux") is None:
-        print("term-record: tmux isn't on PATH", file=sys.stderr)
-        return 2
-    if args.gif and shutil.which("agg") is None:
-        print(
-            "term-record: --gif needs agg (https://github.com/asciinema/agg) on PATH",
-            file=sys.stderr,
-        )
-        return 2
     try:
-        variables = pairs(args.var, "--var")
-        env = {name: os.environ[name] for name in BASE_ENV if name in os.environ}
-        env.update({name: os.environ[name] for name in args.pass_env if name in os.environ})
-        env.update(pairs(args.env, "--env"))
+        subs = variables(pairs(args.var, "--var"))
+        env = environment(args.pass_env, pairs(args.env, "--env"))
     except SystemExit as err:
         print(err, file=sys.stderr)
         return 2
@@ -165,65 +145,30 @@ def main(argv: Optional[list[str]] = None) -> int:
         for source in args.steps:
             if source == "-":
                 lines = sys.stdin.read().splitlines()
-                steps.extend(steplib.parse(lines, "<stdin>", Path.cwd(), variables))
+                steps.extend(steplib.parse(lines, "<stdin>", Path.cwd(), subs))
             else:
-                steps.extend(steplib.load(Path(source), variables))
+                steps.extend(steplib.load(Path(source), subs))
     except steplib.StepError as err:
         print(f"term-record: {err}", file=sys.stderr)
         return 2
 
-    out = args.out or Path(tempfile.mkdtemp(prefix="term-record-"))
-    out.mkdir(parents=True, exist_ok=True)
-    options = Options(
+    job = Job(
+        command=command,
+        steps=steps,
         cols=size[0],
         rows=size[1],
-        cwd=(args.cwd or Path.cwd()).resolve(),
+        cwd=args.cwd or Path.cwd(),
+        out=args.out,
+        cast=args.cast,
+        gif=args.gif,
+        agg_args=args.agg_arg,
         env=env,
         term=args.term,
-        out=out,
         busy_timescale=args.busy_timescale,
+        keep=args.keep,
     )
     log = io.StringIO() if args.quiet else sys.stdout
-    rec = Recorder(command, options, log)
-    status = 0
-    try:
-        rec.start()
-        rec.run(steps)
-    except StepFailed as err:
-        print(f"term-record: {err}", file=sys.stderr)
-        try:
-            print(rec.screen().rstrip(), file=sys.stderr)
-        except RuntimeError:
-            pass
-        status = 1
-    except RuntimeError as err:
-        print(f"term-record: {err}", file=sys.stderr)
-        status = 2
-    except KeyboardInterrupt:
-        status = 130
-    finally:
-        try:
-            if status != 2:
-                rec.snap("final")
-        except RuntimeError:
-            pass
-        rec.stop(keep=args.keep)
-
-    if args.keep and status != 2:
-        print(
-            f"term-record: still running; attach with: tmux -L {rec.socket} attach", file=sys.stderr
-        )
-    cast_text = rec.cast()
-    if args.cast:
-        args.cast.write_text(cast_text, encoding="utf-8")
-    if args.gif:
-        cast_path = args.cast or out / "recording.cast"
-        if not args.cast:
-            cast_path.write_text(cast_text, encoding="utf-8")
-        agg = ["agg", *(args.agg_arg if args.agg_arg is not None else AGG_ARGS)]
-        done = subprocess.run([*agg, str(cast_path), str(args.gif)], check=False)
-        if done.returncode != 0:
-            print(f"term-record: agg failed ({done.returncode})", file=sys.stderr)
-            status = status or 1
-    print(f"term-record: snaps in {out}", file=sys.stderr)
-    return status
+    result = execute(job, log)
+    for message in result.messages:
+        print(message, file=sys.stderr)
+    return result.status
