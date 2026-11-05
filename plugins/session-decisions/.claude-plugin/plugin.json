@@ -29,6 +29,18 @@
       "title": "Hand-off check",
       "description": "When a reply hands you work (\"left for you\", \"you'll need to merge\") that isn't in the decision queue, or a shell command line too wide to copy out of tmux whole, show a warning and remind the assistant on its next turn.",
       "default": true
+    },
+    "reply_list": {
+      "type": "string",
+      "title": "Reply list",
+      "description": "When the assistant ends its replies with a one-line-per-item list of the open decisions and actions: auto (while you write over Remote Control, from the mobile app or claude.ai/code, where the pane doesn't show), always, or never. /decisions list on, off or auto changes it for one session.",
+      "default": "auto"
+    },
+    "push_notifications": {
+      "type": "boolean",
+      "title": "Push notifications",
+      "description": "Push each new decision or action to your phone (label, question, recommendation), and again when its recommendation changes. Uses Claude Code's PushNotification tool, which pushes while Remote Control is connected and \"Push when Claude decides\" is on in /config.",
+      "default": true
     }
   }
 }

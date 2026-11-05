@@ -35,6 +35,13 @@ export type Details = { item: string; owns: boolean }
 export type Loop = 'background' | 'foreground' | 'tasks'
 
 /**
+ * When replies end with an `Open items` list: while the person writes over Remote Control (`auto`),
+ * always, or never. The reply_list option sets it; `/decisions list on|off|auto` overrides it for
+ * the session.
+ */
+export type ListMode = 'auto' | 'always' | 'never'
+
+/**
  * What `$.store` keeps per session, so a resumed session continues its numbering and ledger: under
  * `list:<CLAUDE_CODE_TASK_LIST_ID>` when that is set, `session:<session id>` otherwise. `closed` holds the settled task-list items by task id: completed with TaskUpdate, settled by
  * `decision_close` while TaskUpdate wasn't available (their task files still show them open), or
@@ -64,6 +71,9 @@ declare module 'claude-code' {
       autoOpened: boolean
       details: Details | null
       ascii: boolean
+      remote: boolean
+      listMode: ListMode | null
+      pushed: Record<string, string>
     }
   }
 }

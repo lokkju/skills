@@ -174,6 +174,23 @@ step: carry it out, then complete the item with the result as its ruling. `A2: d
 did it themselves. Their buttons add one line per item, so a single message can
 answer several items; record each one.
 
+## When the user reads from a phone or a browser
+
+Over Remote Control (the Claude mobile app, claude.ai/code) the user sees your replies and tool
+rows but not the queue's pane, cards, footer or toasts. While they write from there, or after they
+run `/decisions list on`, the plugin says so beside their prompt and lists what's open. Then end
+every reply that leaves items open with an `Open items` list, one line per item: the label, the
+question or action, and the recommendation, such as `- D3: retire the old deploy script? (recommend
+yes)`. Keep it to those lines; `/decisions list` prints the full items. They answer by typing
+`D3: go`, `D3: <their answer>` or `A2: done`; record it as any other answer. Once a prompt comes
+from the terminal again, or after `/decisions list off`, drop the list (ledger items still get
+theirs, as above).
+
+The plugin pushes each new item to the user's phone itself, and again when its recommendation
+changes, so don't send PushNotification for queue items. If the plugin isn't loaded, the user is on
+Remote Control and you have PushNotification, push each item you write once, with its label,
+question and recommendation.
+
 ## Reconciling the queue
 
 In a long session, items go stale behind the conversation: the user answers one in passing

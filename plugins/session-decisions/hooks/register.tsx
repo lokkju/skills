@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Counters, Details, Item, Kind, Loop, SessionRecord } from '../types'
+import type { Counters, Details, Item, Kind, ListMode, Loop, SessionRecord } from '../types'
 import {
   applyUpdate,
   age,
@@ -30,6 +30,7 @@ import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, 
 import { handoffs, nudge, unknownLabels, wideCommands, wideNudge } from './handoff'
 import { RECONCILE, brief } from './reconcile'
 import { refusal } from './version'
+import { type ListReason, TEXT_WIDTH, parseListMode, pushText, replyNote, textListing } from './remote'
 import { LETTER, formatSubject, parseDraft, problems, recommendation, revisedIn, rulingIn, shortRecommendation, splitBody, supersededIn } from './subject'
 
 type $ = EngineInterface
@@ -40,6 +41,9 @@ const CLOSE_TOOL = 'mcp__session-decisions__decision_close'
 const UPDATE_TOOL = 'mcp__session-decisions__decision_update'
 const LIST_TOOL = 'mcp__session-decisions__decision_list'
 const SUPERSEDE_TOOL = 'mcp__session-decisions__decision_supersede'
+// Claude Code's own tool that notifies the person, and pushes to their phone while Remote Control
+// is connected. Only builds with the push feature on offer it.
+const PUSH_TOOL = 'PushNotification'
 // The tools whose transcript row draws as one line naming its item, and whose result draws nothing.
 const CARD_TOOLS = ['TaskCreate', ADD_TOOL, UPDATE_TOOL] as const
 const SAFE_ID = /^[A-Za-z0-9._-]{1,128}$/
@@ -82,6 +86,17 @@ let listOffset: number | null = null
 // marker for the scroll to bring to the top. A plugin's $.ui.scroll names things, never rows.
 let restoreRow: number | null = null
 const ascii = atom({ plugin: 'session-decisions', key: 'ascii' } as const, false)
+// Whether the person's latest prompt came over Remote Control (the mobile app, claude.ai/code),
+// where the pane, cards and toasts don't show; a prompt typed at the terminal sets it back.
+const remote = atom({ plugin: 'session-decisions', key: 'remote' } as const, false)
+// The reply list's mode as `/decisions list on|off|auto` set it; null follows the reply_list option.
+const listMode = atom({ plugin: 'session-decisions', key: 'listMode' } as const, null as ListMode | null)
+// The recommendation each label was last pushed with ('' for none), so an item is pushed once and
+// again only when its recommendation changes.
+const pushed = atom({ plugin: 'session-decisions', key: 'pushed' } as const, {} as Record<string, string>)
+// Whether this is a cloud session (claude.ai/code), which the person only ever reads remotely;
+// read from CLAUDE_CODE_REMOTE at session start.
+let cloud = false
 // Whether the last hydrate found no stored record and no transcript to look for one in, so the
 // next prompt should look again. A module variable: it's about this process, not the queue.
 let lineageOpen = false
@@ -434,9 +449,74 @@ async function assign($: $, kind: Kind): Promise<string> {
   return label
 }
 
-async function announce($: $, item: Item): Promise<void> {
+async function announce($: $, item: Item, push: boolean): Promise<void> {
   $.ui.toast(`${item.label} added: ${plainText(splitBody(item.body).question)}`)
+  await pushItem($, item, push)
   await offerSidebar($)
+}
+
+/**
+ * Push an open item to the person's phone, once per label and recommendation: a new item, or one
+ * whose recommendation changed. It goes through Claude Code's PushNotification tool, which pushes
+ * while Remote Control is connected; the call runs after the hook returns, so a permission prompt
+ * or a slow push never holds up the tool call that made the item.
+ */
+async function pushItem($: $, item: Item, push: boolean): Promise<void> {
+  if (!push || !isOpen(item)) return
+  const rec = recommendation(item.body) ?? ''
+  let fresh = false
+  await update($, pushed, map => {
+    fresh = map[item.label] !== rec
+    return fresh ? { ...map, [item.label]: rec } : map
+  })
+  if (!fresh) return
+  const message = pushText(item)
+  $.clock.after(0, () => void sendPush($, message))
+}
+
+// Whether this process has said why a push couldn't go out; it says so once, not per item.
+let pushWarned = false
+
+/**
+ * Send one push. A tool that isn't offered, a refusal, or push turned off in /config gets one toast
+ * per process saying why, and a debug line each time; the person being at the terminal (the tool
+ * doesn't push then) and Remote Control not being connected are normal and stay quiet.
+ */
+async function sendPush($: $, message: string): Promise<void> {
+  const skip = (why: string, tell: boolean) => {
+    $.ui.log(`session-decisions: no push: ${why}`, { to: 'debug' })
+    if (!tell || pushWarned) return
+    pushWarned = true
+    $.ui.toast(`session-decisions: no phone push for new items: ${why}. The push_notifications option turns pushes off.`, { timeoutMs: 10_000 })
+  }
+  try {
+    if (!(await $.tool.list()).some(tool => tool.name === PUSH_TOOL)) {
+      return skip(`this Claude Code doesn't offer ${PUSH_TOOL}`, true)
+    }
+    const input = { message, status: 'proactive' as const }
+    const verdict = await $.tool.check({ tool: PUSH_TOOL, input })
+    if (verdict.decision === 'deny') return skip(`${PUSH_TOOL} is denied${verdict.reason ? ` (${verdict.reason})` : ''}`, true)
+    const sent = await $.tool.call({ tool: PUSH_TOOL, ...input })
+    if (sent.deny !== undefined) return skip(sent.deny, true)
+    const reason = (sent.result as { disabledReason?: string } | undefined)?.disabledReason
+    if (reason === 'config_off') skip('turn on "Push when Claude decides" in /config', true)
+    else if (reason) skip(reason, false)
+  } catch (err) {
+    skip(String(err), true)
+  }
+}
+
+/** Why the reply list is on now, or null when it's off: the option, or the session's toggle, and where the person writes. */
+async function listReason($: $, option: ListMode): Promise<ListReason | null> {
+  const mode = (await read($, listMode)) ?? option
+  if (mode === 'never') return null
+  if (cloud || (await read($, remote))) return 'remote'
+  return mode === 'always' ? 'asked' : null
+}
+
+/** Note where a prompt or command came from: over Remote Control, or typed at the terminal. */
+async function noteOrigin($: $, kind: string | undefined): Promise<void> {
+  if (kind === 'bridge' || kind === 'composer') await update($, remote, () => kind === 'bridge')
 }
 
 /** The lines of a reply that hand the person work without a queue entry; null when there are none. */
@@ -472,6 +552,9 @@ export const register: Register = (on, options) => {
   // The forge_hosts option (plugin.json userConfig), read as the module loads.
   const forgeHosts = parseForgeHosts(options?.forge_hosts)
   const checkHandoffs = options?.handoff_check !== false
+  const replyList = parseListMode(options?.reply_list)
+  const push = options?.push_notifications !== false
+  pushWarned = false
   gate = null
   on('session.start', async ($, e, next) => {
     // Too old a Claude Code: say so where the person will see it, and register nothing.
@@ -485,8 +568,8 @@ export const register: Register = (on, options) => {
     const quietly = (work: Promise<unknown>) => work.catch(() => undefined)
     await quietly($.command.register({
       name: 'decisions',
-      description: "Show this session's open decisions (D) and actions (A); 'all' adds settled ones, 'pane' opens the panel, 'reconcile' closes or revises the ones the session has settled, 'wrap' settles each before the session ends.",
-      argumentHint: '[all | pane | reconcile | wrap]',
+      description: "Show this session's open decisions (D) and actions (A); 'all' adds settled ones, 'list' prints them as plain text (for the mobile app), 'list on|off|auto' sets whether replies end with them, 'pane' opens the panel, 'reconcile' closes or revises the ones the session has settled, 'wrap' settles each before the session ends.",
+      argumentHint: '[all | list [all | on | off | auto] | pane | reconcile | wrap]',
       immediate: true,
     }))
     await quietly($.tool.register({
@@ -554,6 +637,8 @@ export const register: Register = (on, options) => {
     const found = await repoForge($, forgeHosts.hosts)
     if (found.notes.length) $.ui.toast(`session-decisions: git config ignores ${found.notes.join('; ')}`)
     forge = found.forge
+    const remoteEnv = (await $.env.get('CLAUDE_CODE_REMOTE')) ?? ''
+    cloud = remoteEnv !== '' && !/^(0|false|no)$/i.test(remoteEnv)
     const term = await $.env.get('TERM')
     const noColor = await $.env.get('NO_COLOR')
     await update($, ascii, () => Boolean(noColor) || term === 'dumb')
@@ -593,6 +678,18 @@ export const register: Register = (on, options) => {
     if (!pending) return result
     await update($, handoffNudge, () => '')
     return { ...result, additionalContext: [...(result.additionalContext ?? []), pending] }
+  })
+
+  // The reply list: while the person writes over Remote Control (or turned the list on), the
+  // model reads, beside each prompt, to end its replies with the open items, and which are open.
+  on('prompt.submit', async ($, e, next) => {
+    if (await off($)) return next(e)
+    await noteOrigin($, e.origin?.kind)
+    const kind = e.origin?.kind
+    if (e.command || e.isMeta || (kind !== 'bridge' && kind !== 'composer' && kind !== 'sdk')) return next(e)
+    const reason = await listReason($, replyList)
+    if (!reason) return next(e)
+    return next({ ...e, context: [...(e.context ?? []), replyNote(await read($, items), reason)] })
   })
 
   on('classic.Stop', async ($, e, next) => {
@@ -669,7 +766,7 @@ export const register: Register = (on, options) => {
       await change($, list => upsert(list, { ...item, created: at }))
       await update($, counters, now => coverLabels(now, [item]))
       await persist($)
-      await announce($, item)
+      await announce($, item, push)
     }
     return ran
   })
@@ -718,13 +815,18 @@ export const register: Register = (on, options) => {
       return ran
     }
     await update($, counters, now => coverLabels(now, after))
+    if (!assigned) {
+      const was = before.find(one => one.source === 'tasks' && one.id === taskId)
+      const is = after.find(one => one.source === 'tasks' && one.id === taskId)
+      if (was && is && recommendation(was.body) !== recommendation(is.body)) await pushItem($, is, push)
+    }
     if (assigned) {
       const at = (await read($, created))[assigned] ?? (await $.clock.now())
       const fresh = await change($, list =>
         list.map(one => (one.source === 'tasks' && one.id === taskId ? { ...one, created: one.created ?? at } : one)),
       )
       const item = fresh.find(one => one.source === 'tasks' && one.id === taskId)
-      if (item) await announce($, item)
+      if (item) await announce($, item, push)
     }
     await persist($)
     return ran
@@ -749,7 +851,7 @@ export const register: Register = (on, options) => {
     }
     await change($, list => [...list, item])
     await persist($)
-    await announce($, item)
+    await announce($, item, push)
     return { result: subjectOf(item) }
   })
 
@@ -778,6 +880,7 @@ export const register: Register = (on, options) => {
     const done = revise(target, { body: text || undefined, note }, date)
     await change($, now => now.map(item => (item.source === 'ledger' && item.id === target.id ? done : item)))
     await persist($)
+    if (recommendation(target.body) !== recommendation(done.body)) await pushItem($, done, push)
     return { result: subjectOf(done) }
   })
 
@@ -844,9 +947,24 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'decisions' }, async ($, e) => {
-    const arg = e.args.trim().toLowerCase()
+    const arg = e.args.trim().toLowerCase().replace(/\s+/g, ' ')
     const list = await read($, items)
     const now = await $.clock.now()
+    await noteOrigin($, e.origin?.kind)
+    // Over Remote Control a phone wraps the text to its own width; at the terminal it's wrapped
+    // to fit the window, and never wider than TEXT_WIDTH. Claude Code indents a command's output
+    // five columns under its `⎿`; one more keeps the last column clear.
+    const OUTPUT_INDENT = 6
+    const away = cloud || e.origin?.kind === 'bridge'
+    const width = away ? null : Math.max(30, Math.min(TEXT_WIDTH, (e.presentation?.columns ?? 80) - OUTPUT_INDENT))
+    const words = arg.split(' ')
+    if (words[0] === 'list') {
+      const sub = words.slice(1).join(' ')
+      if (sub === 'on' || sub === 'off' || sub === 'auto') return setListMode($, sub === 'on' ? 'always' : sub === 'off' ? 'never' : 'auto')
+      if (sub === '' || sub === 'all') return { text: textListing(list, now, { all: sub === 'all', width, forge }) }
+      return { text: `Unknown: /decisions list ${sub}. Use /decisions list, list all, or list on, off or auto.` }
+    }
+    if (away && (arg === '' || arg === 'all')) return { text: textListing(list, now, { all: arg === 'all', width, forge }) }
     if (arg === 'pane') {
       await update($, paneDismissed, () => false)
       const opened = await $.ui
@@ -1038,6 +1156,21 @@ export const register: Register = (on, options) => {
       </Box>
     )
   })
+}
+
+/** `/decisions list on|off|auto`: set the reply list's mode for this session, and tell the model when it goes off. */
+async function setListMode($: $, mode: ListMode): Promise<{ text: string; context?: string[] }> {
+  await update($, listMode, () => mode)
+  if (mode === 'always') {
+    return { text: 'Reply list on: replies that leave items open end with an Open items list. /decisions list off turns it off; list auto shows it only over Remote Control.' }
+  }
+  if (mode === 'auto') {
+    return { text: 'Reply list on auto: replies end with an Open items list while you write over Remote Control.' }
+  }
+  return {
+    text: 'Reply list off: replies no longer end with an Open items list, even over Remote Control. /decisions list prints the items.',
+    context: ['session-decisions: the user turned the reply list off. Stop ending replies with an Open items list unless the user asks for one.'],
+  }
 }
 
 /**
