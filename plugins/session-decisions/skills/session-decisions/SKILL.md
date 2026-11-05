@@ -71,6 +71,7 @@ Call TaskCreate with a subject in one of these forms, and the context in the des
 
 - `DECIDE: <question> (recommend <choice>) [<link>]`
 - `ACTION: <what the user has to do> [<link>]`
+- `ACTION: approve <a step you'll carry out> (recommend <choice>) [<link>]`
 
 `<link>` is one token at the end: an issue (`#123`, `owner/repo#123`), a merge or pull request
 (`!45`, `#45`), a URL, or `no link`. A hook adds the label (`D3 DECIDE: ...`, `A2 ACTION: ...`) and
@@ -78,6 +79,12 @@ rejects a subject missing its recommendation or link; fix it and create it again
 items yourself while the hook is working. The item's recommendation is the last `(recommend ...)`
 before the link, and Accept answers with it; a note on one option earlier in the question can't
 stand in for it.
+
+An ACTION item that waits only on the user's approval for a step you'll carry out yourself (a
+merge, an apply, a tag, a deploy) carries a `(recommend ...)` clause too, such as
+`ACTION: approve merging owner/repo#34 (CI green) (recommend merge) [owner/repo#34]`. That gives
+its card an Accept button beside Done, and it joins Accept all. An ACTION item for something only
+the user can do (log in, store a secret) has no recommendation and keeps only Done.
 
 Keep the subject to one short line: the question, the recommendation and the link. Everything else
 goes in the description, written as short paragraphs or `- ` bullets with real line breaks between
@@ -162,7 +169,9 @@ queue never shows what the user has already moved past:
 
 The user may answer by pressing Accept, Done or Answer in the decisions pane. That fills their
 prompt with `D3: go with <choice>`, `A2: done` or `D3: `, which they edit and send like any other
-answer; record it the same way. Their buttons add one line per item, so a single message can
+answer; record it the same way. `A2: go with <choice>` on an ACTION item is the user approving the
+step: carry it out, then complete the item with the result as its ruling. `A2: done` means they
+did it themselves. Their buttons add one line per item, so a single message can
 answer several items; record each one.
 
 ## Reconciling the queue

@@ -122,7 +122,7 @@ function findRecommendation(text: string): Found | null {
   return last
 }
 
-/** The recommended choice of a DECIDE body, for the Accept button; null when there isn't one. */
+/** The recommended choice of a body, DECIDE or ACTION, for the Accept button; null when there isn't one. */
 export function recommendation(body: string): string | null {
   return splitBody(body).recommendation
 }
