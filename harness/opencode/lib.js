@@ -17,6 +17,8 @@ export function discoverPlugins(root) {
     const skills = path.join(dir, "skills");
     const commands = path.join(dir, "commands");
     const plugin = { name, dir, skills: [], commands: [], scripts: [] };
+    const mcp = path.join(dir, ".mcp.json");
+    if (isFile(mcp)) plugin.mcp = mcp;
     if (isDir(skills)) {
       for (const skill of readdirSync(skills).sort()) {
         const skillDir = path.join(skills, skill);
@@ -125,8 +127,69 @@ export function scriptRules(plugins) {
   return rules;
 }
 
+// The MCP tools that change something outside the session, by server: OpenCode allows
+// every tool unless a rule says otherwise, so these get "ask" rules. Each must match
+// the server's own list (forge-tracker: WRITE_TOOLS in forge_tracker/server.py).
+export const ASK_TOOLS = {
+  "forge-tracker": ["groom_apply", "link", "write", "labels_create"],
+};
+
+// OpenCode `mcp` entries for each plugin's stdio servers in .mcp.json (Claude Code's
+// format, `{"mcpServers": {name: {command, args, env}}}`), with ${CLAUDE_PLUGIN_ROOT}
+// resolved. OpenCode names their tools `<server>_<tool>`.
+export function buildMcp(plugins) {
+  const servers = {};
+  for (const plugin of plugins) {
+    if (!plugin.mcp) continue;
+    const entries = JSON.parse(readFileSync(plugin.mcp, "utf8")).mcpServers ?? {};
+    for (const [name, entry] of Object.entries(entries)) {
+      if (typeof entry?.command !== "string") continue;
+      const vars = { CLAUDE_PLUGIN_ROOT: plugin.dir };
+      const server = {
+        type: "local",
+        command: [entry.command, ...(entry.args ?? [])].map((a) => substitute(String(a), vars)),
+        enabled: true,
+      };
+      if (entry.env) {
+        server.environment = Object.fromEntries(
+          Object.entries(entry.env).map(([k, v]) => [k, substitute(String(v), vars)]),
+        );
+      }
+      servers[name] = server;
+    }
+  }
+  return servers;
+}
+
+// "ask" rules for the write tools of the servers added, placed after a catch-all "*"
+// and before the user's own rules, since OpenCode's last matching rule wins.
+export function askRules(servers) {
+  const rules = {};
+  for (const name of Object.keys(servers)) {
+    for (const tool of ASK_TOOLS[name] ?? []) rules[`${name}_${tool}`] = "ask";
+  }
+  return rules;
+}
+
 // What the config hook does, on the live config object.
-export function applyConfig(config, plugins, { allowScripts = false } = {}) {
+export function applyConfig(config, plugins, { allowScripts = false, mcp = true } = {}) {
+  if (mcp) {
+    const servers = buildMcp(plugins);
+    const added = {};
+    config.mcp ??= {};
+    for (const [name, server] of Object.entries(servers)) {
+      // A server the user defined keeps its name and its settings.
+      if (config.mcp[name] === undefined) config.mcp[name] = added[name] = server;
+    }
+    const rules = askRules(added);
+    if (Object.keys(rules).length) {
+      const existing =
+        typeof config.permission === "string" ? { "*": config.permission } : (config.permission ?? {});
+      const { "*": star, ...rest } = existing;
+      config.permission = { ...(star === undefined ? {} : { "*": star }), ...rules, ...rest };
+    }
+  }
+
   config.skills ??= {};
   config.skills.paths ??= [];
   for (const plugin of plugins) {
