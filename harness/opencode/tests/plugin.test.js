@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import plugin from "../index.js";
-import { ASK_TOOLS, parseCommand } from "../lib.js";
+import { ASK_TOOLS, SCRIPT_TOOLS, parseCommand } from "../lib.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const PLUGINS = path.join(ROOT, "plugins");
@@ -99,6 +99,44 @@ test("the ask list is the server's own list of write tools", () => {
     { cwd: scripts, encoding: "utf8" },
   );
   assert.deepEqual(ASK_TOOLS["forge-tracker"], JSON.parse(out));
+});
+
+test("adds term-recorder's MCP server, its record following the bash catch-all", async () => {
+  const { config } = await load({ plugins: ["term-recorder"] });
+  const script = path.join(PLUGINS, "term-recorder", "skills", "term-recorder", "scripts", "term-recorder-mcp");
+  assert.deepEqual(config.mcp["term-recorder"], {
+    type: "local",
+    command: ["python3", script],
+    enabled: true,
+  });
+  // OpenCode allows bash by default, so record is allowed too.
+  assert.equal(config.permission, undefined);
+
+  const hooks = await plugin.server({}, { plugins: ["term-recorder"] });
+  for (const bash of ["ask", { "*": "deny", "git *": "allow" }]) {
+    const asking = { permission: { bash } };
+    await hooks.config(asking);
+    assert.equal(asking.permission["term-recorder_record"], typeof bash === "string" ? bash : "deny");
+    assert.deepEqual(asking.permission.bash, bash);
+  }
+  const allowing = { permission: { bash: "allow" } };
+  await hooks.config(allowing);
+  assert.equal(allowing.permission["term-recorder_record"], undefined);
+
+  const trusting = await plugin.server({}, { plugins: ["term-recorder"], allowScripts: true });
+  const trusted = { permission: { bash: "ask" } };
+  await trusting.config(trusted);
+  assert.equal(trusted.permission["term-recorder_record"], undefined);
+});
+
+test("the script-tool list is the server's own list", () => {
+  const scripts = path.join(PLUGINS, "term-recorder", "skills", "term-recorder", "scripts");
+  const out = execFileSync(
+    "python3",
+    ["-c", "import json; from term_recorder import server; print(json.dumps(server.ASK_TOOLS))"],
+    { cwd: scripts, encoding: "utf8" },
+  );
+  assert.deepEqual(SCRIPT_TOOLS["term-recorder"], JSON.parse(out));
 });
 
 test("a catch-all stays first and the user's own rules and servers win", async () => {

@@ -2,13 +2,14 @@
 //
 // Registers each enabled plugin's skills (plugins/<p>/skills on skills.paths),
 // commands (plugins/<p>/commands/*.md, ${CLAUDE_PLUGIN_ROOT} resolved) and MCP servers
-// (plugins/<p>/.mcp.json, with "ask" rules for their write tools), and fills in
-// ${CLAUDE_SKILL_DIR} when a skill is loaded (skill tool or /<skill> command) or a
-// file inside one is read.
+// (plugins/<p>/.mcp.json, with "ask" rules for their write tools, and term-recorder's
+// record following the bash catch-all), and fills in ${CLAUDE_SKILL_DIR} when a skill is
+// loaded (skill tool or /<skill> command) or a file inside one is read.
 //
 // Options, from opencode.json's "plugin": [["@lokkju/skills@...", { ... }]]:
 //   plugins: ["forge-tracker", ...]  which plugins to enable; all when unset
-//   allowScripts: true                add bash allow rules for the skills' own scripts
+//   allowScripts: true                add bash allow rules for the skills' own scripts,
+//                                     and leave term-recorder's record allowed
 //   mcp: false                        don't add the plugins' MCP servers (.mcp.json) to `mcp`
 import path from "node:path";
 import { fileURLToPath } from "node:url";

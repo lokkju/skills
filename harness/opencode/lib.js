@@ -134,6 +134,22 @@ export const ASK_TOOLS = {
   "forge-tracker": ["groom_apply", "link", "write", "labels_create"],
 };
 
+// The MCP tools that run a program of the model's choosing, as bash does (term-recorder:
+// ASK_TOOLS in term_recorder/server.py). They follow the user's bash catch-all: OpenCode
+// allows bash by default, and these with it, but a bash set to "ask" or "deny" carries
+// over to them, unless allowScripts, which trusts the scripts they stand in for, is set.
+export const SCRIPT_TOOLS = {
+  "term-recorder": ["record"],
+};
+
+// The user's catch-all for bash: `permission.bash` as a string, or its "*" rule.
+function bashCatchAll(permission) {
+  const bash = typeof permission === "object" && permission !== null ? permission.bash : undefined;
+  if (typeof bash === "string") return bash;
+  if (typeof bash === "object" && bash !== null && typeof bash["*"] === "string") return bash["*"];
+  return undefined;
+}
+
 // OpenCode `mcp` entries for each plugin's stdio servers in .mcp.json (Claude Code's
 // format, `{"mcpServers": {name: {command, args, env}}}`), with ${CLAUDE_PLUGIN_ROOT}
 // resolved. OpenCode names their tools `<server>_<tool>`.
@@ -163,10 +179,13 @@ export function buildMcp(plugins) {
 
 // "ask" rules for the write tools of the servers added, placed after a catch-all "*"
 // and before the user's own rules, since OpenCode's last matching rule wins.
-export function askRules(servers) {
+// Rules for the script tools come from BASH, the user's bash catch-all, when it isn't "allow".
+export function askRules(servers, { allowScripts = false, bash } = {}) {
   const rules = {};
   for (const name of Object.keys(servers)) {
     for (const tool of ASK_TOOLS[name] ?? []) rules[`${name}_${tool}`] = "ask";
+    if (allowScripts || bash === undefined || bash === "allow") continue;
+    for (const tool of SCRIPT_TOOLS[name] ?? []) rules[`${name}_${tool}`] = bash;
   }
   return rules;
 }
@@ -181,7 +200,7 @@ export function applyConfig(config, plugins, { allowScripts = false, mcp = true 
       // A server the user defined keeps its name and its settings.
       if (config.mcp[name] === undefined) config.mcp[name] = added[name] = server;
     }
-    const rules = askRules(added);
+    const rules = askRules(added, { allowScripts, bash: bashCatchAll(config.permission) });
     if (Object.keys(rules).length) {
       const existing =
         typeof config.permission === "string" ? { "*": config.permission } : (config.permission ?? {});
