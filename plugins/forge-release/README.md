@@ -51,7 +51,8 @@ What it does:
 1. Starts a server on `127.0.0.1` on a free port (or the one `--port` names) and opens a page that posts the manifest to
    GitHub (the org's `settings/apps/new`, or your account's with `--user`). The manifest asks for
    a private App (public with `--public`) with no webhook and the permissions you give; the
-   default is `contents=write` and `pull_requests=write`, which is what yeet needs. If no browser
+   default is `contents=write` and `pull_requests=write`, which is what yeet needs. With
+   `--spec`, the manifest is the spec's (see "From a spec" below). If no browser
    opens, the script prints the local URL; `--no-browser` skips the attempt and just prints it.
 2. GitHub redirects back with a one-time code. The script checks the `state` it sent, then
    trades the code for the App's ID, client ID and private key (no auth needed for that call).
@@ -74,7 +75,8 @@ The private key is never printed. If storing it fails, the script writes it to
 
 Rename the stored values with `--client-id-var`, `--key-secret` and `--installation-id-var`.
 Pulumi keys are the camelCase form of those names (`YEET_APP_ID` becomes `yeetAppId`); a name
-with a namespace, like `infra:releaseAppId`, is used as is. `--homepage` sets the App's homepage
+with a namespace, like `infra:releaseAppId`, is used as is (a `--spec` names its Pulumi keys
+exactly and is never case-folded). `--homepage` sets the App's homepage
 URL (default: the org's GitHub page), and `--timeout` (default 600 seconds) bounds each browser
 step. `--help` lists everything.
 
@@ -117,11 +119,68 @@ The script stays standard library only, so it doesn't parse YAML. sops does the 
 stdout gets the same JSON as `--to stdout` minus `private_key_file`, plus `sops_file` and
 `sops_key`. If storing fails, the usual `./<slug>.private-key.pem` rescue file is written.
 
+### From a spec (`--spec`)
+
+lokkju/infra keeps each App's definition in `pulumi/github-apps.yaml`, and
+`mise run github-app-manifest <name>` prints it as the JSON `--spec` reads (a file, or `-` for
+stdin):
+
+```json
+{
+  "owner": "lokkju",
+  "owner_type": "user",
+  "manifest": {"name": "lodenheim-agent", "url": "https://github.com/lokkju/infra",
+               "public": true, "default_permissions": {"contents": "write", "metadata": "read"},
+               "default_events": ["issues", "pull_request"],
+               "hook_attributes": {"url": "https://hooks.example.com/github/webhook", "active": true}},
+  "outputs": {
+    "pulumi": {"client_id": "agentAppId", "installation_id": "agentAppInstallationId"},
+    "sops": {"file": "homelab/platform/agent-dispatcher/github-app.sops.yaml",
+             "keys": {"private_key": "private-key.pem", "webhook_secret": "webhook-secret"}}
+  },
+  "manual_steps": ["Install it on lokkju with all repositories: https://github.com/apps/lodenheim-agent/installations/new"]
+}
+```
+
+```bash
+mise run github-app-manifest lodenheim-agent | \
+  plugins/forge-release/skills/forge-release/scripts/github-app-create --spec - --stack prod --cwd pulumi
+```
+
+- `owner` and `owner_type` (`user` or `org`) replace `--org`/`--user`. `manifest` replaces
+  `--name`, `--permission`, `--public` and `--homepage` and goes to GitHub as given, with
+  `redirect_url` added (and, with `--user-token`, the local listener appended to
+  `callback_urls`). So `hook_attributes`, `default_events`, `description` and
+  `request_oauth_on_install` all reach GitHub. Passing any of those flags, or `--to`, `--repo`,
+  `--key-file`, `--client-id-var`, `--key-secret` or `--installation-id-var`, alongside `--spec`
+  is a usage error.
+- `outputs` says where each output goes. The outputs are `app_id`, `client_id`,
+  `client_secret`, `private_key`, `webhook_secret` (from the manifest conversion) and
+  `installation_id` (after the install). `pulumi` maps an output to a stack config key, set with
+  `pulumi config set --secret` under exactly that name (`--stack` is required, `--cwd` optional).
+  `sops` writes each output to `keys[<output>]` in `file`, which is relative to `--repo-root`
+  (default: the git toplevel); a new file needs `--secret-name` and `--namespace`, and an
+  existing entry needs `--replace`. Both stores can be used at once.
+- An output the spec doesn't name is dropped. That's how `client_secret` and `webhook_secret`
+  are handled when the spec leaves them out; neither is ever printed. If the spec doesn't store
+  `private_key` (and there's no `--user-token`), the key goes to `./<slug>.private-key.pem`
+  so it isn't lost.
+- `manual_steps` (what the manifest can't set: Device Flow, the token expiry opt-out, which
+  repositories to pick) print after the App is created and before the script waits for the
+  install.
+- With `--user-token`, the token goes to `--sops-file` under `--sops-key` (default `token`), as
+  without a spec; the spec's outputs are stored as well.
+
+stdout gets JSON with `app_id`, `slug`, `client_id`, `installation_id`, `html_url` and `stored`
+(each `pulumi:<key>` or `sops:<key>` written).
+
 ### Webhooks
 
-The App never gets a webhook, so there's no flag for it. GitHub rejects a manifest whose
-`hook_attributes` has no `url`, even with `active: false`; the manifest leaves the block out, and
-GitHub then creates the App with its webhook off.
+Built from flags, the App never gets a webhook, so there's no flag for it. GitHub rejects a
+manifest whose `hook_attributes` has no `url`, even with `active: false`; the manifest leaves the
+block out, and GitHub then creates the App with its webhook off. An App that needs a webhook
+comes from a `--spec` whose manifest has `hook_attributes` with a `url`; store `webhook_secret`
+from its outputs.
 
 ### Public Apps
 
@@ -192,8 +251,9 @@ expire).
 - `openssl` on `PATH`. The script signs the App JWT (RS256) with `openssl dgst -sha256 -sign`
   instead of depending on a crypto package.
 - `gh`, logged in with admin access to each `--repo`, for `--to github`; `pulumi`, logged in to
-  the stack's backend, for `--to pulumi`; `sops` (3.13 or newer, for `set --value-stdin`) with a
-  key that can decrypt and encrypt the file, for `--to sops`.
+  the stack's backend, for `--to pulumi` or a spec's `outputs.pulumi`; `sops` (3.13 or newer, for
+  `set --value-stdin`) with a key that can decrypt and encrypt the file, for `--to sops` or a
+  spec's `outputs.sops`.
 - A browser that can reach the script's `127.0.0.1` port: a local one, or see the next section.
 
 ### Running on a remote host

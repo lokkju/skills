@@ -68,7 +68,9 @@ Full detail, including GitLab and Azure DevOps, is in `references/yeet-setup.md`
    `YEET_APP_PRIVATE_KEY` on each `--repo`. If it exists, add the repo in the App's settings
    (Install App, then Configure; the API refuses a gh OAuth token) and store the two values on
    the repo, from wherever the owner keeps them (`--to pulumi` or `--to sops` in
-   `github-app-create` terms). The token must come from the App: a PR or release made with
+   `github-app-create` terms). Where the owner defines its Apps as code (lokkju/infra's
+   `pulumi/github-apps.yaml`), create it from that definition with
+   `github-app-create --spec`, which takes the manifest and output key names from the spec. The token must come from the App: a PR or release made with
    `GITHUB_TOKEN` starts no workflows.
 3. **`.yeet.yaml`.** Copy `templates/yeet.semver.yaml` or `templates/yeet.calver.yaml`, fill in
    the target, its `version_files` and `exclude_paths`. Keep `telemetry.enabled: false`.

@@ -67,6 +67,7 @@ credentials go:
 | Nothing central | `--to github` (default), one `--repo` per repo | variable `YEET_APP_ID` (the client ID), secret `YEET_APP_PRIVATE_KEY` on each repo |
 | Pulumi | `--to pulumi --stack S` | stack config `yeetAppId`, `yeetAppPrivateKey`, `yeetAppInstallationId`; the stack pushes them to repos |
 | A SOPS file in a GitOps repo | `--to sops --sops-file F` | key in the Secret file; client ID printed |
+| A reviewed App definition (lokkju/infra's `github-apps.yaml`) | `--spec FILE` (or `-` for `mise run github-app-manifest NAME` on stdin), plus `--stack S` for Pulumi outputs | the spec's manifest as given (webhook and events included); each output under the exact Pulumi key or SOPS key its `outputs` names; `manual_steps` printed before the install |
 
 On a remote host, `--port 8765 --no-browser` and an `ssh -L 8765:127.0.0.1:8765` tunnel from
 the machine with the browser.
