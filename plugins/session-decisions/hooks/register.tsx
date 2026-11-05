@@ -1216,9 +1216,9 @@ async function copy($: $, text: string, surface: Surface): Promise<void> {
 
 type Elements = ReturnType<$['ui']['resolve']>
 
-function chip(Text: Elements['Text'], plain: boolean, text: string, color: string, dim = false) {
+function chip(Text: Elements['Text'], plain: boolean, text: string, color: string, dim = false, wrap?: 'truncate-end') {
   return (
-    <Text bold backgroundColor={dim ? undefined : color} color={dim ? undefined : 'inverseText'} dimColor={dim}>
+    <Text bold backgroundColor={dim ? undefined : color} color={dim ? undefined : 'inverseText'} dimColor={dim} wrap={wrap}>
       {plain ? `[${text}]` : ` ${text} `}
     </Text>
   )
@@ -1335,16 +1335,32 @@ async function drawCard(
   }
   return (
     <Box key={`card-${item.source}-${item.id}`} flexDirection="column" {...frame}>
+      {/* A row wider than the card makes every Text in it shrink and wrap, and a chip's padding
+          space wraps onto a second row that draws blank (lokkju/skills#150). So the kind chip, the
+          label and the age keep their width, and the recommendation chip, then the revised date,
+          truncate instead. */}
       <Box key="top" flexDirection="row" gap={1}>
-        {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
-        <Button key={`label-${item.label}`} plain label={item.label} hover={{ bold: true }} onPress={more} />
-        {choice && chip(Text, plain, `recommends ${choice}`, 'success')}
-        <Box flexGrow={1} />
-        {revised && <Text dimColor>{`revised ${revised}`}</Text>}
+        <Box key="top-tags" flexDirection="row" gap={1} flexShrink={0}>
+          {chip(Text, plain, item.kind, KIND_COLOR[item.kind])}
+          <Button key={`label-${item.label}`} plain label={item.label} hover={{ bold: true }} onPress={more} />
+        </Box>
+        {choice && (
+          <Box key="top-choice" flexShrink={1}>
+            {chip(Text, plain, `recommends ${choice}`, 'success', false, 'truncate-end')}
+          </Box>
+        )}
+        <Box key="top-gap" flexGrow={1} />
+        {revised && (
+          <Box key="top-revised" flexShrink={1}>
+            <Text dimColor wrap="truncate-end">{`revised ${revised}`}</Text>
+          </Box>
+        )}
         {item.created !== undefined && (
-          <Text color={stale ? 'error' : undefined} dimColor={!stale}>
-            {age(item.created, now).replace('waiting ', '')}
-          </Text>
+          <Box key="top-age" flexShrink={0}>
+            <Text color={stale ? 'error' : undefined} dimColor={!stale}>
+              {age(item.created, now).replace('waiting ', '')}
+            </Text>
+          </Box>
         )}
       </Box>
       {qualifier ? <Markdown key={`question-${item.label}`} text={question} /> : line(`question-${item.label}`, question, false)}

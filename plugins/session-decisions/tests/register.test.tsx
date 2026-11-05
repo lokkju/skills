@@ -1314,6 +1314,49 @@ describe('markdown', () => {
     }
   })
 
+  test("a card's top row gives way at the recommendation chip, never by wrapping a chip onto a second row", async ($, on) => {
+    engine(on)
+    await start($)
+    await create($, 'ACTION: Merge PR 12 once CI is green (recommend merge) [no link]', 'CI is slow today.')
+    // 32 columns inside the frame, the 40-column pane: the kind chip, label, recommendation chip,
+    // the gaps and the age come to more than that.
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: PLUGIN,
+      props: { bodyColumns: 36, placement: 'inline' } as never,
+    })
+    type Node = { type: string; props?: Record<string, unknown>; children?: (Node | string)[] }
+    const find = (node: Node | string, key: string): Node | undefined => {
+      if (typeof node === 'string') return undefined
+      if (node.props?.key === key) return node
+      for (const child of node.children ?? []) {
+        const found = find(child, key)
+        if (found) return found
+      }
+      return undefined
+    }
+    const card = find((await ui.drawn()) as unknown as Node, 'card-tasks-1')!
+    const top = find(card, 'top')!
+    const boxes = (top.children ?? []).filter((one): one is Node => typeof one !== 'string')
+    // Whatever shrinks is a Box whose text truncates; everything else keeps its width.
+    for (const child of boxes) {
+      if (child.type !== 'Box') throw new Error(`${child.type} ${String(child.props?.key)} sits in the top row unboxed and would wrap`)
+      const shrinks = child.props?.flexShrink !== 0
+      const texts = (child.children ?? []).filter((one): one is Node => typeof one !== 'string' && one.type === 'Text')
+      if (shrinks && child.props?.flexGrow !== 1) {
+        expect(texts.length).toBeGreaterThan(0)
+        for (const text of texts) expect(text.props?.wrap).toBe('truncate-end')
+      }
+    }
+    const chipBox = find(top, 'top-choice')!
+    expect(chipBox.props?.flexShrink).toBe(1)
+    expect((chipBox.children?.[0] as Node).props?.wrap).toBe('truncate-end')
+    expect(find(top, 'top-tags')?.props?.flexShrink).toBe(0)
+    expect(find(top, 'top-age')?.props?.flexShrink).toBe(0)
+  })
+
   test('a settled row and the toast use plain text', async ($, on) => {
     const { toasts } = engine(on)
     await start($)
@@ -1366,7 +1409,8 @@ describe('link and label forms', () => {
       if (String(node.props?.key ?? '').startsWith('card-')) {
         const children = (node.children ?? []).filter((one): one is Node => typeof one !== 'string')
         const top = children.find(one => one.props?.key === 'top')!
-        const label = String(top.children?.map(one => (typeof one === 'string' ? '' : one.props?.label ?? '')).join(''))
+        const tags = top.children?.find(one => typeof one !== 'string' && one.props?.key === 'top-tags') as Node
+        const label = String(tags.children?.map(one => (typeof one === 'string' ? '' : one.props?.label ?? '')).join(''))
         const actions = children.find(one => one.props?.key === 'actions')!
         const last = actions.children?.at(-1)
         cards.set(label, {
