@@ -7,7 +7,13 @@ description: Use when filing an issue, recording that one issue blocks, waits on
 
 ## Blocking is a native link, never only a sentence
 
-When an issue you file or work on waits on another, record it in the forge's relationship data:
+When an issue you file or work on waits on another, record it in the forge's relationship
+data with the forge-tracker MCP server's `link` tool (in Claude Code
+`mcp__plugin_forge-tracker_forge-tracker__link`): `action: "add"`, `issue: 18`,
+`blocked_by: 17` records that #18 waits on #17; `blocked_by: "acme/other#4"` names a blocker in
+another project, and `action: "remove"` takes a link away when it's no longer true. `repo` is
+the local checkout, the project directory when left out. Where the tool isn't available, the CLI
+makes the same write:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/forge-tracker" link add 18 --blocked-by 17      # #18 waits on #17
@@ -16,8 +22,8 @@ When an issue you file or work on waits on another, record it in the forge's rel
 ```
 
 It goes through the repo's write-wrapper when `.claude/forge-tracker.local.md` sets one, and
-writes nothing (exit 2) for a link that already exists, a remove with no link, a self-link, or a
-pull request or closed issue on either side. File the issue first, then link it; a link needs
+writes nothing (an error result, or exit 2) for a link that already exists, a remove with no
+link, a self-link, or a pull request or closed issue on either side. File the issue first, then link it; a link needs
 both numbers.
 
 `${CLAUDE_SKILL_DIR}` is the directory holding this SKILL.md. Claude Code fills it in; in an
@@ -48,7 +54,8 @@ that the issue is person-only and unlabelled; `/next` offers the label setup.
 
 - `/next`: the user's queue, the lanes agents can start now, and what's blocked.
 - `/catchup`: what changed and what's waiting on the user since the last catchup. When you run
-  it for your own purposes, run `"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" catchup --no-mark`
-  so the user's marker stays put.
+  it for your own purposes, call the `catchup` tool with `no_mark: true` (or run
+  `"${CLAUDE_SKILL_DIR}/scripts/forge-tracker" catchup --no-mark`) so the user's marker stays
+  put.
 - `/groom`: tracker drift, including blocking written only as prose, fixed on the user's
   approval.

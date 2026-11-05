@@ -1,13 +1,15 @@
 // OpenCode entry for lokkju/skills (V1 plugin API, OpenCode 1.19.4 and later 1.x).
 //
-// Registers each enabled plugin's skills (plugins/<p>/skills on skills.paths) and
-// commands (plugins/<p>/commands/*.md, ${CLAUDE_PLUGIN_ROOT} resolved), and fills in
+// Registers each enabled plugin's skills (plugins/<p>/skills on skills.paths),
+// commands (plugins/<p>/commands/*.md, ${CLAUDE_PLUGIN_ROOT} resolved) and MCP servers
+// (plugins/<p>/.mcp.json, with "ask" rules for their write tools), and fills in
 // ${CLAUDE_SKILL_DIR} when a skill is loaded (skill tool or /<skill> command) or a
 // file inside one is read.
 //
 // Options, from opencode.json's "plugin": [["@lokkju/skills@...", { ... }]]:
 //   plugins: ["forge-tracker", ...]  which plugins to enable; all when unset
 //   allowScripts: true                add bash allow rules for the skills' own scripts
+//   mcp: false                        don't add the plugins' MCP servers (.mcp.json) to `mcp`
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyConfig, discoverPlugins, selectPlugins, skillDirFor, substitute } from "./lib.js";
@@ -17,10 +19,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 async function server(_input, options = {}) {
   const plugins = selectPlugins(discoverPlugins(ROOT), options.plugins);
   const allowScripts = options.allowScripts === true;
+  const mcp = options.mcp !== false;
 
   return {
     config: async (config) => {
-      applyConfig(config, plugins, { allowScripts });
+      applyConfig(config, plugins, { allowScripts, mcp });
     },
     "tool.execute.after": async (input, output) => {
       if (typeof output?.output !== "string" || !output.output.includes("${CLAUDE_")) return;

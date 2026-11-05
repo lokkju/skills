@@ -51,6 +51,9 @@ plugins/forge-tracker/
     workspace.py                  /catchup over a folder of repos: discovery, one combined report
     state.py                      XDG cache files: 0700 dirs, 0600 files, atomic replace
     writes.py                     the named write operations and the write-wrapper
+    server.py                     the MCP server: the reports and writes as tools over stdio
+  skills/forge-tracker/scripts/forge-tracker-mcp   its entry point, started by .mcp.json
+  .mcp.json                       the plugin's MCP server for Claude Code
   commands/catchup.md next.md groom.md
   skills/forge-tracker/SKILL.md   the working rules
   hooks/hooks.json, hooks/register.ts     SessionStart list and the closing-reference check
@@ -75,6 +78,21 @@ the closing-reference check on PR or MR creation. It reaches the forge only by r
 with `$.process.run`. The commands are markdown files that run the CLI and hand its output to Claude
 with instructions. The cost is two languages in one plugin and two test runners, which the
 reasons above outweigh.
+
+### The MCP server (#148)
+
+The commands and the skill now call the CLI's functions as MCP tools (`server.py`), and the CLI
+stays for people and CI. The CLI route kept costing us: script paths that resolve only inside
+Claude Code (#118, the OpenCode hooks in #136), a permission prompt per command line and per
+chained command, environment quirks such as `GITHUB_TOKEN=`, long command lines that break when
+copied (#137), and the model parsing text. The tools take JSON, have no shell or paths, and get
+permissions per tool: each command's `allowed-tools` pre-approves the read tools it calls, and
+the write tools (`groom_apply`, `link`, `write`, `labels_create`) always prompt. The server is
+standard-library Python speaking newline-delimited JSON-RPC, with no `mcp` package, so a session
+start needs nothing beyond the `python3` the CLI already needs. It answers both the handshake
+revisions (2024-11-05 to 2025-11-25) and the stateless 2026-07-28 one. A report tool returns
+the rendered report as text and its JSON only on `json: true`, because Claude Code shows the
+model the structured content in place of the text when a result has both.
 
 ## The forge layer (#21)
 

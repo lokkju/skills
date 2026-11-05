@@ -12,6 +12,7 @@
     "harness/opencode/*.js",
     "plugins/*/skills/**",
     "plugins/*/commands/**",
+    "plugins/*/.mcp.json",
     "!**/__pycache__/**",
     "!**/*.pyc"
   ],

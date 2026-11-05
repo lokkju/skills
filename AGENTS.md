@@ -17,7 +17,9 @@
 - `plugins/forge-tracker/`: issue-tracker working rules and reports (design in
   `docs/specs/forge-tracker.md`). So far the read layer for GitHub, GitLab (through `glab`) and
   Forgejo/Gitea, `/catchup`, `/next` and `/groom`: a standard-library Python CLI
-  (`skills/forge-tracker/scripts/forge-tracker`) and `commands/`. Only
+  (`skills/forge-tracker/scripts/forge-tracker`), an MCP server over the same functions
+  (`forge_tracker/server.py`, started by the plugin's `.mcp.json`; the commands and skill call
+  its tools and fall back to the CLI) and `commands/`. Only
   `skills/forge-tracker/scripts/forge_tracker/writes.py` writes to a forge, and only to GitHub.
   Tests run with `uv run --no-project --with pytest pytest plugins/forge-tracker/tests` over
   recorded fixtures and per-forge fixture worlds, no network; `tests/test_contract.py` runs the
@@ -56,14 +58,16 @@ Code for agents other than Claude Code, kept out of the plugins' shared skills a
 npm; installed from `git+https://github.com/lokkju/skills.git`), with
 `harness/opencode/index.js` as its entry. It targets OpenCode's V1 plugin API: its `config` hook
 adds each `plugins/<p>/skills` to `skills.paths` and registers each `plugins/<p>/commands/*.md`
-as an OpenCode command with `${CLAUDE_PLUGIN_ROOT}` resolved, and it fills in
-`${CLAUDE_SKILL_DIR}` when a skill loads. Options pick the plugins (`plugins`) and opt in to bash
-allow rules for the skills' scripts (`allowScripts`). Plain JavaScript, no dependencies; tests
+as an OpenCode command with `${CLAUDE_PLUGIN_ROOT}` resolved, adds each `plugins/<p>/.mcp.json`
+stdio server to `mcp` (with `"ask"` rules for the write tools listed in `ASK_TOOLS` in
+`lib.js`), and it fills in `${CLAUDE_SKILL_DIR}` when a skill loads. Options pick the plugins
+(`plugins`), opt in to bash allow rules for the skills' scripts (`allowScripts`) and leave the
+MCP servers out (`mcp: false`). Plain JavaScript, no dependencies; tests
 run with `npm test` (Node's own runner). A plugin that needs OpenCode code of its own gets
 `plugins/<p>/harness/opencode/`, imported by the entry; none does yet.
 
 The package's `files` list decides what OpenCode installs: the entry plus each plugin's
-`skills/` and `commands/`. `.claude-plugin/`, `hooks/`, tests and docs stay out, so a plugin's
+`skills/`, `commands/` and `.mcp.json`. `.claude-plugin/`, `hooks/`, tests and docs stay out, so a plugin's
 hooks and `allowed-tools` are Claude Code only. A new plugin's skills and commands are picked up
 without changes here.
 

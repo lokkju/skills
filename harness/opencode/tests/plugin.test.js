@@ -1,13 +1,14 @@
 // Loads the OpenCode entry the way OpenCode does (default export { id, server }),
 // runs its hooks against a fake config and fake tool output, and checks what it adds.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import plugin from "../index.js";
-import { parseCommand } from "../lib.js";
+import { ASK_TOOLS, parseCommand } from "../lib.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const PLUGINS = path.join(ROOT, "plugins");
@@ -71,6 +72,53 @@ test("an unknown plugin name is an error", async () => {
 
 test("no bash rules unless allowScripts is set", async () => {
   const { config } = await load();
+  assert.equal(config.permission.bash, undefined);
+});
+
+test("adds forge-tracker's MCP server, with its write tools asking", async () => {
+  const { config } = await load({ plugins: ["forge-tracker"] });
+  const script = path.join(PLUGINS, "forge-tracker", "skills", "forge-tracker", "scripts", "forge-tracker-mcp");
+  assert.deepEqual(config.mcp["forge-tracker"], {
+    type: "local",
+    command: ["python3", script],
+    enabled: true,
+  });
+  assert.deepEqual(config.permission, {
+    "forge-tracker_groom_apply": "ask",
+    "forge-tracker_link": "ask",
+    "forge-tracker_write": "ask",
+    "forge-tracker_labels_create": "ask",
+  });
+});
+
+test("the ask list is the server's own list of write tools", () => {
+  const scripts = path.join(PLUGINS, "forge-tracker", "skills", "forge-tracker", "scripts");
+  const out = execFileSync(
+    "python3",
+    ["-c", "import json; from forge_tracker import server; print(json.dumps(server.WRITE_TOOLS))"],
+    { cwd: scripts, encoding: "utf8" },
+  );
+  assert.deepEqual(ASK_TOOLS["forge-tracker"], JSON.parse(out));
+});
+
+test("a catch-all stays first and the user's own rules and servers win", async () => {
+  const hooks = await plugin.server({}, { plugins: ["forge-tracker"] });
+  const config = { permission: { "forge-tracker_link": "allow", "*": "allow" }, mcp: {} };
+  await hooks.config(config);
+  const keys = Object.keys(config.permission);
+  assert.equal(keys[0], "*");
+  assert.equal(config.permission["forge-tracker_link"], "allow");
+  assert.equal(config.permission["forge-tracker_write"], "ask");
+
+  const mine = { mcp: { "forge-tracker": { type: "local", command: ["mine"] } } };
+  await hooks.config(mine);
+  assert.deepEqual(mine.mcp["forge-tracker"].command, ["mine"]);
+  assert.equal(mine.permission, undefined);
+});
+
+test("mcp: false adds no servers", async () => {
+  const { config } = await load({ mcp: false });
+  assert.equal(config.mcp, undefined);
   assert.equal(config.permission, undefined);
 });
 

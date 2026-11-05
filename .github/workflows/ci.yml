@@ -82,6 +82,7 @@ jobs:
           printf '%s\n' "$files"
           grep -qx 'harness/opencode/index.js' <<<"$files"
           grep -qx 'plugins/forge-tracker/commands/next.md' <<<"$files"
+          grep -qx 'plugins/forge-tracker/.mcp.json' <<<"$files"
           ! grep -q -e '/tests/' -e '\.claude-plugin/' -e '/hooks/' <<<"$files"
 
   python:
