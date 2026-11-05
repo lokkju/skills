@@ -252,6 +252,10 @@ EXPECT_CLOSE = {
         ("POST", "/issues/14/notes", {"body": COMMENT}),
         ("PUT", "/issues/14", {"state_event": "close"}),
     ],
+    "forgejo": [
+        ("POST", "/issues/14/comments", {"body": COMMENT}),
+        ("PATCH", "/issues/14", {"state": "closed"}),
+    ],
 }
 
 
@@ -289,11 +293,17 @@ EXPECT_LABELS = {
         ("DELETE", "/issues/22/labels/stale", None),
     ],
     "gitlab": [("PUT", "/issues/22", {"add_labels": "P2", "remove_labels": "P1"})],
+    # Forgejo adds and removes by label id: P1 is 100 and P2 101 in the kit's repo.
+    "forgejo": [
+        ("POST", "/issues/22/labels", {"labels": [101]}),
+        ("DELETE", "/issues/22/labels/100", None),
+    ],
 }
 
 
 def test_write_labels_adds_removes_and_says_what_was_already_off(wkit, tmp_path):
     world = wkit.world()
+    wkit.repo_labels(world, ["P1", "P2"])
     wkit.issue(world, 22, labels=("P1",))
     payload = {"issue": 22, "add": ["P2"], "remove": ["P1", "stale"]}
     result = apply(wkit, world, tmp_path, "labels", payload)
@@ -313,6 +323,10 @@ EXPECT_MILESTONE = {
         ("PUT", "/issues/20", {"milestone_id": 3}),
         ("PUT", "/issues/20", {"milestone_id": 0}),
     ],
+    "forgejo": [
+        ("PATCH", "/issues/20", {"milestone": 3}),
+        ("PATCH", "/issues/20", {"milestone": 0}),
+    ],
 }
 
 
@@ -329,6 +343,7 @@ def test_write_milestone_sets_and_clears(wkit, tmp_path):
 EXPECT_UNLINK_LABEL = {
     "github": [("DELETE", "/issues/25/labels/blocked", None)],
     "gitlab": [("PUT", "/issues/25", {"remove_labels": "blocked"})],
+    "forgejo": [("DELETE", "/issues/25/labels/100", None)],
 }
 
 
@@ -353,6 +368,9 @@ def test_write_unlink_refuses_a_label_already_gone(wkit, tmp_path):
 EXPECT_UNLINK_BLOCKER = {
     "github": [("DELETE", "/issues/26/dependencies/blocked_by/9019", None)],
     "gitlab": [("DELETE", "/issues/26/links/519", None)],
+    "forgejo": [
+        ("DELETE", "/issues/26/dependencies", {"owner": "acme", "repo": "widgets", "index": 19})
+    ],
 }
 
 
@@ -384,6 +402,10 @@ EXPECT_LINK_ADD = {
     "gitlab": [
         ("POST", "/issues/70/links", _link("acme/widgets", 71)),
         ("POST", "/issues/70/links", _link("acme/other", 4)),
+    ],
+    "forgejo": [
+        ("POST", "/issues/70/dependencies", {"owner": "acme", "repo": "widgets", "index": 71}),
+        ("POST", "/issues/70/dependencies", {"owner": "acme", "repo": "other", "index": 4}),
     ],
 }
 
@@ -419,6 +441,9 @@ def test_write_link_add_refuses_a_link_already_there(wkit, tmp_path):
 EXPECT_LINK_REMOVE = {
     "github": [("DELETE", "/issues/70/dependencies/blocked_by/9071", None)],
     "gitlab": [("DELETE", "/issues/70/links/571", None)],
+    "forgejo": [
+        ("DELETE", "/issues/70/dependencies", {"owner": "acme", "repo": "widgets", "index": 71})
+    ],
 }
 
 
@@ -433,6 +458,7 @@ def test_write_link_remove_deletes_the_link_whatever_the_blockers_state(wkit, tm
 EXPECT_DELETE_BRANCH = {
     "github": [("DELETE", "/git/refs/heads/feat/old-1", None)],
     "gitlab": [("DELETE", "/repository/branches/feat%2Fold-1", None)],
+    "forgejo": [("DELETE", "/branches/feat/old-1", None)],
 }
 
 
@@ -466,6 +492,9 @@ def test_write_delete_branch_keeps_a_moved_or_protected_branch(
 EXPECT_LABEL_CREATE = {
     "github": [("POST", "/labels", {"name": "needs-human", "color": "d93f0b", "description": "x"})],
     "gitlab": [
+        ("POST", "/labels", {"name": "needs-human", "color": "#d93f0b", "description": "x"})
+    ],
+    "forgejo": [
         ("POST", "/labels", {"name": "needs-human", "color": "#d93f0b", "description": "x"})
     ],
 }

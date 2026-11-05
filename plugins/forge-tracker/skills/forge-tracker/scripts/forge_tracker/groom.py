@@ -1006,12 +1006,6 @@ def build(
     setup = config.setup_note(("labels.needs_human", "labels.decision", "labels.blocked"))
     if setup:
         notes.append(setup)
-    if forge not in ("github", "gitlab") and not config.write_wrapper:
-        notes.append(
-            f"writes: unsupported on {FORGE_NAMES.get(forge, forge)} (forge-tracker writes only "
-            "to GitHub and GitLab so far), so `groom apply` refuses each proposal; a "
-            "write_wrapper: in the config can make the approved changes instead"
-        )
     if reads["repo"].ok is False:
         f.failed.insert(0, {"part": "repo", "reason": reads["repo"].error})
     return {
