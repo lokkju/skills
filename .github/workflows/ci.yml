@@ -83,6 +83,8 @@ jobs:
           grep -qx 'harness/opencode/index.js' <<<"$files"
           grep -qx 'plugins/forge-tracker/commands/next.md' <<<"$files"
           grep -qx 'plugins/forge-tracker/.mcp.json' <<<"$files"
+          grep -qx 'plugins/term-recorder/.mcp.json' <<<"$files"
+          grep -qx 'plugins/term-recorder/skills/term-recorder/scripts/term_recorder/mcp_stdio.py' <<<"$files"
           ! grep -q -e '/tests/' -e '\.claude-plugin/' -e '/hooks/' <<<"$files"
 
   python:
@@ -177,3 +179,17 @@ jobs:
           enable-cache: false
       - name: Skill names match their directories
         run: uv run --no-project scripts/check-skill-names.py
+
+  # forge-tracker and term-recorder each carry mcp_stdio.py, since they install separately;
+  # forge-tracker's is the source.
+  mcp-stdio:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+      - name: The copies of mcp_stdio.py match
+        run: uv run --no-project scripts/sync-mcp-stdio.py --check
