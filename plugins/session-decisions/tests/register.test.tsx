@@ -1602,7 +1602,7 @@ describe('remote', () => {
       expect(listed.text).toContain('  Link: #3')
       expect(listed.text).toContain('A1 · action · 0m\n  run gh auth login')
       expect(listed.text).toContain('"D1: go"')
-      for (const line of (listed.text ?? '').split('\n')) expect(line.length).toBeLessThanOrEqual(Math.min(72, columns - 2))
+      for (const line of (listed.text ?? '').split('\n')) expect(line.length).toBeLessThanOrEqual(Math.min(72, columns - 6))
     }
     // At the terminal, plain /decisions keeps its one line per item.
     expect((await $.command.run({ command: 'decisions', args: '', ...RUN })).text).toContain('D1 DECIDE: Move the session store')

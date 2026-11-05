@@ -952,9 +952,11 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     await noteOrigin($, e.origin?.kind)
     // Over Remote Control a phone wraps the text to its own width; at the terminal it's wrapped
-    // to fit the window, and never wider than TEXT_WIDTH.
+    // to fit the window, and never wider than TEXT_WIDTH. Claude Code indents a command's output
+    // five columns under its `⎿`; one more keeps the last column clear.
+    const OUTPUT_INDENT = 6
     const away = cloud || e.origin?.kind === 'bridge'
-    const width = away ? null : Math.max(30, Math.min(TEXT_WIDTH, (e.presentation?.columns ?? 80) - 2))
+    const width = away ? null : Math.max(30, Math.min(TEXT_WIDTH, (e.presentation?.columns ?? 80) - OUTPUT_INDENT))
     const words = arg.split(' ')
     if (words[0] === 'list') {
       const sub = words.slice(1).join(' ')
