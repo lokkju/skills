@@ -622,6 +622,30 @@ describe('hand-off check', () => {
     expect(toasts.filter(toast => toast.includes('not queued'))).toHaveLength(2)
   })
 
+  const WIDE_REPLY = [
+    'The cleanup, for the record:',
+    '```bash',
+    'sudo systemctl stop heartbeat.timer && sudo rm /etc/systemd/system/heartbeat.* && sudo systemctl daemon-reload',
+    '```',
+  ].join('\n')
+
+  test('a command line too wide to copy out of tmux warns the person and reminds the model', async ($, on) => {
+    const { toasts } = engine(on)
+    classic(on)
+    await start($)
+    await prompt($)
+    await stop($, WIDE_REPLY)
+    expect(toasts.at(-1)).toBe('A 110-column command line: copied from tmux it breaks at the wrap')
+    const text = (await prompt($)).additionalContext?.join('\n') ?? ''
+    expect(text).toContain('a shell command line over 100 columns')
+    expect(text).not.toContain('without a queue entry')
+    // The turn's end doesn't warn again, but warns on its own in a turn whose classic.Stop is passed over.
+    await done($, WIDE_REPLY)
+    expect(toasts.filter(toast => toast.includes('110-column'))).toHaveLength(1)
+    await done($, WIDE_REPLY)
+    expect(toasts.filter(toast => toast.includes('110-column'))).toHaveLength(2)
+  })
+
   test("a subagent's end, an interrupted turn and a queued hand-off pass quietly", async ($, on) => {
     const { toasts } = engine(on)
     classic(on)

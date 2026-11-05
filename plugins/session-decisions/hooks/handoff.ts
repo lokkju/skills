@@ -266,6 +266,43 @@ export function unknownLabels(reply: string, known: readonly string[]): string[]
   return [...missing]
 }
 
+// A code block that holds shell: its info string names a shell, or a terminal session.
+const SHELL_LANG = /^(?:sh|bash|zsh|ksh|fish|shell|console|shell-?session|terminal)$/i
+// A line in an unlabelled code block that reads as a command: a prompt, sudo, a && or || chain,
+// or a word with flags after it.
+const COMMAND_LINE = /^\s*(?:\$\s|sudo\s)|\s(?:&&|\|\|)\s|^\s*[\w./~-]+\s+(?:[\w./~:@=-]+\s+){0,3}--?[a-z]/i
+/** A command line wider than this wraps in most panes and breaks when copied out of tmux. */
+export const WIDE = 100
+
+/**
+ * The widths of the command lines in `reply`'s code blocks wider than `width` columns: every line
+ * of a shell block, and lines of an unlabelled block that read as commands. Claude Code wraps a
+ * long line in a code block at the pane width, and copying it from tmux turns the wrap into a line
+ * break, so the pasted command runs in pieces.
+ */
+export function wideCommands(reply: string, width = WIDE): number[] {
+  const widths: number[] = []
+  let lang: string | null = null
+  for (const raw of (reply ?? '').split('\n')) {
+    const fence = /^\s*(?:```|~~~)\s*([\w-]*)/.exec(raw)
+    if (fence) {
+      lang = lang === null ? (fence[1] ?? '') : null
+      continue
+    }
+    if (lang === null) continue
+    const columns = [...raw.trimEnd()].length
+    if (columns <= width) continue
+    if (SHELL_LANG.test(lang) || (lang === '' && COMMAND_LINE.test(raw))) widths.push(columns)
+  }
+  return widths
+}
+
+/** What the model is told on its next turn about the wide command lines in its last reply. */
+export function wideNudge(widths: readonly number[]): string {
+  const widest = Math.max(...widths)
+  return `session-decisions: your last reply had ${widths.length === 1 ? 'a shell command line' : `${widths.length} shell command lines`} over ${WIDE} columns in a code block (the widest ${widest}). Claude Code wraps it at the pane width, and copying it from tmux turns each wrap into a line break, so it runs in pieces. If the user still needs to run it, hand it over again as a script with one short line that runs it, or split it into lines well under 80 columns with \`\\\` continuations.`
+}
+
 /** What the model is told on its next turn about the hand-offs its last reply left unqueued. */
 export function nudge(lines: readonly string[], missing: readonly string[] = []): string {
   const named =
