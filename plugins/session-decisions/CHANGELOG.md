@@ -1,5 +1,16 @@
 # Changelog
 
+## [session-decisions--v2026.11.05.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.11.05.1...session-decisions--v2026.11.05.2) (2026-11-05)
+
+### Features
+
+- **session-decisions:** plain-text queue, reply list and phone push for Remote Control ([84c0204](https://github.com/lokkju/skills/commit/84c02044da8ccd8e6f59e9da19145943f536101c))
+
+### Fixes
+
+- **session-decisions:** keep a narrow card's top row on one row ([4593edd](https://github.com/lokkju/skills/commit/4593eddcdb5612e3c90c076785869b642dedf09a))
+- **session-decisions:** wrap /decisions list inside the command output's indent ([f3df12a](https://github.com/lokkju/skills/commit/f3df12aee85a8427258c3c6459c85df6cdf30e6b))
+
 ## [session-decisions--v2026.11.05.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.10.26.2...session-decisions--v2026.11.05.1) (2026-11-05)
 
 ### Features

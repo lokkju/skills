@@ -1,5 +1,11 @@
 # Changelog
 
+## [forge-release--v2026.11.05.1](https://github.com/lokkju/skills/compare/forge-release--v2026.10.25.1...forge-release--v2026.11.05.1) (2026-11-05)
+
+### Features
+
+- **forge-release:** github-app-create --spec builds the App from infra's github-apps.yaml ([84182c4](https://github.com/lokkju/skills/commit/84182c4a4d1eec483754cb3c01ca9e16b6d50e86))
+
 ## [forge-release--v2026.10.25.1](https://github.com/lokkju/skills/compare/forge-release--v2026.10.18.1...forge-release--v2026.10.25.1) (2026-10-25)
 
 ### Fixes
