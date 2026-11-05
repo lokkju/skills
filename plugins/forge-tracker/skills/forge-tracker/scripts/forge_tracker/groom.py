@@ -1,6 +1,6 @@
 """/groom: find where the tracker has drifted from the truth, and propose the fixes.
 
-Read-only. Every check reads what it needs, fails on its own, and sorts what it finds three ways:
+Read-only. Every check reads what it needs, fails on its own, and sorts what it finds four ways:
 
 - **Proposals:** changes the CLI verified, each a named write (`close`, `labels`, `milestone`,
   `unlink`, `delete-branch`, `link-add`) with its payload and evidence. Nothing is written here;
@@ -13,6 +13,11 @@ Read-only. Every check reads what it needs, fails on its own, and sorts what it 
   here (a pull request, another project's issue, a blocker that couldn't be read).
 - **Listed for you:** conflicted or stale PRs, placeholder due dates, and prose blocking on a
   blocker that has closed, for the user to judge.
+- **Possibly done:** open issues a merged change looks to have finished without a closing
+  reference (the forge's cross-reference, or a path or symbol the body names that the change
+  touched), listed for the user and never proposed.
+
+The report also names the checks that ran, so a sparse report says how much was checked.
 """
 
 from __future__ import annotations

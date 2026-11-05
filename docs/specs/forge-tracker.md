@@ -160,6 +160,8 @@ error, never an empty list standing in for a failure.
 | CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs (`include_retried=true` for retries, newest attempt by job id) | Actions runs where the instance has the API, else commit status |
 | Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare?from=&to=` | `GET /branches`, `GET /compare` |
 | Merge commit on the default branch (`/groom`) | yes or no | `GET /compare/<default>...<sha>` | `GET /repository/commits/:sha/refs?type=branch` | `GET /compare` |
+| Cross-references to open issues (`/groom`) | issue, change, change state, merged at, base branch where known, whether it closes where known | GraphQL `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` with `willCloseTarget` | per open issue `GET /issues/:iid/related_merge_requests` | per open issue `GET /issues/{i}/timeline`, `pull_ref`, `issue_ref` and `comment_ref` entries whose `ref_issue` is a PR (verify) |
+| A change's files (`/groom`) | path, previous path, diff where the forge has it | `GET /pulls/{n}/files` | `GET /merge_requests/:iid/diffs` (15.7+, else unsupported) | `GET /pulls/{n}/files`, names only (unsupported where missing) |
 | Tags and releases | name, sha, date | `GET /tags`, `GET /releases` | `GET /repository/tags`, `GET /releases` | `GET /tags`, `GET /releases` |
 | Labels (setup only) | name, description | `GET /labels` | `GET /labels` | `GET /labels` |
 
@@ -768,6 +770,7 @@ and writes nothing until you approve.
 | Stale branch | no open change, every commit on the default branch (`ahead_by == 0`) | `delete-branch` |
 | Conflicted or stale change | `conflicts: yes`, or no activity for `stale_days` | none; listed for you |
 | Likely duplicates | the pair and their similarity | none; listed for you |
+| Possibly done without a closing reference ([#146](https://github.com/lokkju/skills/issues/146)) | the merged change, the signal (the forge's cross-reference, or the path or symbol the body names that the change touched), and the issue's last comment date | none; listed under "Possibly done" |
 | Placeholder due dates | the date and how many issues share it | none; listed for you |
 
 **Verified or unclear.** A change goes in the proposal list only when the CLI verified it. The
@@ -813,6 +816,28 @@ to judge, never closed by `/groom`.
   issue here is read once by number. The check never edits a body; only a person does that.
 - A due date is a likely placeholder when more than one open milestone uses it; on GitHub the
   due date belongs to the milestone, so every issue in one milestone shares it by design.
+- Possibly done ([#146](https://github.com/lokkju/skills/issues/146)) catches the merged-but-open
+  issues that the closing-reference check can't see, in repos where work lands without `Closes
+  #N`. Two signals: (a) the forge's record that a merged change mentions the issue in any form,
+  read from the forge rather than from text; and (b) the issue's body naming a path (in a code
+  span, or a word with a file extension) or a symbol (a code span that's clearly code) that a
+  change merged since the issue was opened touched, with no comment on the issue since that
+  merge. A symbol matches an added or removed line or a hunk header in the change's diff, never
+  a context line; on Forgejo the file list has no diffs, so only paths match and the report says
+  so. A change with a closing reference to the issue is left to the merged-but-open and
+  named-only checks; a cross-reference from another project or from a change merged into a
+  branch other than the default doesn't count. Titles, labels and milestones are never evidence:
+  near-duplicate titles and stale milestones are how confident wrong closes happen. Every item
+  is listed, never proposed, and `all` doesn't include them. A proposal class gated on both
+  signals was considered and left out: a cross-reference is often "see #12" or "part of #12",
+  and a path the body names is often the file the issue complains about, so even both together
+  don't say the work is finished. The files are read once per change merged since the oldest
+  open issue that names a path or symbol (none when no body names one), and the comments once
+  per listed issue.
+- The report's third line names the checks that ran (`Checks run (9 of 12): ...`): a check runs
+  when every read it needs succeeded, whatever it found. A sparse report then says whether it
+  ran every check and found little, or ran two. Reads a forge can't answer are listed under
+  `Unsupported on <forge>`, apart from FAILED.
 - `forge-tracker groom apply` reads `{"approved": [ids]}` (ids like `close #14`, `labels #22
   ruling`, `delete-branch sd-26`, as the report prints them), re-runs every check, and refuses
   the whole list, writing nothing, when any id isn't a current proposal. It then writes the

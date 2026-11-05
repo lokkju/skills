@@ -71,12 +71,20 @@ no `forge-tracker write`, no `gh issue close`, `gh label`, `gh api` or `git push
    issue in another project). Never call `conflicts: unknown` clean.
 3. **Listed for you**: conflicted or stale PRs, shared due dates, and prose blocking on a blocker
    that has closed (only a person edits the body), for the user to judge.
-4. Every `FAILED (...)` line, plainly, with its reason. A check that failed found nothing only
-   because it didn't run; never summarize it as clean. **Skipped** lines name the config a
-   check needs.
+4. **Possibly done**: open issues a merged PR looks to have finished without a closing
+   reference, each with the PR and the signal (the forge records the PR mentioning the issue, or
+   the PR changed a path or symbol the issue's body names) and the issue's last comment date.
+   Say they're listed, not proposed: `/groom` never closes one, `all` doesn't include them, and
+   none is evidence enough alone. A mention can be "see #12" or "part of #12". If the user wants
+   one closed, that's the ordinary request below, confirmed with them first.
+5. The **Checks run** line, as printed, so the user knows how much of the report is backed by
+   checks that actually ran. Every `FAILED (...)` line, plainly, with its reason. A check that
+   failed found nothing only because it didn't run; never summarize it as clean. **Skipped**
+   lines name the config a check needs; **Unsupported on <forge>** lines name what that forge
+   can't answer.
 
 Then ask once: **Apply which? (numbers, `all`, or `none`)**. `all` means every numbered proposal
-in this report and nothing from the unclear or listed sections.
+in this report and nothing from the unclear, listed or possibly-done sections.
 
 ## Applying
 
@@ -104,7 +112,7 @@ Only after the user answers with numbers or `all`:
    themselves instead.
 
 On `none`, or no clear answer, write nothing and stop. If the user asks you to change an
-unclear or listed item, that's an ordinary request outside `/groom`: confirm the exact change
+unclear, listed or possibly-done item, that's an ordinary request outside `/groom`: confirm the exact change
 with them before making it.
 
 If you are running this for your own purposes (to check the board, not because the user typed
