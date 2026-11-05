@@ -1,5 +1,12 @@
 # Changelog
 
+## [forge-tracker--v2026.11.05.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.11.05.1...forge-tracker--v2026.11.05.2) (2026-11-05)
+
+### Features
+
+- **forge-tracker:** write to Forgejo and Gitea through their REST API ([75e794f](https://github.com/lokkju/skills/commit/75e794ff387dbdef8adb5690a31f64a1407917ed))
+- **forge-tracker:** write to GitLab through glab api ([0969034](https://github.com/lokkju/skills/commit/0969034ae662f6bc5de0727900cbc5c8aefd496e))
+
 ## [forge-tracker--v2026.11.05.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.10.26.1...forge-tracker--v2026.11.05.1) (2026-11-05)
 
 ### Features
