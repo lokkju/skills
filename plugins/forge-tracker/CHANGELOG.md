@@ -1,5 +1,11 @@
 # Changelog
 
+## [forge-tracker--v2026.11.06.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.11.05.2...forge-tracker--v2026.11.06.1) (2026-11-06)
+
+### Fixes
+
+- **forge-tracker:** combine patch_names's nested if for ruff SIM102 ([c91214a](https://github.com/lokkju/skills/commit/c91214a8f1291a048ae3233d829a92ec950d886c))
+
 ## [forge-tracker--v2026.11.05.2](https://github.com/lokkju/skills/compare/forge-tracker--v2026.11.05.1...forge-tracker--v2026.11.05.2) (2026-11-05)
 
 ### Features
