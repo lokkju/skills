@@ -27,7 +27,7 @@ import { type Message, type Trail, ledgerMatches, trailOf } from './lineage'
 import { githubShort, isShortLink, linkHref, plainText } from './markdown'
 import { MORE, detailsExtras, hasMore, moreSplit } from './more'
 import { type Forge, type ForgeHosts, linkRefs, parseForgeHosts, parseOverride, refHref, resolveForge } from './forge'
-import { handoffs, nudge, unknownLabels, wideCommands, wideNudge } from './handoff'
+import { type Finding, type Flagged, findings, nudge, parseIgnore, wideCommands, wideNudge } from './handoff'
 import { RECONCILE, brief } from './reconcile'
 import { refusal } from './version'
 import { type ListReason, TEXT_WIDTH, parseListMode, pushText, replyNote, textListing } from './remote'
@@ -64,6 +64,14 @@ const TASK_TOOLS = ['TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate'] as const
 const turnStarted = atom({ plugin: 'session-decisions', key: 'turnStarted' } as const, 0)
 // The hand-off reminder the model gets with the person's next prompt; empty when there's none.
 const handoffNudge = atom({ plugin: 'session-decisions', key: 'handoffNudge' } as const, '')
+// What the hand-off check flagged in the last reply it checked, so explaining a false alarm, which
+// repeats its labels, doesn't set it off again; empty after a reply it found nothing in.
+const handoffFlagged = atom({ plugin: 'session-decisions', key: 'handoffFlagged' } as const, { labels: [], lines: [] } as Flagged)
+// Every label the conversation's transcript shows, task-list and ledger, as the last hydrate read
+// it: with the labels the hook assigned (`created`), what the hand-off check takes as the
+// session's, so an item settled, superseded or deleted, or one from before a resume under a new
+// id, is never reported as never created.
+const labelsSeen = atom({ plugin: 'session-decisions', key: 'labelsSeen' } as const, [] as string[])
 const showSettled = atom({ plugin: 'session-decisions', key: 'showSettled' } as const, false)
 const paneDismissed = atom({ plugin: 'session-decisions', key: 'paneDismissed' } as const, false)
 const autoOpened = atom({ plugin: 'session-decisions', key: 'autoOpened' } as const, false)
@@ -395,6 +403,7 @@ async function hydrate($: $, given?: string): Promise<void> {
   await update($, items, () => merged)
   await update($, created, () => known)
   await update($, closed, () => settled)
+  await update($, labelsSeen, now => [...new Set([...now, ...trail.labels])])
   // Labels the conversation has already shown count too, so a session whose record is gone
   // still never hands out one of them again.
   const shown = trail.labels.map(label => ({ label }))
@@ -519,16 +528,48 @@ async function noteOrigin($: $, kind: string | undefined): Promise<void> {
   if (kind === 'bridge' || kind === 'composer') await update($, remote, () => kind === 'bridge')
 }
 
-/** The lines of a reply that hand the person work without a queue entry; null when there are none. */
-async function unqueued($: $, reply: string): Promise<{ lines: string[]; missing: string[] } | null> {
+/**
+ * Every label the session has used: the items in the queue, the settled copies it keeps, every
+ * label the hook assigned (which a deleted item keeps), and every label the transcript shows.
+ */
+async function knownLabels($: $): Promise<string[]> {
+  const labels = [
+    ...(await read($, items)).map(item => item.label),
+    ...Object.values(await read($, closed)).map(item => item.label),
+    ...Object.keys(await read($, created)),
+    ...(await read($, labelsSeen)),
+  ]
+  return [...new Set(labels.filter(label => /^[DA]\d+$/.test(label)))]
+}
+
+/**
+ * The lines of a reply that hand the person work without a queue entry; null when there are none.
+ * Each check notes what it flagged, for the next one to leave alone, and logs a debug line when it
+ * flags anything: where it ran, the labels and the reason for each line.
+ */
+async function unqueued(
+  $: $,
+  reply: string,
+  where: string,
+  ignore: readonly string[],
+): Promise<{ lines: string[]; missing: string[] } | null> {
   if (!reply) return null
   const since = await read($, turnStarted)
   const all = await read($, items)
   const queue = all.filter(item => isOpen(item) || (item.created ?? 0) >= since)
-  const known = all.map(item => item.label)
-  const lines = handoffs(reply, queue, { known })
-  if (lines.length === 0) return null
-  return { lines, missing: unknownLabels(reply, known) }
+  const known = await knownLabels($)
+  const flagged = await read($, handoffFlagged)
+  const found: Finding[] = findings(reply, queue, { known, ignore, flagged })
+  const lines = found.slice(0, 5).map(one => one.line)
+  const missing = [...new Set(found.flatMap(one => one.labels))]
+  await update($, handoffFlagged, () => ({ labels: missing, lines }))
+  if (found.length === 0) return null
+  const reasons = found.slice(0, 5).map(one => `${one.reason}: ${plainText(one.line).slice(0, 80)}`)
+  $.ui.log(
+    `session-decisions: hand-off check (${where}) flagged ${found.length} line${found.length === 1 ? '' : 's'}; labels: ${missing.join(', ') || 'none'}; ${reasons.join(' | ')}`,
+    { to: 'debug' },
+  )
+  return { lines, missing }
 }
 
 /** The hand-off check's toast: short, since a toast is narrow, naming the count and the first hand-off. */
@@ -552,6 +593,7 @@ export const register: Register = (on, options) => {
   // The forge_hosts option (plugin.json userConfig), read as the module loads.
   const forgeHosts = parseForgeHosts(options?.forge_hosts)
   const checkHandoffs = options?.handoff_check !== false
+  const ignoreLabels = parseIgnore(options?.ignore_labels)
   const replyList = parseListMode(options?.reply_list)
   const push = options?.push_notifications !== false
   pushWarned = false
@@ -698,8 +740,9 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (!checkHandoffs || e.stop_hook_active || result.block !== undefined) return result
     const reply = String(e.last_assistant_message ?? '')
-    const found = await unqueued($, reply)
+    const found = await unqueued($, reply, 'stop', ignoreLabels)
     const wide = wideCommands(reply)
+    if (wide.length > 0) $.ui.log(`session-decisions: wide-command check (stop) flagged widths ${wide.join(', ')}`, { to: 'debug' })
     if (!found && wide.length === 0) return result
     const notes = [...(found ? [nudge(found.lines, found.missing)] : []), ...(wide.length > 0 ? [wideNudge(wide)] : [])]
     await update($, handoffNudge, () => notes.join('\n\n'))
@@ -718,8 +761,9 @@ export const register: Register = (on, options) => {
     const ran = stopRan
     stopRan = false
     if (ran || !checkHandoffs || e.reason !== 'answer' || (await off($))) return result
-    const found = await unqueued($, e.answer)
+    const found = await unqueued($, e.answer, 'turn.complete', ignoreLabels)
     const wide = wideCommands(e.answer)
+    if (wide.length > 0) $.ui.log(`session-decisions: wide-command check (turn.complete) flagged widths ${wide.join(', ')}`, { to: 'debug' })
     if (wide.length > 0) warnWide($, wide)
     if (found) warn($, found)
     return result

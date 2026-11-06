@@ -115,6 +115,12 @@ describe('queue', () => {
     expect(applyUpdate(list, { taskId: '9', status: 'deleted' })).toBe(list)
     expect(applyUpdate(list, { taskId: '9', subject: 'refactor the parser' })).toBe(list)
     expect(applyUpdate(list, { taskId: '1', subject: 'Just a task now' })).toEqual([])
+    // Settled under a subject that keeps its label but drops its kind, it's the same item, settled,
+    // with the ruling the subject carries (lokkju/skills#163).
+    const settled = applyUpdate(list, { taskId: '1', status: 'completed', subject: `${list[0]!.label} done. Ruling (2026-11-05): go` })
+    expect(settled).toHaveLength(1)
+    expect(settled[0]).toMatchObject({ label: list[0]!.label, kind: list[0]!.kind, body: list[0]!.body, status: 'completed' })
+    expect(rulingIn(settled[0]!.description)).toBe('Ruling (2026-11-05): go')
     expect(applyUpdate(list, { taskId: '9', status: 'completed' })).toEqual(list)
   })
 

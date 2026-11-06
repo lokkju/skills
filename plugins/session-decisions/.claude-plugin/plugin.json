@@ -30,6 +30,12 @@
       "description": "When a reply hands you work (\"left for you\", \"you'll need to merge\") that isn't in the decision queue, or a shell command line too wide to copy out of tmux whole, show a warning and remind the assistant on its next turn.",
       "default": true
     },
+    "ignore_labels": {
+      "type": "string",
+      "title": "Labels the hand-off check ignores",
+      "description": "Labels that name something else in your work, split by commas, such as D1 for Cloudflare D1. The hand-off check never reports these as named but not in the queue. Leave empty to check every label.",
+      "default": ""
+    },
     "reply_list": {
       "type": "string",
       "title": "Reply list",

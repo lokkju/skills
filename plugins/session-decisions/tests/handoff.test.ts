@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { handoffs, nudge, unknownLabels, wideCommands, wideNudge } from '../hooks/handoff'
+import { findings, handoffs, nudge, parseIgnore, unknownLabels, wideCommands, wideNudge } from '../hooks/handoff'
 import type { Item } from '../types'
 
 const item = (over: Partial<Item>): Item => ({
@@ -301,5 +301,152 @@ describe('command lines too wide to copy out of tmux', () => {
     expect(text).toContain('the widest 140')
     expect(text).toContain('a script with one short line that runs it')
     expect(text).toContain('`\\` continuations')
+  })
+})
+
+// The false positives a 2026-10-22 to 2026-11-05 measurement found (lokkju/skills#163), from the
+// lines it flagged, and the true positives the fixes must keep.
+describe('false positives from the measurement', () => {
+  const open = [item({ label: 'A9', body: 'something unrelated [no link]' })]
+
+  test('Cloudflare D1 next to another cloud resource is not a label', () => {
+    for (const line of [
+      'Retire the heartbeat once a timed test passes: the Worker, its D1, the host timer and the CronJob.',
+      "- each Worker repo's CI pushes its bundle and a list of its bindings (D1, KV, Durable Objects, cron, vars) to zot;",
+      '- the qusme Worker on app.qus.me, its D1 database and its deploy token;',
+      '| Storage | R2: a public bucket for items.json, a private one for state | One D1 database for every site, R2 for images |',
+      'Tests: the same 34 tests pass on SQLite and on D1.',
+    ]) {
+      expect(unknownLabels(line, ['A1'])).toEqual([])
+      expect(handoffs(line, [], { known: ['A1'] })).toEqual([])
+    }
+  })
+
+  test('a label quoted in a table cell is not claimed by its repeat in the same row', () => {
+    expect(handoffs('| "D1" meaning Cloudflare D1 | 25 |', [], { known: ['A1'] })).toEqual([])
+    expect(handoffs('| "D7" quoted, then D7 again | 2 |', [], { known: ['A1'] })).toEqual([])
+  })
+
+  test('labels the ignore_labels option lists are never claimed', () => {
+    const line = '| 3 | The D1 tenant store; config changes apply within 30 seconds, without a redeploy |'
+    expect(unknownLabels(line, ['A1'])).toEqual(['D1'])
+    expect(unknownLabels(line, ['A1'], { ignore: ['D1'] })).toEqual([])
+    expect(handoffs(line, [], { known: ['A1'], ignore: ['D1'] })).toEqual([])
+    expect(parseIgnore('D1, d2 A3; nope')).toEqual(['D1', 'D2', 'A3'])
+    expect(parseIgnore(undefined)).toEqual([])
+  })
+
+  test('a label leading its line, or one named outside a cloud line, still flags', () => {
+    expect(handoffs('D7: merge it', [], { known: ['D1'] })).toEqual(['D7: merge it'])
+    expect(handoffs('D7: create the R2 bucket for the site', [], { known: ['D1'] })).toEqual(['D7: create the R2 bucket for the site'])
+    expect(unknownLabels("I've queued it as D33 with that scope proposal.", ['D1'])).toEqual(['D33'])
+  })
+
+  test('a negated status line is not a hand-off', () => {
+    for (const line of [
+      'Nothing is waiting on you; the decision queue is empty.',
+      'Nothing is waiting on you, and the standing backlog line reads standing: none.',
+      'V2 is complete and reviewed. E14 follows. Nothing is waiting on you.',
+      'No action is waiting on you.',
+    ]) {
+      expect(handoffs(line, [], { known: [] })).toEqual([])
+    }
+  })
+
+  test('a line saying the items are queued is a status line', () => {
+    const reply = [
+      'Two decisions only you can make are in the queue:',
+      '- **D17**: whether to fetch the PDFs through `/api/uploads?p=`. I recommend yes.',
+      '- **D18**: which document types to collect. I recommend all nine types.',
+    ].join('\n')
+    expect(handoffs(reply, [], { known: ['D17', 'D18'] })).toEqual([])
+    expect(handoffs('Both are already in the decision queue, and only you can approve them.', [], { known: [] })).toEqual([])
+    // Negated, it says the opposite.
+    expect(handoffs("These aren't in the queue yet, and only you can approve them.", [], { known: [] })).toEqual([
+      "These aren't in the queue yet, and only you can approve them.",
+    ])
+  })
+
+  test('a count of decisions waiting is a status line while the queue holds open items', () => {
+    const line = 'All three pieces are done, and three decisions are waiting on you.'
+    expect(handoffs(line, open, { known: ['A9'] })).toEqual([])
+    expect(handoffs(line, [], { known: [] })).toEqual([line])
+  })
+
+  test('a heading or list item whose list items all name queued labels is not a hand-off', () => {
+    const merges = [
+      '**Waiting on you:**',
+      '- **Merges:**',
+      '  - A206: HSTS, [infra#91](https://github.com/codexpublicus/infra/pull/91).',
+      '  - A207: exemplar 0.6.1, [exemplar#61](https://github.com/codexpublicus/exemplar/pull/61).',
+      '- **Decisions:** D164, D166, D167.',
+      '- **Cleanup:** A212, the scratch directories outside the job folder.',
+    ].join('\n')
+    expect(handoffs(merges, [], { known: ['A206', 'A207', 'A212', 'D164', 'D166', 'D167'] })).toEqual([])
+    const these = ['These are still waiting on you:', '- **A182:** raise the quota.', '- **D221:** the nine leftover worktrees.'].join('\n')
+    expect(handoffs(these, [], { known: ['A182', 'D221'] })).toEqual([])
+    // Items nested under a queued item belong to it.
+    const nested = ['**Waiting on you:**', '- **D225:** the Plex phase. I recommend:', '  - keeping its address;', '  - CPU transcoding for now;'].join('\n')
+    expect(handoffs(nested, [], { known: ['D225'] })).toEqual([])
+    // A heading that names a queued label covers its list.
+    expect(handoffs('**Your turn, on ml-01 (A157):**\n1. Run the render yourself.\n2. Run the postcheck.', [], { known: ['A157'] })).toEqual([])
+    // A list item saying there's nothing there.
+    expect(handoffs('**Waiting on you**\n- Nothing on the standing backlog.', [], { known: [] })).toEqual([])
+  })
+
+  test('a heading over an unqueued item still flags it, and so does the heading over unlabelled items', () => {
+    expect(handoffs('Left for you:\n- A3: merge #12\n- rotate the key', [], { known: ['A3'] })).toEqual(['rotate the key'])
+    expect(handoffs('Actions only you can do:\n- turn off Dependabot\n- run the probe', [], { known: [] })).toEqual(['Actions only you can do'])
+    expect(handoffs('Actions only you can do:\n- A1: turn off Dependabot\n- run the probe', [], { known: ['A1'] })).toEqual(['Actions only you can do'])
+  })
+
+  test("labels from another session, a plan or a document are not the session's", () => {
+    const known = ['D1', 'A1']
+    expect(
+      unknownLabels(
+        "The lokkju/infra session asked whether captare's olmOCR backlog run, the GPU job your D242 ruling covers, was already planned from this session.",
+        known,
+      ),
+    ).toEqual([])
+    expect(unknownLabels("I haven't started it, because your vaglio session filed it as D9.", known)).toEqual([])
+    expect(unknownLabels("captare's own docs list the full backlog run as A7.", known)).toEqual([])
+    expect(unknownLabels("The full backlog run is the plan's operator action A3.", known)).toEqual([])
+    expect(unknownLabels('The plan and rulings behind it are in `docs/plans/2026-10-08-pets-incus-happier.md` (D69, D77).', known)).toEqual([])
+    expect(unknownLabels('The D242 the hook flagged is a lokkju/infra ruling, not an item.', known)).toEqual([])
+    expect(unknownLabels('The session-decisions hook flagged D174 and A221 as missing from the queue.', known)).toEqual([])
+    // This session's own, named plainly, still counts.
+    expect(unknownLabels('D9 is waiting on you.', known)).toEqual(['D9'])
+  })
+
+  test('a label the previous nudge flagged is not flagged again unless the reply hands it over anew', () => {
+    const flagged = { labels: ['D33'], lines: ['Merge #41 and #42'] }
+    expect(handoffs('Sorry, D33 was my slip: there is no such item.', [], { known: ['D1'], flagged })).toEqual([])
+    expect(handoffs("D33: you'll need to merge #12", [], { known: ['D1'], flagged })).toEqual(["D33: you'll need to merge #12"])
+    expect(handoffs('Left for you:\n- Merge #41 and #42', [], { known: ['D1'], flagged })).toEqual([])
+    expect(handoffs('Left for you:\n- Merge #43', [], { known: ['D1'], flagged })).toEqual(['Merge #43'])
+  })
+
+  test('the phrases the measurement missed', () => {
+    expect(handoffs('The config has a placeholder owner and zone ID for you to fill in.', [], { known: [] })).toHaveLength(1)
+    expect(handoffs("Who merges it: you, or that repo's session?", [], { known: [] })).toHaveLength(1)
+    expect(handoffs('Three judgement calls are flagged in the PR for you to check.', [], { known: [] })).toHaveLength(1)
+  })
+
+  test('the true positives stay flagged', () => {
+    for (const line of [
+      '[#13](https://github.com/lokkju/edgekms/issues/13), the dedicated Cloudflare account: only you can create the account and the token.',
+      "New Dependabot PRs will still arrive. To stop them, turn off Dependabot security updates in the fork's settings; that's a toggle only you can flip.",
+      "Codex Publicus isn't a legal entity, so payouts go to you personally unless a fiscal host holds them. Tax treatment is your call.",
+      "The vLLM load test hasn't run. vLLM checks an API key, and I don't have permission to read that key, so the agent stopped before sending any load.",
+      "I haven't started the vagl.io import, because your vaglio session filed it and may be doing it itself. Say the word and I'll take it.",
+    ]) {
+      expect(handoffs(line, open, { known: ['A9'] })).toEqual([line])
+    }
+  })
+
+  test('findings say why each line was flagged', () => {
+    const found = findings("Left for you:\n- Rotate the key\n\nI've queued it as D33.\n\nOnly you can approve the merge.", [], { known: ['D1'] })
+    expect(found.map(one => one.reason)).toEqual(['under a hand-off heading', 'names D33, not in the queue', 'hand-off phrase "Only you can"'])
+    expect(found[1]?.labels).toEqual(['D33'])
   })
 })
