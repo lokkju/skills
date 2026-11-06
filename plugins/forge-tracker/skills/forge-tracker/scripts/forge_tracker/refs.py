@@ -333,7 +333,10 @@ def patch_names(patch: str, symbol: str) -> bool:
             parts = line.split("@@", 2)
             if len(parts) == 3 and word.search(parts[2]):
                 return True
-        elif line.startswith(("+", "-")) and not line.startswith(("+++", "---")):
-            if word.search(line[1:]):
-                return True
+        elif (
+            line.startswith(("+", "-"))
+            and not line.startswith(("+++", "---"))
+            and word.search(line[1:])
+        ):
+            return True
     return False
