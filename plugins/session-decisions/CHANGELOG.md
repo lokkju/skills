@@ -1,5 +1,12 @@
 # Changelog
 
+## [session-decisions--v2026.11.06.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.11.05.2...session-decisions--v2026.11.06.1) (2026-11-06)
+
+### Fixes
+
+- **session-decisions:** cut the hand-off check's false positives ([e19d76b](https://github.com/lokkju/skills/commit/e19d76b6711990eb2eabc0d04cc1a8ca3586a3ad))
+- **session-decisions:** keep an item settled under a rewritten subject ([507ea8b](https://github.com/lokkju/skills/commit/507ea8b216ad1d160680046dc9f3c63c38fbbfcb))
+
 ## [session-decisions--v2026.11.05.2](https://github.com/lokkju/skills/compare/session-decisions--v2026.11.05.1...session-decisions--v2026.11.05.2) (2026-11-05)
 
 ### Features
