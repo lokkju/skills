@@ -146,6 +146,12 @@ They run JSON and YAML checks, end-of-file and trailing-whitespace fixes, `ruff 
 fails when a skill's frontmatter `name` differs from its directory (`validate` doesn't check
 that), and `scripts/sync-mcp-stdio.py --check`. `uvx pre-commit run --all-files` runs them on everything.
 
+Ruff is pinned, because a new ruff release can add or tighten a rule and fail `main` with no
+change here. The ruff-pre-commit `rev` in `.pre-commit-config.yaml` is the one source: CI reads
+its version from there, and Dependabot (`.github/dependabot.yml`, the `pre-commit` ecosystem)
+opens a PR when it moves. When that rev changes, fix whatever the new ruff reports in the same PR
+and update the `uvx ruff@<version>` commands below to match.
+
 CI (`.github/workflows/ci.yml`) runs on every pull request and on pushes to `main`:
 
 - `plugins`: `claude plugin validate --strict` on the marketplace and each `plugins/*`, on the
@@ -170,15 +176,15 @@ checks by hand:
 claude plugin validate --strict .
 claude plugin validate --strict plugins/<name>
 claude plugin test plugins/session-decisions
-uvx ruff check plugins/forge-release && uvx ruff format --check plugins/forge-release
+uvx ruff@0.17.4 check plugins/forge-release && uvx ruff@0.17.4 format --check plugins/forge-release
 uv run --no-project --with pytest pytest plugins/forge-release/tests
-uvx ruff check plugins/forge-tracker && uvx ruff format --check plugins/forge-tracker
+uvx ruff@0.17.4 check plugins/forge-tracker && uvx ruff@0.17.4 format --check plugins/forge-tracker
 uv run --no-project --with pytest pytest plugins/forge-tracker/tests
-uvx ruff check plugins/term-recorder && uvx ruff format --check plugins/term-recorder
+uvx ruff@0.17.4 check plugins/term-recorder && uvx ruff@0.17.4 format --check plugins/term-recorder
 uv run --no-project --with pytest pytest plugins/term-recorder/tests
-uvx ruff check plugins/worktree-tidy && uvx ruff format --check plugins/worktree-tidy
+uvx ruff@0.17.4 check plugins/worktree-tidy && uvx ruff@0.17.4 format --check plugins/worktree-tidy
 uv run --no-project --with pytest pytest plugins/worktree-tidy/tests
-uvx ruff check scripts && uvx ruff format --check scripts
+uvx ruff@0.17.4 check scripts && uvx ruff@0.17.4 format --check scripts
 uv run --no-project --with pytest pytest scripts/tests
 uv run --no-project scripts/check-skill-names.py
 uv run --no-project scripts/sync-mcp-stdio.py --check

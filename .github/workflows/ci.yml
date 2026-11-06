@@ -107,10 +107,13 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           enable-cache: false
+      # The ruff version is the ruff-pre-commit rev in .pre-commit-config.yaml, so a Dependabot
+      # bump of that rev moves CI with it.
       - name: Ruff
         run: |
-          uvx ruff check "plugins/$PLUGIN"
-          uvx ruff format --check "plugins/$PLUGIN"
+          ruff="ruff@$(awk '/ruff-pre-commit/ {f=1} f && /rev:/ {sub(/.*rev: v/, ""); print; exit}' .pre-commit-config.yaml)"
+          uvx "$ruff" check "plugins/$PLUGIN"
+          uvx "$ruff" format --check "plugins/$PLUGIN"
         env:
           PLUGIN: ${{ matrix.plugin }}
       - name: Tests
@@ -136,8 +139,9 @@ jobs:
           enable-cache: false
       - name: Ruff
         run: |
-          uvx ruff check scripts
-          uvx ruff format --check scripts
+          ruff="ruff@$(awk '/ruff-pre-commit/ {f=1} f && /rev:/ {sub(/.*rev: v/, ""); print; exit}' .pre-commit-config.yaml)"
+          uvx "$ruff" check scripts
+          uvx "$ruff" format --check scripts
       - name: Tests
         run: uv run --no-project --with pytest pytest scripts/tests
 

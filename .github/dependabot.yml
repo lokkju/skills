@@ -6,3 +6,11 @@ updates:
       interval: weekly
     commit-message:
       prefix: ci
+  # Bumps the hook revs in .pre-commit-config.yaml, ruff's among them; CI reads ruff's version
+  # from there.
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
