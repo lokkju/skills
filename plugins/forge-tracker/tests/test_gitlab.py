@@ -5,6 +5,7 @@ MRs), and the three reports over a fixture world in the shapes GitLab documents.
 import io
 import json
 import subprocess
+import urllib.parse
 from datetime import datetime, timezone
 
 import pytest
@@ -435,6 +436,55 @@ def test_branches_compare_from_the_default_branch():
     assert wip.head_date == datetime(2026, 10, 2, tzinfo=timezone.utc)
     compare = [c[1] for c in world.calls if "compare" in c[1]]
     assert compare == [f"{BASE}/projects/acme%2Fwidgets/repository/compare?from=main&to=wip"]
+
+
+def test_branches_mark_a_branch_with_no_history_in_common_with_the_default():
+    # GitLab answers a compare across unrelated histories with every commit on the branch, down
+    # to its root. A root commit in the list is the cue to ask for the merge base, which GitLab
+    # answers with a 404 when there's none.
+    def compare(url):
+        to = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["to"][0]
+        root = {"committed_date": "2026-10-01T00:00:00.000+00:00", "parent_ids": []}
+        tip = {"committed_date": "2026-10-02T00:00:00.000+00:00", "parent_ids": ["x"]}
+        return response({"commits": [tip, root] if to != "wip" else [tip]})
+
+    def merge_base(url):
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        if query["refs[]"] == ["main", "assets/shots"]:
+            return response({"message": "404 Merge Base Not Found"}, status=404)
+        return response({"id": "b"})
+
+    world = (
+        World()
+        .route(
+            f"{P}/repository/branches",
+            [
+                {"name": "main", "commit": {"id": "m"}},
+                {"name": "assets/shots", "commit": {"id": "s"}},
+                {"name": "subtree", "commit": {"id": "t"}},
+                {"name": "wip", "commit": {"id": "w"}},
+            ],
+        )
+        .route(f"{P}/repository/compare", compare)
+        .route(f"{P}/repository/merge_base", merge_base)
+    )
+    shots, subtree, wip = adapter(world).branches("main", [])
+    assert (shots.name, shots.unrelated, shots.ahead_by) == ("assets/shots", True, None)
+    # A branch that merged in another history has a root commit but still a merge base.
+    assert (subtree.unrelated, subtree.ahead_by) == (False, 2)
+    assert (wip.unrelated, wip.ahead_by) == (False, 1)
+    assert not any("merge_base" in c[1] and "wip" in c[1] for c in world.calls)
+
+
+def test_branches_still_fail_when_the_merge_base_read_fails_otherwise():
+    world = (
+        World()
+        .route(f"{P}/repository/branches", [{"name": "gone", "commit": {"id": "g"}}])
+        .route(f"{P}/repository/compare", {"commits": [{"parent_ids": []}]})
+        .route(f"{P}/repository/merge_base", {"message": "404 Commit Not Found"}, status=404)
+    )
+    read = attempt(lambda: adapter(world).branches("main", []))
+    assert not read.ok and "HTTP 404" in read.error and "Commit Not Found" in read.error
 
 
 def test_on_branch_reads_the_branches_holding_the_commit():

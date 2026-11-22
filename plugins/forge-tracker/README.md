@@ -154,7 +154,9 @@ closes it or names it in its title or branch, or a pushed branch that names its 
 names an issue only as `#N`, `owner/repo#N` or `GH-N`, and versions and dates in a title or branch
 name aren't issue numbers), and a **merged-but-open** flag when a merged PR
 has a real closing reference to it. Open PRs that no open issue has in flight get their own list,
-with their draft, conflict, CI and review state.
+with their draft, conflict, CI and review state. A branch with no history in common with the
+default branch (an orphan branch of screenshots or pages) can't be work in flight against it, so
+it's never in flight or flagged as a branch with no PR; one note line names the branches skipped.
 
 The **slate** is Claude's ranking: the order of your queue, and the agent-ready items grouped
 into lanes that shouldn't touch the same files. The grouping is Claude's judgement from titles,
@@ -216,7 +218,7 @@ applies only the ones you name.
 | Link to a closed blocker | `unlink` the link | |
 | Blocking written only as prose: an open issue's body says `Blocked by: #17`, `blocked on #17`, `Depends on #17` or, at a line's start, `Blocks #18` (or `owner/repo#N`), with no native link behind it | `link-add`, when the blocker is an open issue; a closed blocker is listed for you as stale prose | a pull request named as a blocker; a blocked issue in another project; a blocker that couldn't be read |
 | Decided but still waiting: a ruling comment (by `ruling_pattern`) dated after the needs-human or decision label was added | `labels`: remove those, add `decision_made` | an issue whose label history can't be read |
-| Stale branch: no open PR, nothing ahead of the default branch | `delete-branch` (refused at apply time if the branch moved) | a branch with commits the default branch lacks, when idle for `stale_days` or the branch of a merged PR |
+| Stale branch: no open PR, nothing ahead of the default branch (a branch with no history in common with it is skipped and named in a note) | `delete-branch` (refused at apply time if the branch moved) | a branch with commits the default branch lacks, when idle for `stale_days` or the branch of a merged PR |
 | Conflicted or stale PR | nothing; listed for you | `conflicts: unknown` |
 | Likely duplicates (token-set similarity of titles and labels, open issues and those closed in 30 days) | nothing | every pair |
 | Placeholder due dates (one due date on more than one open milestone) | nothing; listed for you | |

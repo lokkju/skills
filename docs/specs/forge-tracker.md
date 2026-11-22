@@ -177,7 +177,7 @@ error, never an empty list standing in for a failure.
 | Merged since T | number, title, branch, merge sha, merged at, closing issues | GraphQL `closingIssuesReferences` | `GET /merge_requests?state=merged&updated_after=`, per MR `closes_issues` | `GET /pulls?state=closed` filtered on `merged` |
 | Closing references to open issues | issue, change, change state, base branch | GraphQL `closedByPullRequestsReferences(includeClosedPrs: true)` | per open issue `GET /issues/:iid/closed_by` | closing keywords in open and merged PR bodies (verify) |
 | CI | newest default-branch run by trigger (push, schedule), failed jobs, jobs that passed only on retry | `GET /actions/runs?branch=&event=`, jobs with `filter=all` | `GET /pipelines?ref=&source=`, jobs (`include_retried=true` for retries, newest attempt by job id) | Actions runs where the instance has the API, else commit status |
-| Branches | name, head sha, has an open change, ahead of default | `GET /branches`, `GET /compare/<default>...<branch>` | `GET /repository/branches`, `GET /repository/compare?from=&to=` | `GET /branches`, `GET /compare` |
+| Branches | name, head sha, has an open change, ahead of default, no history in common with default | `GET /branches`, `GET /compare/<default>...<branch>` (a 404 saying "No common ancestor" is unrelated history) | `GET /repository/branches`, `GET /repository/compare?from=&to=`, and `GET /repository/merge_base` when the compare lists a root commit (a 404 "Merge Base Not Found" is unrelated history) | `GET /branches`, `GET /compare`, and the reverse compare when nothing is ahead (none either way, at a different head, is unrelated history) |
 | Merge commit on the default branch (`/groom`) | yes or no | `GET /compare/<default>...<sha>` | `GET /repository/commits/:sha/refs?type=branch` | `GET /compare` |
 | Cross-references to open issues (`/groom`) | issue, change, change state, merged at, base branch where known, whether it closes where known | GraphQL `timelineItems(itemTypes: [CROSS_REFERENCED_EVENT])` with `willCloseTarget` | per open issue `GET /issues/:iid/related_merge_requests` | per open issue `GET /issues/{i}/timeline`, `pull_ref`, `issue_ref` and `comment_ref` entries whose `ref_issue` is a PR (verify) |
 | A change's files (`/groom`) | path, previous path, diff where the forge has it | `GET /pulls/{n}/files` | `GET /merge_requests/:iid/diffs` (15.7+, else unsupported) | `GET /pulls/{n}/files`, names only (unsupported where missing) |
@@ -290,7 +290,10 @@ never re-poll to wait for an answer.
   falls back to the branch head's combined status, and the scheduled run and the retried jobs
   raise `Unsupported`. Retried jobs also need `run_attempt`, which only Gitea's shape has.
 - Branches and reachability: `GET /compare/<base>...<head>` (`total_commits`); a merge commit is
-  on the default branch when `<default>...<sha>` has none. Releases turned off (a 404 on a repo
+  on the default branch when `<default>...<sha>` has none. Forgejo answers a compare across
+  unrelated histories with no commits, not an error, so a branch with none ahead and a head
+  of its own also gets `<branch>...<default>`; none that way either means the two share no
+  history. Releases turned off (a 404 on a repo
   that reads) are no releases.
 - Label history is the issue timeline's `label` events (`body: "1"` added, empty removed).
 - `/next`'s fingerprint: the repo, its branches, the open issues (the newest open issue stands in
@@ -707,7 +710,8 @@ aren't person-only; a blocker in another project blocks but isn't walked.
 
 **In flight:** an item is in flight when an open change has a closing reference to it or names it
 (a reference in its title, or `N` in its branch name), or a pushed branch with no change and at least
-one commit past the default branch names `N`. A branch names `N` only when it's clearly an issue
+one commit past the default branch names `N`. A branch with no history in common with the default
+branch is never in flight and never listed as a branch with no change; a note line names it. A branch names `N` only when it's clearly an issue
 number: a whole word at the start or end of a `/`-separated segment (`21-github-adapter`,
 `fix/21`, `sd-26`) or right after `issue`, `gh`, `fix` and similar words (`issue-21-x`). Digits
 inside a version, dotted or dashed (`cilium-1.20.2`, `v1`, `task-tools-2-1-300`), a date
@@ -831,7 +835,7 @@ and writes nothing until you approve.
 | Link whose blocker is closed | the link, the blocker's close date | `unlink` |
 | Blocking written only as prose | the body line, and no native link behind it | `link-add` (an open blocker); a closed blocker is listed for you |
 | Decided but still waiting | the ruling comment, dated after the label was added | `labels` (remove needs-human or decision, add decision-made) |
-| Stale branch | no open change, every commit on the default branch (`ahead_by == 0`) | `delete-branch` |
+| Stale branch | no open change, every commit on the default branch (`ahead_by == 0`); a branch with no history in common with the default branch is skipped and named in a note | `delete-branch` |
 | Conflicted or stale change | `conflicts: yes`, or no activity for `stale_days` | none; listed for you |
 | Likely duplicates | the pair and their similarity | none; listed for you |
 | Possibly done without a closing reference ([#146](https://github.com/lokkju/skills/issues/146)) | the merged change, the signal (the forge's cross-reference, or the path or symbol the body names that the change touched), and the issue's last comment date | none; listed under "Possibly done" |

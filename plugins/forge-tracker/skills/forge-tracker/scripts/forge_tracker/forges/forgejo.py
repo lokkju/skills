@@ -489,19 +489,34 @@ class Forgejo:
         return compare
 
     def branches(self, default_branch: str, open_changes: list[Change]) -> list[Branch]:
+        """Every branch but the default. Forgejo answers a compare across unrelated histories
+        with no commits, the same as for a branch with nothing ahead, so a branch with nothing
+        ahead and a head of its own gets the reverse compare too: when the default branch has
+        nothing ahead of it either, the two share no history and the branch is `unrelated`."""
         with_change = {c.branch for c in open_changes}
-        raw = [
-            b
-            for b in self.t.get_all(f"{self.repo_path}/branches")
-            if b.get("name") != default_branch
-        ]
+        every = self.t.get_all(f"{self.repo_path}/branches")
+        default_sha = next(
+            ((b.get("commit") or {}).get("id") for b in every if b.get("name") == default_branch),
+            None,
+        )
+        raw = [b for b in every if b.get("name") != default_branch]
 
         def one(b: dict) -> Branch:
             name = b["name"]
+            sha = (b.get("commit") or {}).get("id") or ""
             ahead = head_date = None
             if name not in with_change:
                 compare = self._compare(default_branch, name)
                 ahead = int(compare["total_commits"])
+                if (
+                    ahead == 0
+                    and default_sha
+                    and sha != default_sha
+                    and int(self._compare(name, default_branch)["total_commits"]) == 0
+                ):
+                    return Branch(
+                        name, sha, False, protected=bool(b.get("protected")), unrelated=True
+                    )
                 dates = [
                     parse_time(((c.get("commit") or {}).get("committer") or {}).get("date"))
                     for c in compare.get("commits") or []
@@ -510,7 +525,7 @@ class Forgejo:
                 head_date = max(dates) if dates else None
             return Branch(
                 name,
-                (b.get("commit") or {}).get("id") or "",
+                sha,
                 name in with_change,
                 ahead,
                 protected=bool(b.get("protected")),

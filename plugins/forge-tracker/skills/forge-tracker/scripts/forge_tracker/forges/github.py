@@ -17,6 +17,7 @@ from ..model import (
     Comment,
     CrossRef,
     ForgeError,
+    HTTPStatusError,
     Issue,
     IssueRef,
     Job,
@@ -388,6 +389,9 @@ class GitHub:
         return pick_tags(patterns, dated, [t.get("name") or "" for t in tags], "GitHub")
 
     def branches(self, default_branch: str, open_changes: list[Change]) -> list[Branch]:
+        """Every branch but the default. One with no history in common with the default
+        branch comes back `unrelated`: GitHub answers its compare with a 404 that says so, and
+        any other 404 (a branch deleted mid-read) still fails the read."""
         with_change = {c.branch for c in open_changes}
         out = []
         for raw in self.t.get_all(f"{self.repo_path}/branches"):
@@ -397,7 +401,21 @@ class GitHub:
             ahead = None
             head_date = None
             if name not in with_change:
-                compare = self.t.get(f"{self.repo_path}/compare/{default_branch}...{name}")
+                try:
+                    compare = self.t.get(f"{self.repo_path}/compare/{default_branch}...{name}")
+                except HTTPStatusError as error:
+                    if error.status != 404 or "no common ancestor" not in error.detail.lower():
+                        raise
+                    out.append(
+                        Branch(
+                            name,
+                            raw["commit"]["sha"],
+                            False,
+                            protected=bool(raw.get("protected")),
+                            unrelated=True,
+                        )
+                    )
+                    continue
                 ahead = int(compare.get("ahead_by", 0)) if isinstance(compare, dict) else None
                 commits = (compare.get("commits") or []) if isinstance(compare, dict) else []
                 if commits:

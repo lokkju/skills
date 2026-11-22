@@ -439,6 +439,35 @@ def test_compare_drives_branches_and_on_branch():
     assert adapter(world).on_branch("main", "abc") is True
 
 
+def test_branches_mark_a_branch_with_no_history_in_common_with_the_default():
+    # Forgejo answers a compare across unrelated histories with 200 and no commits, the same as
+    # for a branch with nothing ahead. Only the reverse compare tells them apart: a related
+    # branch at a different commit has the default branch ahead of it, an unrelated one doesn't.
+    world = (
+        World()
+        .route(
+            f"{R}/branches",
+            [
+                {"name": "main", "commit": {"id": "m"}},
+                {"name": "assets/shots", "commit": {"id": "s"}},
+                {"name": "done", "commit": {"id": "d"}},
+                {"name": "same", "commit": {"id": "m"}},
+            ],
+        )
+        .route(f"{R}/compare/main...assets/shots", {"total_commits": 0, "commits": []})
+        .route(f"{R}/compare/assets/shots...main", {"total_commits": 0, "commits": []})
+        .route(f"{R}/compare/main...done", {"total_commits": 0, "commits": []})
+        .route(f"{R}/compare/done...main", {"total_commits": 2, "commits": []})
+        .route(f"{R}/compare/main...same", {"total_commits": 0, "commits": []})
+    )
+    shots, done, same = adapter(world).branches("main", [])
+    assert (shots.name, shots.unrelated, shots.ahead_by) == ("assets/shots", True, None)
+    assert (done.unrelated, done.ahead_by) == (False, 0)
+    assert (same.unrelated, same.ahead_by) == (False, 0)
+    # A branch at the default branch's own commit needs no second read.
+    assert not any("/compare/same...main" in c[1] for c in world.calls)
+
+
 def test_a_page_cap_through_link_headers():
     def endless(url):
         return response(
