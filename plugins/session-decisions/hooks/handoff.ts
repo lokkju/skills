@@ -241,7 +241,7 @@ function claimedIn(line: string, known: readonly string[], ignore: readonly stri
   const claimed: string[] = []
   for (const scope of scopes) {
     const elsewhere = other || refs(scope).length > 0 || PATH.test(scope) || ELSEWHERE.test(unquoted(scope))
-    const quoted = (scope.match(QUOTED) ?? []).join(' ').match(LABELS) ?? []
+    const quoted: string[] = (scope.match(QUOTED) ?? []).join(' ').match(LABELS) ?? []
     for (const label of labelsIn(scope)) {
       if (label === lead) claimed.push(label)
       else if (!elsewhere && !far(label, known) && !quoted.includes(label) && !ignore.includes(label)) claimed.push(label)
