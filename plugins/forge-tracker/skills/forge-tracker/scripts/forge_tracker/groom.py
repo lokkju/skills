@@ -852,6 +852,10 @@ def check_branches(
             continue
         if any(fnmatch.fnmatchcase(branch.name, pattern) for pattern in keep):
             continue
+        if branch.unrelated:
+            # No history in common with the default branch: not stale work against it, and
+            # never a delete proposal. The report's notes name it.
+            continue
         merged = (
             f", branch of merged {refs.change_ref(forge, merged_from[branch.name])}"
             if branch.name in merged_from
@@ -1006,6 +1010,13 @@ def build(
     setup = config.setup_note(("labels.needs_human", "labels.decision", "labels.blocked"))
     if setup:
         notes.append(setup)
+    if reads["branches"].ok and reads["repo"].ok:
+        unrelated = refs.unrelated_note(
+            [b.name for b in reads["branches"].data if b.unrelated],
+            reads["repo"].data.default_branch,
+        )
+        if unrelated:
+            notes.append(unrelated)
     if reads["repo"].ok is False:
         f.failed.insert(0, {"part": "repo", "reason": reads["repo"].error})
     return {

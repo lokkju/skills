@@ -575,6 +575,30 @@ def test_configured_keep_branches_are_skipped(env, repo_dir):
     assert "yeet/release-main" not in text
 
 
+def test_a_branch_with_no_history_in_common_is_skipped_with_a_note(env):
+    world = Repo().world()
+    branches = world.rest["/repos/acme/widgets/branches"]
+    world.route(
+        "/repos/acme/widgets/branches",
+        lambda url: response(
+            json.loads(branches(url).body) + [{"name": "assets/shots", "commit": {"sha": "s"}}]
+        ),
+    )
+    world.route(
+        "/repos/acme/widgets/compare/main...assets/shots",
+        {"message": "No common ancestor between main and assets/shots."},
+        status=404,
+    )
+    code, text = run_cli(env, "groom", "--json", http=world)
+    report = json.loads(text)
+    assert code == 0 and report["failed"] == []
+    named = {u["ref"] for u in report["unclear"]} | {
+        p["payload"].get("branch") for p in report["proposals"]
+    }
+    assert "assets/shots" not in named
+    assert "skipped 1 branch with no history in common with main: assets/shots" in report["notes"]
+
+
 def test_an_unknown_groom_key_fails_the_config(env, repo_dir):
     env = dict(env, repo=repo_dir("---\ngroom:\n  keep: [x]\n---\n"))
     code, _ = run_cli(env, "groom")

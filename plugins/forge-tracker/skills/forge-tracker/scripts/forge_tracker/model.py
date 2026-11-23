@@ -16,11 +16,13 @@ class ForgeError(Exception):
 
 class HTTPStatusError(ForgeError):
     """A read the forge answered with a non-2xx status; `status` lets an adapter tell a missing
-    endpoint (404 on an older instance) from other failures."""
+    endpoint (404 on an older instance) from other failures, and `detail` (the forge's own
+    message, redacted but not cut short) tells one 404 from another."""
 
-    def __init__(self, message: str, status: int):
+    def __init__(self, message: str, status: int, detail: str = ""):
         super().__init__(message)
         self.status = status
+        self.detail = detail
 
 
 class Unsupported(ForgeError):
@@ -193,6 +195,9 @@ class Branch:
     protected: bool = False
     # The head commit's date, when the compare against the default branch listed it.
     head_date: Optional[datetime] = None
+    # No history in common with the default branch (an orphan branch of screenshots or pages),
+    # so it can't be work in flight against it; `ahead_by` is None.
+    unrelated: bool = False
 
 
 @dataclass(frozen=True)

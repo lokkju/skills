@@ -1135,6 +1135,60 @@ def test_pickups_mark_a_branch_in_flight():
     assert result["other_branches"] == []
 
 
+def test_a_branch_with_no_history_in_common_is_skipped_with_a_note():
+    cfg = config.from_mapping({})
+    branches = [
+        {
+            "name": "assets/shots",
+            "sha": "s",
+            "has_change": False,
+            "ahead_by": None,
+            "unrelated": True,
+        },
+        {"name": "7-shots", "sha": "t", "has_change": False, "ahead_by": None, "unrelated": True},
+        {"name": "wip", "sha": "w", "has_change": False, "ahead_by": 2},
+    ]
+    result = next_.classify(
+        dict(facts([fact_issue(7)], branches=branches), default_branch="main"), cfg
+    )
+    # Neither in flight for the issue its name says nor a pushed branch with no PR.
+    assert result["items"][0]["in_flight"] == []
+    assert result["other_branches"] == [{"name": "wip", "ahead_by": 2}]
+    assert (
+        "skipped 2 branches with no history in common with main: 7-shots, assets/shots"
+        in result["notes"]
+    )
+
+
+def test_next_skips_a_branch_with_no_history_in_common(env):
+    world = Repo().world()
+    branches = world.rest["/repos/acme/widgets/branches"]
+    world.route(
+        "/repos/acme/widgets/branches",
+        lambda url: response(
+            json.loads(branches(url).body) + [{"name": "assets/shots", "commit": {"sha": "s"}}]
+        ),
+    )
+    world.route(
+        "/repos/acme/widgets/compare/main...assets/shots",
+        {"message": "No common ancestor between main and assets/shots."},
+        status=404,
+    )
+    code, text = run_next(env, http=world)
+    assert code == 0
+    assert "FAILED" not in text
+    assert "assets/shots has no PR" not in text
+    assert "(skipped 1 branch with no history in common with main: assets/shots)" in text
+
+
+def test_next_still_fails_the_branches_read_on_any_other_404(env):
+    world = Repo().world()
+    world.route("/repos/acme/widgets/compare/main...old-1", {"message": "Not Found"}, status=404)
+    code, text = run_next(env, http=world)
+    assert code == 1
+    assert "branches: FAILED (HTTP 404" in text
+
+
 def fact_change(number, title, branch):
     return {
         "number": number,

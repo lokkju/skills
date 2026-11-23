@@ -71,6 +71,19 @@ def change_word(forge: Optional[str]) -> str:
     return "MR" if forge == "gitlab" else "PR"
 
 
+def unrelated_note(names: list[str], default: Optional[str]) -> Optional[str]:
+    """The one line `/next` and `/groom` print for branches with no history in common with the
+    default branch (an orphan branch of screenshots or pages), which neither looks at further;
+    None when there are none."""
+    if not names:
+        return None
+    count = f"{len(names)} branch{'es' if len(names) != 1 else ''}"
+    return (
+        f"skipped {count} with no history in common with {default or 'the default branch'}: "
+        f"{', '.join(sorted(names))}"
+    )
+
+
 # A date as dashed, dotted or underscored parts, with an optional build counter after it.
 _DATE = re.compile(r"(?<![\d.])\d{4}[-._]\d{1,2}[-._]\d{1,2}(?:[-._]\d+)?(?![\d.])")
 # Words that say the number after them is an issue.

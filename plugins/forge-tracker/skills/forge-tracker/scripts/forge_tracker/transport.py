@@ -371,6 +371,7 @@ class ReadTransport:
             raise HTTPStatusError(
                 redact(f"HTTP {response.status} from {path}: {message}", self._secrets()),
                 response.status,
+                redact(str(message), self._secrets(), limit=4 * ERROR_LIMIT),
             )
         if not_json:
             raise ForgeError(f"{urllib.parse.urlsplit(url).path} returned something not JSON")

@@ -3251,6 +3251,14 @@
    }
   },
   {
+   "path": "/repos/acme/widgets/compare/old-spike...main",
+   "response": {
+    "total_commits": 1,
+    "commits": [],
+    "files": []
+   }
+  },
+  {
    "path": "/repos/acme/widgets/compare/main...wip-idea",
    "response": {
     "total_commits": 2,

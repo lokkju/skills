@@ -486,7 +486,24 @@ class GitLab:
             raise ForgeError(f"compare {base}...{head} returned no commits")
         return compare
 
+    def _unrelated(self, base: str, head: str) -> bool:
+        """Whether `base` and `head` share no history: GitLab answers the merge base read with
+        a 404 saying it found none. Any other failure still fails."""
+        q = urllib.parse.quote
+        path = f"{self.repo_path}/repository/merge_base?refs[]={q(base, safe='')}&refs[]="
+        try:
+            self.t.get(path + q(head, safe=""))
+        except HTTPStatusError as error:
+            if error.status == 404 and "merge base not found" in error.detail.lower():
+                return True
+            raise
+        return False
+
     def branches(self, default_branch: str, open_changes: list[Change]) -> list[Branch]:
+        """Every branch but the default. GitLab answers a compare across unrelated histories
+        with every commit on the branch, down to its root, so a compare listing a root commit
+        (no parents) is followed by a merge base read; with none, the branch is `unrelated`. A
+        root commit can also come from merging in another history, which keeps a merge base."""
         with_change = {c.branch for c in open_changes}
         raw = [
             b
@@ -499,6 +516,16 @@ class GitLab:
             ahead = head_date = None
             if name not in with_change:
                 commits = self._compare(default_branch, name)["commits"]
+                if any(c.get("parent_ids") == [] for c in commits) and self._unrelated(
+                    default_branch, name
+                ):
+                    return Branch(
+                        name,
+                        (b.get("commit") or {}).get("id") or "",
+                        False,
+                        protected=bool(b.get("protected")),
+                        unrelated=True,
+                    )
                 ahead = len(commits)
                 dates = [parse_time(c.get("committed_date")) for c in commits]
                 dates = [d for d in dates if d is not None]

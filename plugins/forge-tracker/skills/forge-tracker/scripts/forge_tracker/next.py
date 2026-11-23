@@ -161,7 +161,13 @@ def _closing(ref: ClosingRef) -> dict[str, Any]:
 
 
 def _branch(b: Branch) -> dict[str, Any]:
-    return {"name": b.name, "sha": b.sha, "has_change": b.has_change, "ahead_by": b.ahead_by}
+    return {
+        "name": b.name,
+        "sha": b.sha,
+        "has_change": b.has_change,
+        "ahead_by": b.ahead_by,
+        "unrelated": b.unrelated,
+    }
 
 
 def gather(adapter: Any, default_branch: Optional[str], workers: int = 4) -> dict[str, Read]:
@@ -370,6 +376,14 @@ def classify(
     setup = config.setup_note(("labels.needs_human", "labels.decision"))
     if setup:
         result["notes"].append(setup)
+    # A branch with no history in common with the default branch can't be work in flight
+    # against it: it's left out of everything below, with one line saying so.
+    unrelated = [b["name"] for b in branches or [] if b.get("unrelated")]
+    if branches is not None:
+        branches = [b for b in branches if not b.get("unrelated")]
+    note = refs.unrelated_note(unrelated, facts.get("default_branch"))
+    if note:
+        result["notes"].append(note)
     if issues is None:
         return result
 

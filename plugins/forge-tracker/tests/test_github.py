@@ -359,6 +359,46 @@ def test_branches_compare_only_branches_without_a_change(transport_for):
     ]
 
 
+def test_branches_mark_a_branch_with_no_history_in_common_with_the_default(transport_for):
+    # GitHub answers a compare across unrelated histories (an orphan branch of screenshots,
+    # say) with a 404 naming the missing common ancestor.
+    world = (
+        World()
+        .route(
+            "/repos/acme/widgets/branches",
+            [
+                {"name": "main", "commit": {"sha": "m"}},
+                {"name": "assets/shots", "commit": {"sha": "s"}},
+                {"name": "wip", "commit": {"sha": "w"}},
+            ],
+        )
+        .route(
+            "/repos/acme/widgets/compare/main...assets/shots",
+            {"message": "No common ancestor between main and assets/shots."},
+            status=404,
+        )
+        .route("/repos/acme/widgets/compare/main...wip", {"ahead_by": 1, "commits": []})
+    )
+    shots, wip = adapter(world, transport_for).branches("main", [])
+    assert (shots.name, shots.sha, shots.unrelated, shots.ahead_by) == (
+        "assets/shots",
+        "s",
+        True,
+        None,
+    )
+    assert (wip.unrelated, wip.ahead_by) == (False, 1)
+
+
+def test_branches_still_fail_on_any_other_404(transport_for):
+    world = (
+        World()
+        .route("/repos/acme/widgets/branches", [{"name": "gone", "commit": {"sha": "g"}}])
+        .route("/repos/acme/widgets/compare/main...gone", {"message": "Not Found"}, status=404)
+    )
+    read = attempt(lambda: adapter(world, transport_for).branches("main", []))
+    assert not read.ok and "HTTP 404" in read.error and "Not Found" in read.error
+
+
 def test_blocking_links_are_native_and_mark_closed_blockers(transport_for):
     world = World().op(
         "BlockingLinks",
