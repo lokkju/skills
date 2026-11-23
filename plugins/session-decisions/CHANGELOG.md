@@ -1,5 +1,11 @@
 # Changelog
 
+## [session-decisions--v2026.11.23.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.11.06.1...session-decisions--v2026.11.23.1) (2026-11-23)
+
+### Fixes
+
+- **session-decisions:** type the quoted labels in the hand-off check ([2fa6930](https://github.com/lokkju/skills/commit/2fa6930f3d38522ac91f51a477d037c9ab008010))
+
 ## [session-decisions--v2026.11.06.1](https://github.com/lokkju/skills/compare/session-decisions--v2026.11.05.2...session-decisions--v2026.11.06.1) (2026-11-06)
 
 ### Fixes

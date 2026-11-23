@@ -1,5 +1,11 @@
 # Changelog
 
+## [forge-tracker--v2026.11.23.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.11.06.1...forge-tracker--v2026.11.23.1) (2026-11-23)
+
+### Fixes
+
+- **forge-tracker:** skip branches with no history in common with the default branch ([daaf899](https://github.com/lokkju/skills/commit/daaf89912dc439e7f2451a29b288beec7f07871b))
+
 ## [forge-tracker--v2026.11.06.1](https://github.com/lokkju/skills/compare/forge-tracker--v2026.11.05.2...forge-tracker--v2026.11.06.1) (2026-11-06)
 
 ### Fixes
